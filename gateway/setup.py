@@ -55,11 +55,13 @@ class FleetSetup:
         except Exception:
             return None
 
-    def update_user(self, name: str, preferred_name: str = "") -> Optional[Dict]:
+    def update_user(self, name: str, preferred_name: str = "", timezone: str = "") -> Optional[Dict]:
         """Update the current user's profile."""
         data = {"name": name}
         if preferred_name:
             data["preferred_name"] = preferred_name
+        if timezone:
+            data["timezone"] = timezone
         try:
             r = httpx.patch(
                 f"{self.mc_url}/api/v1/users/me",
@@ -247,6 +249,17 @@ class FleetSetup:
         return agents
 
 
+def _detect_timezone() -> str:
+    """Detect system timezone."""
+    try:
+        tz_file = Path("/etc/timezone")
+        if tz_file.exists():
+            return tz_file.read_text().strip()
+    except Exception:
+        pass
+    return "America/Toronto"
+
+
 def run_setup() -> int:
     """Interactive fleet setup."""
     mc_url = os.environ.get("OCF_MISSION_CONTROL_URL", "http://localhost:8000")
@@ -284,10 +297,11 @@ def run_setup() -> int:
         return 1
     print(f"   OK: {user.get('name', '?')} ({user.get('email', '?')})")
 
-    if user.get("name") == "Local User":
+    if user.get("name") == "Local User" or not user.get("timezone"):
+        tz = _detect_timezone()
         print("   Updating user profile...")
-        setup.update_user("Jean Fortin", "Jean")
-        print("   Updated: Jean Fortin")
+        setup.update_user("Jean Fortin", "Jean", timezone=tz)
+        print(f"   Updated: Jean Fortin (timezone: {tz})")
 
     # Step 3: Organization
     print("\n3. Checking organization...")
