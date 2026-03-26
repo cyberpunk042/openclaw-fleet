@@ -214,9 +214,10 @@ class GatewayProtocol:
         # Record user message
         session.add_message("user", message)
 
-        # Execute via Claude Code
-        result = await asyncio.to_thread(
-            self._execute_claude, message, agent_config, agent_dir
+        # Execute via Claude Code (in executor to avoid blocking the event loop)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, self._execute_claude, message, agent_config, agent_dir
         )
 
         # Record assistant response
