@@ -1,22 +1,27 @@
 name: openclaw-fleet
 description: AI agent workforce powered by OpenClaw Mission Control
 created: '2026-03-26T00:00:00Z'
-phase: scaffolded
+phase: setup-complete
 milestones: []
 decisions:
-  - decision: Mission Control is the central operations surface, not optional
-    context: User requirement — we feed it and dance with it
-    timestamp: '2026-03-26T00:00:00Z'
-  - decision: Python core + TypeScript dashboard (via mission-control)
-    context: Python for gateway/agent logic, mission-control handles frontend
-    timestamp: '2026-03-26T00:00:00Z'
-  - decision: Direct Claude Code CLI for AI execution
-    context: Agents execute through Claude Code directly, subscription-based
-    timestamp: '2026-03-26T00:00:00Z'
-  - decision: Mix execution model — definitions + persistent agents
-    context: Simple agents are configs, complex agents (ocf-tag) can be services
-    timestamp: '2026-03-26T00:00:00Z'
-  - decision: No USD budget constraints — subscription model
-    context: User runs on Claude subscription, not per-token billing
-    timestamp: '2026-03-26T00:00:00Z'
+- decision: Mission Control is the central operations surface, not optional
+  context: "User requirement \u2014 we feed it and dance with it"
+  timestamp: '2026-03-26T00:00:00Z'
+- decision: Python core + TypeScript dashboard (via mission-control)
+  context: Python for gateway/agent logic, mission-control handles frontend
+  timestamp: '2026-03-26T00:00:00Z'
+- decision: Direct Claude Code CLI for AI execution
+  context: Agents execute through Claude Code directly, subscription-based
+  timestamp: '2026-03-26T00:00:00Z'
+- decision: "Mix execution model \u2014 definitions + persistent agents"
+  context: Simple agents are configs, complex agents (ocf-tag) can be services
+  timestamp: '2026-03-26T00:00:00Z'
+- decision: "No USD budget constraints \u2014 subscription model"
+  context: User runs on Claude subscription, not per-token billing
+  timestamp: '2026-03-26T00:00:00Z'
 last_session: null
+setup:
+  mission_control_url: http://localhost:8000
+  user: Jean Fortin
+  organization: OpenClaw Fleet
+  board: Fleet Operations

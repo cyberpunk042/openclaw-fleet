@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install deps first (cached layer)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir pyyaml httpx rich
+RUN pip install --no-cache-dir pyyaml httpx rich websockets
 
 # Copy application code
 COPY gateway/ gateway/
