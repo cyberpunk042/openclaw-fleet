@@ -259,8 +259,11 @@ class GatewayProtocol:
         cmd.extend(["--max-turns", "15"])
 
         # Mode enforcement
+        # Note: --permission-mode plan returns empty result in JSON for opus.
+        # Instead, enforce think mode via tool restrictions + system prompt.
         if mode == "think":
-            cmd.extend(["--permission-mode", "plan"])
+            cmd.extend(["--allowedTools", "Read", "Glob", "Grep"])
+            cmd.extend(["--disallowedTools", "Edit", "Write", "Bash"])
         elif mode == "edit":
             cmd.extend(["--allowedTools", "Read", "Edit", "Write", "Glob", "Grep"])
             cmd.extend(["--disallowedTools", "Bash"])

@@ -19,7 +19,9 @@ decisions:
 - decision: "No USD budget constraints \u2014 subscription model"
   context: User runs on Claude subscription, not per-token billing
   timestamp: '2026-03-26T00:00:00Z'
-last_session: null
+last_session:
+  timestamp: '2026-03-26T21:58:40.547780Z'
+  summary: Assessment completed
 setup:
   mission_control_url: http://localhost:8000
   user: Jean Fortin
