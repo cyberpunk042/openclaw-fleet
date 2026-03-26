@@ -1,0 +1,16 @@
+# OpenClaw Fleet Configuration
+
+fleet:
+  name: openclaw-fleet
+  version: 0.1.0
+
+gateway:
+  port: 9400
+  claude_model: opus
+  default_mode: think
+
+mission_control:
+  url: http://localhost:8000
+  enabled: true
+
+agents_dir: agents

@@ -1,0 +1,1 @@
+"""OCF Gateway — executes agent work via Claude Code and LocalAI."""

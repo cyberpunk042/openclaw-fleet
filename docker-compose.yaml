@@ -1,0 +1,86 @@
+# OpenClaw Fleet — Mission Control + Gateway
+#
+# Start: docker compose up -d
+# Access: http://localhost:3000 (Mission Control UI)
+#         http://localhost:8000 (Mission Control API)
+#         http://localhost:9400 (OCF Gateway)
+
+services:
+  # === Mission Control (from openclaw-mission-control) ===
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mission_control}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mission-control-backend:
+    build:
+      context: ./vendor/openclaw-mission-control
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-mission_control}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DB_AUTO_MIGRATE: "true"
+      AUTH_MODE: ${AUTH_MODE:-local}
+      LOCAL_AUTH_TOKEN: ${LOCAL_AUTH_TOKEN}
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      RQ_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  mission-control-frontend:
+    build:
+      context: ./vendor/openclaw-mission-control/frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: ${BASE_URL:-http://localhost:8000}
+    depends_on:
+      - mission-control-backend
+    ports:
+      - "3000:3000"
+
+  # === OCF Gateway (our code) ===
+
+  ocf-gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      OCF_MISSION_CONTROL_URL: http://mission-control-backend:8000
+      OCF_GATEWAY_PORT: "9400"
+    volumes:
+      - ./agents:/app/agents:ro
+      - ./config:/app/config:ro
+    depends_on:
+      - mission-control-backend
+    ports:
+      - "127.0.0.1:9400:9400"
+
+volumes:
+  postgres_data:

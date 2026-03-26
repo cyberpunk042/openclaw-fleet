@@ -1,0 +1,12 @@
+name: template
+type: definition
+description: Template agent — copy this to create new agents
+mission: Define the agent's mission here
+
+capabilities: []
+
+mode: think
+backend: claude
+constraints:
+  max_turns: 15
+  approval_required: false
