@@ -99,23 +99,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # --- OCF Gateway (our code) ---
-
-  ocf-gateway:
-    build:
-      context: .
-      dockerfile: gateway/Dockerfile
-    environment:
-      OCF_MISSION_CONTROL_URL: http://backend:8000
-      OCF_GATEWAY_PORT: "9400"
-    volumes:
-      - ./agents:/app/agents:ro
-      - ./config:/app/config:ro
-    depends_on:
-      - backend
-    ports:
-      - "127.0.0.1:${OCF_GATEWAY_PORT:-9400}:9400"
-    restart: unless-stopped
+  # OCF Gateway runs on the host (not in Docker)
+  # It needs direct access to Claude Code CLI
+  # Start it with: python -m gateway
 
 volumes:
   postgres_data:

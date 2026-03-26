@@ -322,7 +322,10 @@ def run_setup() -> int:
     gateways = setup.list_gateways()
     gw = next((g for g in gateways if g.get("name") == "OCF Gateway"), None)
     if not gw:
-        gw = setup.register_gateway("OCF Gateway", "ws://ocf-gateway:9400")
+        # Gateway runs on host, MC backend in Docker reaches it via host IP
+        import socket
+        host_ip = socket.gethostbyname(socket.gethostname())
+        gw = setup.register_gateway("OCF Gateway", f"ws://{host_ip}:9400")
         if gw:
             print(f"   OK: Registered (id: {gw.get('id', '?')})")
         else:

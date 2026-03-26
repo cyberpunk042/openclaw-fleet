@@ -50,8 +50,14 @@ cd openclaw-fleet
 cp .env.example .env
 # Edit .env with your settings
 
-# Start (Mission Control + Gateway)
+# Start Mission Control (Postgres, Redis, backend, frontend)
 docker compose up -d
+
+# Start OCF Gateway (runs on host, needs Claude Code CLI)
+python -m gateway &
+
+# First-time setup (registers org, board, agents in MC)
+python -m gateway.setup
 
 # Access Mission Control
 open http://localhost:3000
