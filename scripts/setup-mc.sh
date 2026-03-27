@@ -24,6 +24,9 @@ if [[ ! -d vendor/openclaw-mission-control ]]; then
     git clone https://github.com/abhi1693/openclaw-mission-control.git vendor/openclaw-mission-control
 fi
 
+# Apply fleet patches to vendor
+bash scripts/apply-patches.sh
+
 # Start Docker services
 echo "Starting Mission Control services..."
 docker compose up -d --build 2>&1 | tail -5

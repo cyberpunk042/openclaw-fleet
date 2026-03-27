@@ -1,0 +1,89 @@
+diff --git a/backend/app/api/skills_marketplace.py b/backend/app/api/skills_marketplace.py
+index 5c9fe72..fbb53db 100644
+--- a/backend/app/api/skills_marketplace.py
++++ b/backend/app/api/skills_marketplace.py
+@@ -1064,12 +1064,22 @@ async def create_marketplace_skill(
+         if payload.description is not None and existing.description != payload.description:
+             existing.description = payload.description
+             changed = True
++        if payload.category is not None and existing.category != payload.category:
++            existing.category = payload.category
++            changed = True
++        if payload.risk is not None and existing.risk != payload.risk:
++            existing.risk = payload.risk
++            changed = True
+         if changed:
+             existing.updated_at = utcnow()
+             session.add(existing)
+             await session.commit()
+             await session.refresh(existing)
+-        existing.metadata_ = existing.metadata_ or {}
++        # Ensure metadata_ serializes as a plain dict for Pydantic response validation
++        try:
++            existing.metadata_ = dict(existing.metadata_) if existing.metadata_ else {}
++        except (TypeError, ValueError):
++            existing.metadata_ = {}
+         return existing
+ 
+     skill = MarketplaceSkill(
+@@ -1077,12 +1087,17 @@ async def create_marketplace_skill(
+         source_url=source_url,
+         name=payload.name or _infer_skill_name(source_url),
+         description=payload.description,
++        category=payload.category,
++        risk=payload.risk,
+         metadata_={},
+     )
+     session.add(skill)
+     await session.commit()
+     await session.refresh(skill)
+-    skill.metadata_ = skill.metadata_ or {}
++    try:
++        skill.metadata_ = dict(skill.metadata_) if skill.metadata_ else {}
++    except (TypeError, ValueError):
++        skill.metadata_ = {}
+     return skill
+ 
+ 
+diff --git a/backend/app/schemas/skills_marketplace.py b/backend/app/schemas/skills_marketplace.py
+index df75eb5..d925ef2 100644
+--- a/backend/app/schemas/skills_marketplace.py
++++ b/backend/app/schemas/skills_marketplace.py
+@@ -5,7 +5,7 @@ from __future__ import annotations
+ from datetime import datetime
+ from uuid import UUID
+ 
+-from pydantic import AnyHttpUrl
++from pydantic import AnyHttpUrl, field_validator
+ from sqlmodel import Field, SQLModel
+ from sqlmodel._compat import SQLModelConfig
+ 
+@@ -20,6 +20,8 @@ class MarketplaceSkillCreate(SQLModel):
+     source_url: AnyHttpUrl
+     name: NonEmptyStr | None = None
+     description: str | None = None
++    category: str | None = None
++    risk: str | None = None
+ 
+ 
+ class SkillPackCreate(SQLModel):
+@@ -49,6 +51,19 @@ class MarketplaceSkillRead(SQLModel):
+ 
+     model_config = SQLModelConfig(validate_by_name=True)
+ 
++    @field_validator("metadata_", mode="before")
++    @classmethod
++    def coerce_metadata(cls, v: object) -> dict[str, object]:
++        """Coerce SQLAlchemy JSON column value to plain dict."""
++        if v is None:
++            return {}
++        if isinstance(v, dict):
++            return v
++        try:
++            return dict(v)
++        except (TypeError, ValueError):
++            return {}
++
+     created_at: datetime
+     updated_at: datetime
+ 
