@@ -1,0 +1,8 @@
+# Skill packs to register in OCMC marketplace.
+# Synced automatically during setup.
+
+packs:
+  - name: Anthropic Official
+    source_url: https://github.com/anthropics/skills
+    description: Official Claude Code skills from Anthropic
+    branch: main
