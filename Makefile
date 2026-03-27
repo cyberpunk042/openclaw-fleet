@@ -35,9 +35,13 @@ integrate:
 dispatch:
 	@bash scripts/dispatch-task.sh $(AGENT) $(TASK) $(if $(PROJECT),--project $(PROJECT))
 
-# Monitor a task: make monitor TASK=<uuid>
+# Monitor a task in real-time: make monitor TASK=<uuid>
 monitor:
 	@bash scripts/monitor-task.sh $(TASK)
+
+# Full task trace (details, activity, worktree, commits): make trace TASK=<uuid>
+trace:
+	@bash scripts/trace-task.sh $(TASK)
 
 # Chat with agents: make chat MSG="your message" or make chat MSG="@architect review this"
 chat:
