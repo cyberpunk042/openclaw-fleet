@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 
@@ -45,7 +45,7 @@ class Timeline:
 
 @dataclass
 class Actor:
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     name: str = ""
     role: str = ""
     organization: str = ""
@@ -54,7 +54,7 @@ class Actor:
 
 @dataclass
 class Evidence:
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     type: EvidenceType = EvidenceType.DOCUMENT
     source: str = ""
     description: str = ""
@@ -66,7 +66,7 @@ class Evidence:
 class Action:
     """A discrete act by one or more actors, backed by evidence."""
 
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     description: str = ""
     actor_ids: list[str] = field(default_factory=list)
     evidence_ids: list[str] = field(default_factory=list)
@@ -80,7 +80,7 @@ class Action:
 class Claim:
     """Central unit of accountability. Everything hangs off a Claim."""
 
-    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     title: str = ""
     summary: str = ""
     status: ClaimStatus = ClaimStatus.DRAFT
@@ -89,3 +89,5 @@ class Claim:
     evidence: list[Evidence] = field(default_factory=list)
     timeline: Timeline | None = None
     tags: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)

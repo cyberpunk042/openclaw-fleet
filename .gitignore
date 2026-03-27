@@ -13,3 +13,7 @@ venv/
 .DS_Store
 node_modules/
 vendor/
+workspace-gateway-*/
+workspace-mc-*/
+projects/
+logs/

@@ -1,21 +1,20 @@
-# Projects the fleet can operate on
-# Each project has a path and optional CLAUDE.md override
+# Projects the fleet can operate on.
+# Cloned to projects/<name>/ on first use.
+# Paths are resolved relative to the fleet directory at runtime.
 
 projects:
   openclaw-fleet:
-    path: /home/jfortin/openclaw-fleet
-    description: The fleet itself
-    default: true
+    description: The fleet itself (this repo)
+    local: true  # no clone needed, it's the fleet dir
 
   aicp:
-    path: /home/jfortin/devops-expert-local-ai
     description: AI Control Platform
+    repo: https://github.com/cyberpunk042/devops-expert-local-ai
 
   ocf-tag:
-    path: /home/jfortin/openclaw-fleet/agents/accountability-generator
     description: The Accountability Generator
+    local: true  # lives inside this repo at agents/accountability-generator/
 
   nnrt:
-    path: /home/jfortin/Narrative-to-Neutral-Report-Transformer
     description: Narrative-to-Neutral Report Transformer
     repo: https://github.com/cyberpunk042/Narrative-to-Neutral-Report-Transformer

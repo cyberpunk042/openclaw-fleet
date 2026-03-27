@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from agents.accountability_generator.src.models import (
+from src.models import (
     Action,
     Actor,
     Claim,
@@ -31,7 +31,7 @@ class TestTimeline:
 class TestActor:
     def test_auto_id(self) -> None:
         a = Actor(name="Jane")
-        assert len(a.id) == 12
+        assert len(a.id) == 32  # full uuid4 hex (128-bit)
 
     def test_aliases_default(self) -> None:
         a = Actor()

@@ -7,7 +7,7 @@ persistence to a ClaimStore.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from .models import (
     Action,
@@ -52,6 +52,11 @@ class IntakeService:
         if not title.strip():
             raise IntakeError("Claim title must not be empty")
 
+        if start is None and (end is not None or timeline_description):
+            raise IntakeError(
+                "Cannot set timeline end or description without a start date"
+            )
+
         timeline = (
             Timeline(start=start, end=end, description=timeline_description)
             if start is not None
@@ -78,8 +83,13 @@ class IntakeService:
         """Transition a claim to a new status."""
         claim = self.get_claim(claim_id)
         claim.status = status
+        claim.updated_at = datetime.utcnow()
         self._store.save(claim)
         return claim
+
+    def list_claims(self) -> list[Claim]:
+        """Return all claims in the store."""
+        return list(self._store.list_all())
 
     # ── Actors ─────────────────────────────────────────────────
 

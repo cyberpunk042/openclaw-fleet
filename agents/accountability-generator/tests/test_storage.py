@@ -1,7 +1,7 @@
 """Tests for InMemoryClaimStore."""
 
-from agents.accountability_generator.src.models import Claim
-from agents.accountability_generator.src.storage import InMemoryClaimStore
+from src.models import Claim
+from src.storage import InMemoryClaimStore
 
 
 class TestInMemoryClaimStore:

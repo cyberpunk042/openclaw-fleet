@@ -4,9 +4,9 @@ from datetime import date
 
 import pytest
 
-from agents.accountability_generator.src.intake import IntakeError, IntakeService
-from agents.accountability_generator.src.models import ClaimStatus, EvidenceType
-from agents.accountability_generator.src.storage import InMemoryClaimStore
+from src.intake import IntakeError, IntakeService
+from src.models import ClaimStatus, EvidenceType
+from src.storage import InMemoryClaimStore
 
 
 @pytest.fixture

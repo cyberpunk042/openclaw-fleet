@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenClaw Fleet Gateway
+Documentation=https://docs.openclaw.ai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory={{FLEET_DIR}}
+Environment=PATH={{OPENCLAW_BIN_DIR}}:/usr/local/bin:/usr/bin:/bin
+Environment=HOME={{HOME}}
+ExecStart={{OPENCLAW_BIN}} gateway run --port 18789
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-fleet
+
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

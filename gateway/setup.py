@@ -374,8 +374,43 @@ def run_setup() -> int:
     else:
         print("\n   Skipping agents (no board)")
 
-    # Step 7: Save setup state
-    print("\n7. Saving setup state...")
+    # Step 7: Sync templates (push TOOLS.md + SOUL.md to agents)
+    if gw:
+        gw_id = gw.get("id", "")
+        print("\n7. Syncing agent templates...")
+        try:
+            r = httpx.post(
+                f"{mc_url}/api/v1/gateways/{gw_id}/templates/sync?rotate_tokens=true&force_bootstrap=true",
+                headers=setup.headers, json={}, timeout=30.0,
+            )
+            if r.status_code in (200, 201):
+                result = r.json()
+                updated = result.get("agents_updated", 0)
+                errors = result.get("errors", [])
+                print(f"   OK: {updated} agents provisioned")
+                for err in errors[:3]:
+                    print(f"   WARN: {err.get('agent_name', '?')}: {err.get('message', '?')[:100]}")
+            else:
+                print(f"   WARN: Template sync returned {r.status_code}")
+        except Exception as e:
+            print(f"   WARN: Template sync failed: {e}")
+
+    # Step 8: Push SOUL.md to agent workspaces
+    print("\n8. Pushing SOUL.md to agent workspaces...")
+    push_script = Path(__file__).parent.parent / "scripts" / "push-soul.sh"
+    if push_script.exists():
+        import subprocess
+        result = subprocess.run(["bash", str(push_script)], capture_output=True, text=True)
+        if result.returncode == 0:
+            for line in result.stdout.strip().split("\n")[-3:]:
+                print(f"   {line}")
+        else:
+            print(f"   WARN: push-soul.sh failed: {result.stderr[:200]}")
+    else:
+        print("   SKIP: scripts/push-soul.sh not found")
+
+    # Step 9: Save setup state
+    print("\n9. Saving setup state...")
     state_path = Path(__file__).parent.parent / ".aicp" / "state.yaml"
     if state_path.exists():
         with open(state_path) as f:
