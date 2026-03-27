@@ -1,0 +1,102 @@
+# Skill assignments — which marketplace skills to install on the gateway
+# and which agents benefit from each.
+#
+# Skills are gateway-wide (all agents CAN see them), but this config
+# documents the intended mapping and drives the install script.
+#
+# name: must match the skill name as discovered in the marketplace
+# install: true/false — whether to auto-install during setup
+# agents: list of agents that primarily use this skill
+# category: override if the source doesn't set one
+
+skills:
+  # --- From Anthropic Official pack ---
+  - name: pdf
+    install: true
+    agents: [technical-writer, architect]
+    category: documents
+
+  - name: docx
+    install: true
+    agents: [technical-writer]
+    category: documents
+
+  - name: xlsx
+    install: true
+    agents: [software-engineer, architect]
+    category: documents
+
+  - name: pptx
+    install: false
+    agents: []
+    category: documents
+
+  - name: claude-api
+    install: true
+    agents: [software-engineer, architect]
+    category: development
+
+  - name: mcp-builder
+    install: true
+    agents: [software-engineer, devops]
+    category: development
+
+  - name: frontend-design
+    install: true
+    agents: [ux-designer, software-engineer]
+    category: design
+
+  - name: webapp-testing
+    install: true
+    agents: [qa-engineer, software-engineer]
+    category: testing
+
+  - name: skill-creator
+    install: true
+    agents: [architect, software-engineer]
+    category: development
+
+  - name: doc-coauthoring
+    install: true
+    agents: [technical-writer, architect]
+    category: documentation
+
+  - name: canvas-design
+    install: false
+    agents: [ux-designer]
+    category: design
+
+  - name: internal-comms
+    install: false
+    agents: [technical-writer]
+    category: communication
+
+  - name: brand-guidelines
+    install: false
+    agents: []
+    category: design
+
+  - name: algorithmic-art
+    install: false
+    agents: []
+    category: creative
+
+  - name: slack-gif-creator
+    install: false
+    agents: []
+    category: creative
+
+  - name: theme-factory
+    install: false
+    agents: [ux-designer]
+    category: design
+
+  - name: web-artifacts-builder
+    install: false
+    agents: [ux-designer, software-engineer]
+    category: development
+
+  - name: template-skill
+    install: false
+    agents: []
+    category: meta

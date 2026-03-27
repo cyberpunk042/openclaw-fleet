@@ -82,6 +82,9 @@ echo ""
 echo "Pushing SOUL.md and workspace settings..."
 bash scripts/push-soul.sh
 
-# Register skill packs in marketplace
+# Register skill packs in marketplace and install skills
 echo ""
 bash scripts/register-skill-packs.sh
+echo ""
+echo "Installing fleet skills..."
+bash scripts/install-skills.sh

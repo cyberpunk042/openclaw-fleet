@@ -1,8 +1,14 @@
 # Skill packs to register in OCMC marketplace.
 # Synced automatically during setup.
+#
+# category/risk defaults are applied to skills discovered from each pack
+# when the source repo doesn't set them (prevents UI filter hiding).
 
 packs:
   - name: Anthropic Official
     source_url: https://github.com/anthropics/skills
     description: Official Claude Code skills from Anthropic
     branch: main
+    defaults:
+      category: development
+      risk: low

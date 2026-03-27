@@ -50,6 +50,8 @@ services:
     build:
       context: ./vendor/openclaw-mission-control
       dockerfile: backend/Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - path: ./vendor/openclaw-mission-control/backend/.env
         required: false

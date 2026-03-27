@@ -59,6 +59,24 @@ agents:
 agents-register:
 	bash scripts/register-agents.sh
 
+# ─── Skills ────────────────────────────────────────────────────────────────
+
+# List skills that would be installed
+skills-list:
+	@bash scripts/install-skills.sh --list
+
+# Install configured skills on the gateway
+skills-install:
+	@bash scripts/install-skills.sh
+
+# Install a specific skill: make skill-install SKILL=pdf
+skill-install:
+	@bash scripts/install-skills.sh --skill $(SKILL)
+
+# Re-sync skill packs from source repos
+skills-sync:
+	@bash scripts/register-skill-packs.sh
+
 # ─── Infrastructure ─────────────────────────────────────────────────────────
 
 mc-up:
