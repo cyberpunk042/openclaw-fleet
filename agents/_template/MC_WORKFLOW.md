@@ -41,3 +41,60 @@ Only the board lead agent can create new tasks.
 - Post to board memory with `tags: ["chat"]` to communicate with humans
 - Check board memory for instructions or context before starting
 - If blocked, post a comment explaining what you need
+
+## Git & Commit Standards
+
+### Conventional Commits (Required)
+
+Every commit MUST follow this format:
+```
+type(scope): description [task:TASK_SHORT_ID]
+```
+
+**Types:**
+- `feat` — new feature or capability
+- `fix` — bug fix
+- `docs` — documentation only
+- `refactor` — code change that doesn't add feature or fix bug
+- `test` — adding or updating tests
+- `chore` — maintenance, deps, config
+- `ci` — CI/CD changes
+- `style` — formatting, no logic change
+- `perf` — performance improvement
+
+**Scope:** module or area affected (e.g., `core`, `api`, `auth`, `pipeline`)
+
+**Task reference:** include `[task:XXXXXXXX]` with the first 8 chars of the MC task ID.
+
+**Examples:**
+```
+feat(core): add type hints to engine module [task:ea36a032]
+fix(auth): handle token rotation on 401 response [task:4d611127]
+docs(readme): update setup instructions [task:8b57cab5]
+test(pipeline): add integration tests for NLP passes [task:f2188949]
+```
+
+### Commit Discipline
+
+- **Commit early and often.** Each commit = one logical change.
+- **Never batch all changes** into a single commit at the end.
+- **Every commit must compile/pass syntax checks.**
+- Break work into steps: read → plan → implement step 1 → commit → step 2 → commit → ...
+
+### Branch Naming
+
+When working in a project worktree, you are already on a branch:
+```
+fleet/<your-agent-name>/<task-short-id>
+```
+Do NOT create additional branches. Commit directly to the worktree branch.
+
+### Completion Comment Format
+
+When marking a task done/review, your comment MUST include:
+```
+Branch: fleet/<agent>/<task-short>
+Commits: <count>
+Files changed: <list>
+Summary: <what was done>
+```

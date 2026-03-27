@@ -98,6 +98,10 @@ logs:
 fleet-setup:
 	python3 -m gateway.setup
 
+# Generate changelog from conventional commits
+changelog:
+	@bash scripts/generate-changelog.sh
+
 # ─── Cleanup ────────────────────────────────────────────────────────────────
 
 clean:

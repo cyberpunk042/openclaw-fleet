@@ -31,16 +31,18 @@ for workspace in "$FLEET_DIR"/workspace-mc-*; do
 
     # Find the agent's role SOUL.md
     role_soul="$AGENTS_DIR/$agent_name/SOUL.md"
+    [[ ! -f "$role_soul" ]] && role_soul="$AGENTS_DIR/$agent_name/CLAUDE.md"
     if [[ ! -f "$role_soul" ]]; then
-        echo "SKIP: $agent_name (no role SOUL.md at $role_soul)"
+        echo "SKIP: $agent_name (no SOUL.md or CLAUDE.md)"
         skipped=$((skipped + 1))
         continue
     fi
 
-    # Combine: role + workflow
+    # Combine: role + standards + workflow
     {
         cat "$role_soul"
         echo ""
+        [[ -f "$AGENTS_DIR/_template/STANDARDS.md" ]] && cat "$AGENTS_DIR/_template/STANDARDS.md" && echo ""
         cat "$WORKFLOW"
     } > "$workspace/SOUL.md"
 
