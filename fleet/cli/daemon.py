@@ -1,0 +1,201 @@
+"""Fleet daemons — background services for sync and monitoring.
+
+Replaces: scripts/fleet-sync-daemon.sh, scripts/fleet-monitor-daemon.sh
+Usage:
+  python -m fleet daemon sync [--interval 60]
+  python -m fleet daemon monitor [--interval 300]
+  python -m fleet daemon all [--sync-interval 60] [--monitor-interval 300]
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import signal
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from fleet.cli.sync import _run_sync
+from fleet.cli.quality import _run_quality
+
+
+async def _run_sync_daemon(interval: int = 60) -> None:
+    """Run fleet sync in a loop."""
+    print(f"[sync] Daemon started (interval={interval}s)")
+    while True:
+        try:
+            ts = datetime.now().strftime("%H:%M:%S")
+            result = await _run_sync()
+        except Exception as e:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [sync] Error: {e}")
+        await asyncio.sleep(interval)
+
+
+async def _run_monitor_daemon(interval: int = 300) -> None:
+    """Run board state monitor in a loop."""
+    from fleet.infra.config_loader import ConfigLoader
+    from fleet.infra.mc_client import MCClient
+    from fleet.infra.irc_client import IRCClient
+    from fleet.templates.irc import format_event
+    import json
+
+    loader = ConfigLoader()
+    env = loader.load_env()
+    token = env.get("LOCAL_AUTH_TOKEN", "")
+
+    oc_path = os.path.expanduser("~/.openclaw/openclaw.json")
+    gateway_token = ""
+    if os.path.exists(oc_path):
+        with open(oc_path) as f:
+            oc_cfg = json.load(f)
+        gateway_token = oc_cfg.get("gateway", {}).get("auth", {}).get("token", "")
+
+    print(f"[monitor] Daemon started (interval={interval}s)")
+
+    while True:
+        try:
+            if not token:
+                await asyncio.sleep(interval)
+                continue
+
+            mc = MCClient(token=token)
+            board_id = await mc.get_board_id()
+            if not board_id:
+                await mc.close()
+                await asyncio.sleep(interval)
+                continue
+
+            tasks = await mc.list_tasks(board_id)
+            agents = await mc.list_agents()
+            irc = IRCClient(gateway_token=gateway_token)
+            now = datetime.now()
+            alerts = 0
+
+            for task in tasks:
+                updated = task.updated_at
+                if not updated:
+                    continue
+
+                hours = (now - updated).total_seconds() / 3600
+
+                # Stale inbox
+                if task.status.value == "inbox" and hours > 1:
+                    try:
+                        await irc.notify(
+                            "#fleet",
+                            format_event("fleet-ops", f"⏰ STALE INBOX", f"{task.title[:50]} ({int(hours)}h)"),
+                        )
+                    except Exception:
+                        pass
+                    alerts += 1
+
+                # Stale review
+                elif task.status.value == "review" and hours > 24:
+                    channel = "#reviews" if task.custom_fields.pr_url else "#fleet"
+                    try:
+                        await irc.notify(
+                            channel,
+                            format_event("fleet-ops", f"⏰ STALE REVIEW", f"{task.title[:50]} ({int(hours)}h)", task.custom_fields.pr_url or ""),
+                        )
+                    except Exception:
+                        pass
+                    alerts += 1
+
+            # Agent health
+            for a in agents:
+                if "Gateway" in a.name:
+                    continue
+                if a.status == "offline" and a.last_seen:
+                    hours = (now - a.last_seen).total_seconds() / 3600
+                    if hours > 2:
+                        try:
+                            await irc.notify(
+                                "#alerts",
+                                format_event("fleet-ops", "🔴 AGENT OFFLINE", f"{a.name} ({int(hours)}h)"),
+                            )
+                        except Exception:
+                            pass
+                        alerts += 1
+
+            ts = datetime.now().strftime("%H:%M:%S")
+            if alerts:
+                print(f"[{ts}] [monitor] {alerts} alerts")
+            else:
+                print(f"[{ts}] [monitor] Board healthy")
+
+            await mc.close()
+
+        except Exception as e:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [monitor] Error: {e}")
+
+        await asyncio.sleep(interval)
+
+
+async def _run_all(sync_interval: int = 60, monitor_interval: int = 300) -> None:
+    """Run both daemons concurrently."""
+    print(f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s)")
+    await asyncio.gather(
+        _run_sync_daemon(sync_interval),
+        _run_monitor_daemon(monitor_interval),
+    )
+
+
+def run_daemon(args: list[str] | None = None) -> int:
+    """Entry point for fleet daemon."""
+    argv = args if args is not None else sys.argv[2:]
+
+    if not argv:
+        print("Usage: fleet daemon <sync|monitor|all> [--interval N]")
+        return 1
+
+    mode = argv[0]
+    interval = 60
+    sync_interval = 60
+    monitor_interval = 300
+
+    i = 1
+    while i < len(argv):
+        if argv[i] == "--interval" and i + 1 < len(argv):
+            interval = int(argv[i + 1]); i += 2
+        elif argv[i] == "--sync-interval" and i + 1 < len(argv):
+            sync_interval = int(argv[i + 1]); i += 2
+        elif argv[i] == "--monitor-interval" and i + 1 < len(argv):
+            monitor_interval = int(argv[i + 1]); i += 2
+        else:
+            i += 1
+
+    # Write PID file
+    fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
+    pid_file = os.path.join(fleet_dir, f".{mode}.pid")
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+
+    def cleanup(*_):
+        try:
+            os.remove(pid_file)
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
+
+    try:
+        if mode == "sync":
+            asyncio.run(_run_sync_daemon(interval))
+        elif mode == "monitor":
+            asyncio.run(_run_monitor_daemon(interval or monitor_interval))
+        elif mode == "all":
+            asyncio.run(_run_all(sync_interval, monitor_interval))
+        else:
+            print(f"Unknown daemon mode: {mode}")
+            return 1
+    except KeyboardInterrupt:
+        pass
+    finally:
+        cleanup()
+
+    return 0

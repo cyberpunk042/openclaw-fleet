@@ -197,11 +197,15 @@ echo ""
 bash scripts/setup-lounge.sh
 echo ""
 
-# Step 11: Start daemons (sync + board monitor)
+# Step 11: Start fleet daemons (sync + board monitor)
 echo "=== Starting Fleet Daemons ==="
-bash scripts/fleet-sync-daemon.sh &
-bash scripts/fleet-monitor-daemon.sh &
-echo "Sync + monitor daemons started"
+if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
+    "$FLEET_DIR/.venv/bin/python" -m fleet daemon all &
+else
+    bash scripts/fleet-sync-daemon.sh &
+    bash scripts/fleet-monitor-daemon.sh &
+fi
+echo "Fleet daemons started"
 echo ""
 
 echo "╔══════════════════════════════════════╗"

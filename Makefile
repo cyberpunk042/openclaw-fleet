@@ -168,16 +168,23 @@ sync:
 
 # Start sync daemon (background, 60s interval)
 sync-start:
-	@bash scripts/fleet-sync-daemon.sh &
-	@echo "Sync daemon started in background"
+	@.venv/bin/python -m fleet daemon sync --interval 60 &
+	@echo "Sync daemon started"
 
 # Stop sync daemon
 sync-stop:
 	@if [ -f .sync.pid ]; then kill $$(cat .sync.pid) 2>/dev/null && echo "Sync daemon stopped" || echo "Not running"; rm -f .sync.pid; else echo "Not running"; fi
 
+# Start all daemons (sync + monitor)
+daemons-start:
+	@.venv/bin/python -m fleet daemon all &
+	@echo "Fleet daemons started (sync + monitor)"
+
+daemons-stop: sync-stop monitor-stop
+
 # Board state monitor (background, 5min interval)
 monitor-start:
-	@bash scripts/fleet-monitor-daemon.sh &
+	@.venv/bin/python -m fleet daemon monitor --interval 300 &
 	@echo "Monitor daemon started"
 
 monitor-stop:
