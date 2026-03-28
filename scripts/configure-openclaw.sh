@@ -46,10 +46,26 @@ if claude_cli.get('command') != 'claude' or '--permission-mode' not in (claude_c
     }
     changed = True
 
+# MCP server: register fleet MCP server for all agents
+mcp = cfg.setdefault('mcp', {})
+servers = mcp.setdefault('servers', {})
+fleet_venv = '$FLEET_DIR/.venv/bin/python'
+if servers.get('fleet', {}).get('command') != fleet_venv:
+    import os
+    servers['fleet'] = {
+        'command': fleet_venv if os.path.exists(fleet_venv) else 'python3',
+        'args': ['-m', 'fleet.mcp.server'],
+        'env': {
+            'FLEET_DIR': '$FLEET_DIR',
+            'PYTHONUNBUFFERED': '1',
+        },
+    }
+    changed = True
+
 if changed:
     with open(config_path, 'w') as f:
         json.dump(cfg, f, indent=2)
-    print('   Config updated: tools.exec.ask=off, cliBackends configured')
+    print('   Config updated: tools.exec.ask=off, cliBackends, MCP server')
 else:
     print('   Config already set')
 "
