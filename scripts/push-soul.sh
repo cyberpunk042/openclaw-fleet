@@ -52,6 +52,17 @@ for workspace in "$FLEET_DIR"/workspace-mc-*; do
         cp "$TEMPLATE_SETTINGS" "$workspace/.claude/settings.json"
     fi
 
+    # Deploy .mcp.json for Fleet MCP Server
+    MCP_TEMPLATE="$AGENTS_DIR/_template/mcp.json"
+    if [[ -f "$MCP_TEMPLATE" ]]; then
+        sed \
+            -e "s|{{FLEET_VENV}}|$FLEET_DIR/.venv|g" \
+            -e "s|{{FLEET_DIR}}|$FLEET_DIR|g" \
+            -e "s|{{AGENT_NAME}}|$agent_name|g" \
+            -e "s|{{WORKSPACE}}|$workspace|g" \
+            "$MCP_TEMPLATE" > "$workspace/.mcp.json"
+    fi
+
     # Symlink fleet skills into agent workspace (.agents/skills/)
     FLEET_SKILLS="$FLEET_DIR/.agents/skills"
     if [[ -d "$FLEET_SKILLS" ]]; then

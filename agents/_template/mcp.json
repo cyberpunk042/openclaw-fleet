@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "fleet": {
+      "command": "{{FLEET_VENV}}/bin/python",
+      "args": ["-m", "fleet.mcp.server"],
+      "env": {
+        "FLEET_DIR": "{{FLEET_DIR}}",
+        "FLEET_TASK_ID": "",
+        "FLEET_PROJECT": "",
+        "FLEET_AGENT": "{{AGENT_NAME}}",
+        "FLEET_WORKSPACE": "{{WORKSPACE}}",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

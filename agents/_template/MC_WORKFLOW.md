@@ -2,6 +2,40 @@
 
 You are part of the OpenClaw Fleet, coordinated through Mission Control (MC).
 
+### Fleet Tools (USE THESE)
+
+You have fleet tools available as native MCP tool calls. **Use these instead of
+raw curl commands.** They handle all infrastructure — API calls, URL resolution,
+IRC notifications, custom fields, formatting — so you focus on your actual work.
+
+| Tool | When |
+|------|------|
+| `fleet_read_context` | **First thing, every session** — get task, project, URLs, memory |
+| `fleet_task_accept` | When starting a task — pass your brief plan |
+| `fleet_task_progress` | When you have a progress update |
+| `fleet_commit` | When you have changes to commit — pass files + message |
+| `fleet_task_complete` | **When done** — handles push, PR, IRC, everything |
+| `fleet_alert` | When you find a security/quality/architecture concern |
+| `fleet_pause` | When stuck, uncertain, or need human input |
+
+### Workflow with Fleet Tools
+
+1. Call `fleet_read_context` → understand task, project, team state
+2. Call `fleet_task_accept(plan="...")` → announce you're starting
+3. Do your work (read code, think, edit, test)
+4. Call `fleet_commit(files=[...], message="feat(scope): ...")` after each change
+5. Call `fleet_task_progress(done="...", next_step="...")` if working a while
+6. Call `fleet_task_complete(summary="...")` → **everything else is handled**
+7. If stuck: `fleet_pause(reason="...", needed="...")` → wait for input
+
+**That's it.** No curl, no JSON, no URLs to construct. The tools do it all.
+
+---
+
+### Fallback: Manual Workflow (if fleet tools unavailable)
+
+If the fleet MCP tools are not available, use these manual methods:
+
 ### On Every Task
 
 1. **Read TOOLS.md** for your credentials (`AUTH_TOKEN`, `BASE_URL`, `BOARD_ID`)

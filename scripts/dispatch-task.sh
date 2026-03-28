@@ -95,6 +95,31 @@ if [[ -n "$PROJECT_NAME" ]]; then
     echo "Worktree: $WORK_DIR"
 fi
 
+# Update .mcp.json with task-specific env vars
+AGENT_WORKSPACE=$(curl -s -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" "$MC_URL/api/v1/agents" | python3 -c "
+import json, sys
+for a in json.load(sys.stdin).get('items', []):
+    if a.get('name') == '$AGENT_NAME':
+        mc_id = a.get('id', '')
+        print(f'$FLEET_DIR/workspace-mc-{mc_id}')
+        break
+" 2>/dev/null)
+
+if [[ -n "$AGENT_WORKSPACE" && -f "$AGENT_WORKSPACE/.mcp.json" ]]; then
+    python3 -c "
+import json
+with open('$AGENT_WORKSPACE/.mcp.json') as f:
+    cfg = json.load(f)
+env = cfg.get('mcpServers', {}).get('fleet', {}).get('env', {})
+env['FLEET_TASK_ID'] = '$TASK_ID'
+env['FLEET_PROJECT'] = '$PROJECT_NAME'
+if '$WORK_DIR':
+    env['FLEET_WORKTREE'] = '$WORK_DIR'
+with open('$AGENT_WORKSPACE/.mcp.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+" 2>/dev/null
+fi
+
 # Write message to temp file for clean passing to Python
 MSG_FILE=$(mktemp)
 trap "rm -f $MSG_FILE" EXIT
