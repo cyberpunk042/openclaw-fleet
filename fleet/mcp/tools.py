@@ -672,11 +672,76 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
+        # ntfy notification — urgent, human needs to see this
+        try:
+            from fleet.infra.ntfy_client import NtfyClient
+            ntfy = NtfyClient()
+            await ntfy.publish(
+                title=f"[{ctx.agent_name or 'agent'}] Needs your attention: {title[:60]}",
+                message=f"{details[:200]}\n\nQuestion: {question}" if question else details[:300],
+                priority="urgent",
+                tags=["rotating_light", "escalation"],
+                click_url="",
+            )
+            await ntfy.close()
+        except Exception:
+            pass
+
         return {
             "ok": True,
             "action": "Escalated. Wait for human response in board memory or task comment.",
             "task_id": resolved_task_id,
         }
+
+    @server.tool()
+    async def fleet_notify_human(
+        title: str,
+        message: str,
+        priority: str = "info",
+        url: str = "",
+        tags: list[str] | None = None,
+    ) -> dict:
+        """Send a notification to the human via ntfy (and Windows for urgent).
+
+        Use this when the human needs to know something — sprint progress,
+        escalation, alert, or any event worth their attention.
+
+        Priority routing:
+        - "info" → ntfy fleet-progress (quiet, in history)
+        - "important" → ntfy fleet-review (prominent notification)
+        - "urgent" → ntfy fleet-alert (persistent, sound, + Windows toast)
+
+        Args:
+            title: Short notification title.
+            message: Body text with context.
+            priority: "info", "important", or "urgent".
+            url: Click URL (task URL, PR URL) — opens when notification clicked.
+            tags: ntfy tags for classification (e.g., ["white_check_mark", "sprint"]).
+        """
+        from fleet.infra.ntfy_client import NtfyClient
+
+        ctx = _get_ctx()
+        agent = ctx.agent_name or "agent"
+
+        # Add agent tag
+        all_tags = list(tags or [])
+        all_tags.append(agent)
+
+        ntfy = NtfyClient()
+        try:
+            ok = await ntfy.publish(
+                title=f"[{agent}] {title}",
+                message=message,
+                priority=priority,
+                tags=all_tags,
+                click_url=url,
+            )
+        except Exception:
+            ok = False
+        finally:
+            await ntfy.close()
+
+        return {"ok": ok, "priority": priority, "channel": "ntfy"}
 
     @server.tool()
     async def fleet_task_create(

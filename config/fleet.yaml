@@ -15,6 +15,18 @@ mission_control:
 
 agents_dir: agents
 
+# ─── Notifications ─────────────────────────────────────────────────────
+notifications:
+  ntfy:
+    url: http://192.168.40.11:10222
+    topics:
+      progress: fleet-progress    # info — task done, PR merged, sprint update
+      review: fleet-review        # important — escalation, decision needed
+      alert: fleet-alert          # urgent — security, infrastructure, sprint blocked
+  windows:
+    enabled: false                # Enable when wsl-notify-send is installed
+    only_urgent: true             # Only Windows toast for urgent notifications
+
 # ─── Orchestrator ──────────────────────────────────────────────────────
 orchestrator:
   # Orchestrator dispatches tasks, evaluates parents, wakes drivers.

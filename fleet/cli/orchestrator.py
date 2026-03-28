@@ -377,6 +377,13 @@ async def _evaluate_parents(
                     await _notify(irc, "#fleet",
                         f"[orchestrator] \U0001f4e6 PARENT READY: "
                         f"{parent.title[:50]} ({len(children)} children done)")
+                    # Notify human via ntfy — sprint milestone
+                    await _notify_human(
+                        title=f"Sprint milestone: {parent.title[:50]}",
+                        message=f"All {len(children)} subtasks completed. Parent task ready for review.",
+                        priority="info",
+                        tags=["white_check_mark", "sprint"],
+                    )
                 except Exception as e:
                     state.errors.append(f"parent {parent_id[:8]}: {e}")
             state.parents_evaluated += 1
@@ -470,6 +477,27 @@ async def _notify(irc: IRCClient, channel: str, message: str) -> None:
     """Best-effort IRC notification."""
     try:
         await irc.notify(channel, message)
+    except Exception:
+        pass
+
+
+async def _notify_human(
+    title: str,
+    message: str,
+    priority: str = "info",
+    url: str = "",
+    tags: list[str] | None = None,
+) -> None:
+    """Best-effort ntfy notification to human."""
+    try:
+        from fleet.infra.ntfy_client import NtfyClient
+        ntfy = NtfyClient()
+        await ntfy.publish(
+            title=title, message=message,
+            priority=priority, click_url=url,
+            tags=tags or [],
+        )
+        await ntfy.close()
     except Exception:
         pass
 
