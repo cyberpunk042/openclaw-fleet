@@ -128,6 +128,14 @@ logs:
 fleet-setup:
 	python3 -m gateway.setup
 
+# Sync tasks ↔ PRs (merge detection, auto-close, worktree cleanup)
+sync:
+	@bash scripts/fleet-sync.sh
+
+# Configure board custom fields and tags
+board-setup:
+	@bash scripts/configure-board.sh
+
 # Generate changelog from conventional commits
 changelog:
 	@bash scripts/generate-changelog.sh

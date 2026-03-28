@@ -47,6 +47,10 @@ echo ""
 echo "Running fleet setup..."
 python3 -m gateway.setup
 
+# Configure board custom fields and tags
+echo ""
+bash scripts/configure-board.sh
+
 # Sync templates (push TOOLS.md with auth tokens to agents)
 echo ""
 echo "Syncing agent templates..."

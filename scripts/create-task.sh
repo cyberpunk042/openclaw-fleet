@@ -82,6 +82,33 @@ for a in json.load(sys.stdin).get('items', []):
 fi
 
 # Create task
+# Resolve tag IDs for project and type
+TAG_IDS=$(python3 -c "
+import json, sys
+import urllib.request
+
+def get(path):
+    req = urllib.request.Request('$MC_URL' + path)
+    req.add_header('Authorization', 'Bearer $TOKEN')
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read())
+    except: return []
+
+tags_resp = get('/api/v1/tags')
+tags = tags_resp.get('items', []) if isinstance(tags_resp, dict) else tags_resp if isinstance(tags_resp, list) else []
+
+ids = []
+project = '$PROJECT'
+if project:
+    for t in tags:
+        if t.get('name') == f'project:{project}':
+            ids.append(str(t['id']))
+            break
+
+print(','.join(ids))
+" 2>/dev/null)
+
 TASK_DATA=$(python3 -c "
 import json
 data = {
@@ -95,6 +122,21 @@ if desc:
 agent_id = '$AGENT_ID'
 if agent_id:
     data['assigned_agent_id'] = agent_id
+
+# Custom fields
+custom = {}
+project = '$PROJECT'
+if project:
+    custom['project'] = project
+if custom:
+    data['custom_field_values'] = custom
+
+# Tags
+tag_ids = '$TAG_IDS'.split(',')
+tag_ids = [t for t in tag_ids if t]
+if tag_ids:
+    data['tag_ids'] = tag_ids
+
 print(json.dumps(data))
 ")
 
