@@ -20,7 +20,13 @@ class ConfigLoader(ConfigLoaderInterface):
     """Load fleet configuration from YAML files and TOOLS.md."""
 
     def __init__(self, fleet_dir: Optional[str] = None):
-        self._fleet_dir = Path(fleet_dir or os.environ.get("FLEET_DIR", "."))
+        if fleet_dir:
+            self._fleet_dir = Path(fleet_dir)
+        elif os.environ.get("FLEET_DIR"):
+            self._fleet_dir = Path(os.environ["FLEET_DIR"])
+        else:
+            # Resolve from package location: fleet/ is inside the fleet dir
+            self._fleet_dir = Path(__file__).resolve().parent.parent.parent
 
     @property
     def fleet_dir(self) -> Path:
