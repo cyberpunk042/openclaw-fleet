@@ -468,6 +468,11 @@ async def _dispatch_ready_tasks(
                 await _notify(irc, "#fleet",
                     f"[orchestrator] \U0001f680 DISPATCHED: "
                     f"{task.title[:50]} \u2192 {agent.name}")
+                await _notify_human(
+                    title=f"Dispatched: {task.title[:40]} → {agent.name}",
+                    message=f"Task dispatched to {agent.name}. Priority: {task.priority}.",
+                    event_type="task_done",
+                )
         except Exception as e:
             state.errors.append(f"dispatch {task.id[:8]}: {e}")
 

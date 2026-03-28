@@ -143,6 +143,18 @@ def register_tools(server: FastMCP) -> None:
                 {"content": m.content[:300], "source": m.source}
                 for m in memory if "escalation" in m.tags
             ][:3]
+            # Chat messages addressed to this agent
+            agent = ctx.agent_name or ""
+            result["chat_messages"] = [
+                {"content": m.content[:300], "source": m.source}
+                for m in memory
+                if "chat" in m.tags and (
+                    f"mention:{agent}" in m.tags
+                    or "mention:all" in m.tags
+                    or (agent == "fleet-ops" and "mention:fleet-ops" in m.tags)
+                    or (agent == "fleet-ops" and "mention:lead" in m.tags)
+                )
+            ][:5]
         except Exception:
             result["recent_memory"] = []
 
@@ -792,6 +804,63 @@ def register_tools(server: FastMCP) -> None:
             await ntfy.close()
 
         return {"ok": ok, "priority": priority, "channel": "ntfy"}
+
+    @server.tool()
+    async def fleet_chat(
+        message: str,
+        mention: str = "",
+    ) -> dict:
+        """Post to the internal fleet chat. Tag others with @name.
+
+        Use this to communicate with teammates:
+        - Request work: "I'm idle, what should I work on?"
+        - Ask a question: "@architect Is this the right pattern?"
+        - Share context: "FYI the Plane API rate limits at 60/min"
+        - Respond to requests: "@ux-designer Take a look at the CLI output format"
+
+        Messages are visible to all agents via board memory (tag: chat).
+        @mentioned agents see the message in their next fleet_read_context.
+        @lead always reaches fleet-ops (board lead).
+
+        Args:
+            message: Your message to the team.
+            mention: Agent to tag (e.g., "architect", "lead", "all").
+        """
+        ctx = _get_ctx()
+        board_id = await ctx.resolve_board_id()
+        agent = ctx.agent_name or "agent"
+
+        # Format chat message
+        mention_prefix = f"@{mention} " if mention else ""
+        content = f"**[{agent}]** {mention_prefix}{message}"
+
+        tags = ["chat", f"from:{agent}"]
+        if mention:
+            if mention == "all":
+                tags.append("mention:all")
+            elif mention == "lead":
+                tags.append("mention:fleet-ops")
+            else:
+                tags.append(f"mention:{mention}")
+
+        try:
+            await ctx.mc.post_memory(
+                board_id,
+                content=content,
+                tags=tags,
+                source=agent,
+            )
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+        # Also post to IRC #fleet for visibility
+        try:
+            irc_msg = f"[{agent}] {mention_prefix}{message[:80]}"
+            await ctx.irc.notify("#fleet", irc_msg)
+        except Exception:
+            pass
+
+        return {"ok": True, "posted_by": agent, "mention": mention or "none"}
 
     @server.tool()
     async def fleet_task_create(

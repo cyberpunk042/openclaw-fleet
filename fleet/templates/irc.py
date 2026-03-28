@@ -82,15 +82,68 @@ def format_digest_summary(
 def route_channel(severity: str = "", event_type: str = "") -> str:
     """Determine which IRC channel to use.
 
+    10 channels with clear purpose:
+      #fleet    — General fleet activity (dispatch, completion, merge)
+      #alerts   — Critical/high severity alerts only
+      #reviews  — PR review notifications
+      #sprint   — Sprint progress, velocity, milestones
+      #agents   — Agent status (online/offline/sleep, heartbeat)
+      #security — Security findings, CVEs, behavioral holds
+      #human    — Items needing human attention (escalations, decisions)
+      #builds   — CI/CD, test results, build status
+      #memory   — Important board memory (decisions, knowledge)
+      #plane    — Plane sync events (future)
+
     Args:
-        severity: Alert severity (routes critical/high to #alerts).
-        event_type: Event type (routes PR events to #reviews).
+        severity: Alert severity.
+        event_type: Event type for routing.
 
     Returns:
-        Channel name: #fleet, #alerts, or #reviews.
+        Channel name.
     """
+    # Critical/high severity → #alerts always
     if severity in ("critical", "high"):
         return "#alerts"
-    if event_type in ("pr_ready", "pr_review", "pr_merged", "stale_review"):
+
+    # Security-specific → #security
+    if event_type in ("security_alert", "security_hold", "cve", "behavioral_security"):
+        return "#security"
+
+    # Human attention needed → #human
+    if event_type in ("escalation", "human_needed", "decision_needed"):
+        return "#human"
+
+    # Sprint events → #sprint
+    if event_type in ("sprint_milestone", "sprint_complete", "sprint_velocity",
+                      "sprint_started", "sprint_progress"):
+        return "#sprint"
+
+    # Agent lifecycle → #agents
+    if event_type in ("agent_online", "agent_offline", "agent_sleeping",
+                      "heartbeat", "agent_stuck"):
+        return "#agents"
+
+    # PR and review → #reviews
+    if event_type in ("pr_ready", "pr_review", "pr_merged", "pr_closed",
+                      "stale_review", "pr_conflict"):
         return "#reviews"
+
+    # Build/test → #builds
+    if event_type in ("test_pass", "test_fail", "build_success", "build_fail",
+                      "ci_pipeline"):
+        return "#builds"
+
+    # Important decisions/knowledge → #memory
+    if event_type in ("decision", "knowledge", "suggestion"):
+        return "#memory"
+
+    # Plane sync → #plane
+    if event_type in ("plane_sync", "plane_issue", "plane_sprint"):
+        return "#plane"
+
+    # Medium severity → #fleet (not critical enough for #alerts)
+    if severity == "medium":
+        return "#fleet"
+
+    # Default → #fleet
     return "#fleet"

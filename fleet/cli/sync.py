@@ -75,6 +75,20 @@ async def _run_sync() -> int:
                     await irc.notify("#fleet", format_merged(task.title, pr_url))
                 except Exception:
                     pass
+                # ntfy notification on PR merge
+                try:
+                    from fleet.infra.ntfy_client import NtfyClient
+                    ntfy = NtfyClient()
+                    await ntfy.publish(
+                        title=f"PR merged: {task.title[:40]}",
+                        message=f"PR: {pr_url}",
+                        priority="info",
+                        tags=["rocket", "merged"],
+                        click_url=pr_url,
+                    )
+                    await ntfy.close()
+                except Exception:
+                    pass
                 actions += 1
             else:
                 print(f"    FAIL: merge failed")
