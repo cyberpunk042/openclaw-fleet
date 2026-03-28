@@ -12,6 +12,7 @@ from fleet.core.models import (
     Task,
     TaskCustomFields,
     TaskStatus,
+    TaskType,
 )
 
 
@@ -82,3 +83,38 @@ def test_fleet_context_structure():
     assert ctx.project.name == "nnrt"
     assert ctx.agent.name == "sw-eng"
     assert ctx.recent_memory == []
+
+
+def test_task_type_enum():
+    assert TaskType.EPIC.value == "epic"
+    assert TaskType.STORY.value == "story"
+    assert TaskType.SUBTASK.value == "subtask"
+    assert TaskType.BLOCKER.value == "blocker"
+    assert TaskType.REQUEST.value == "request"
+    assert TaskType.CONCERN.value == "concern"
+
+
+def test_task_custom_fields_hierarchy():
+    fields = TaskCustomFields(parent_task="abc123", task_type="subtask", plan_id="dspd-s1")
+    assert fields.parent_task == "abc123"
+    assert fields.task_type == "subtask"
+    assert fields.plan_id == "dspd-s1"
+
+
+def test_task_blocked_fields():
+    task = Task(
+        id="t1", board_id="b1", title="Test", status=TaskStatus.INBOX,
+        is_blocked=True, blocked_by_task_ids=["t2", "t3"],
+        auto_created=True,
+    )
+    assert task.is_blocked is True
+    assert len(task.blocked_by_task_ids) == 2
+    assert task.auto_created is True
+    assert task.due_at is None
+
+
+def test_task_defaults_not_blocked():
+    task = Task(id="t1", board_id="b1", title="Test", status=TaskStatus.INBOX)
+    assert task.is_blocked is False
+    assert task.blocked_by_task_ids == []
+    assert task.auto_created is False

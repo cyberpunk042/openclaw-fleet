@@ -75,6 +75,8 @@ async def _run_create(
     custom_fields = {}
     if project:
         custom_fields["project"] = project
+    if agent_name:
+        custom_fields["agent_name"] = agent_name
 
     # Create task
     task = await mc.create_task(

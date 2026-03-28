@@ -63,10 +63,11 @@ def register_tools(server: FastMCP) -> None:
                     "project": task.custom_fields.project,
                     "tags": task.tags,
                 }
-                # Auto-set project from task custom fields
+                # Auto-set from task custom fields when env vars are missing
                 if task.custom_fields.project and not ctx.project_name:
                     ctx.project_name = task.custom_fields.project
-                # Auto-set worktree
+                if task.custom_fields.agent_name and not ctx.agent_name:
+                    ctx.agent_name = task.custom_fields.agent_name
                 if task.custom_fields.worktree:
                     ctx.worktree = task.custom_fields.worktree
             except Exception as e:
@@ -209,6 +210,8 @@ def register_tools(server: FastMCP) -> None:
                         if wt.endswith(f"-{short}"):
                             cwd = os.path.join(wt_dir, wt)
                             ctx.worktree = cwd
+                            if not ctx.project_name:
+                                ctx.project_name = proj_dir
                             break
 
         if not cwd:
@@ -440,3 +443,199 @@ def register_tools(server: FastMCP) -> None:
             pass
 
         return {"ok": True, "action": "Wait for human input."}
+
+    @server.tool()
+    async def fleet_task_create(
+        title: str,
+        description: str = "",
+        agent_name: str = "",
+        project: str = "",
+        priority: str = "medium",
+        depends_on: list[str] | None = None,
+        parent_task: str = "",
+        task_type: str = "task",
+        story_points: int = 0,
+    ) -> dict:
+        """Create a subtask, follow-up, or chained task on the board.
+
+        Use this to break down work, create subtasks, file blockers,
+        or chain tasks that unlock when dependencies complete.
+
+        Args:
+            title: Task title (required).
+            description: Detailed description of what needs to be done.
+            agent_name: Assign to a specific agent (e.g., "software-engineer").
+            project: Project name (e.g., "nnrt", "dspd", "fleet").
+            priority: "low", "medium", "high", "urgent".
+            depends_on: List of task IDs that must complete first.
+            parent_task: Parent task ID (for subtask/story hierarchy).
+            task_type: "epic", "story", "task", "subtask", "blocker", "request", "concern".
+            story_points: Effort estimate (1, 2, 3, 5, 8, 13).
+        """
+        ctx = _get_ctx()
+        board_id = await ctx.resolve_board_id()
+
+        # Resolve agent ID if name provided
+        assigned_agent_id = None
+        if agent_name:
+            agents = await ctx.mc.list_agents()
+            agent = next((a for a in agents if a.name == agent_name), None)
+            if agent:
+                assigned_agent_id = agent.id
+
+        # Build custom fields
+        custom_fields: dict = {}
+        if project or ctx.project_name:
+            custom_fields["project"] = project or ctx.project_name
+        if agent_name:
+            custom_fields["agent_name"] = agent_name
+        if parent_task:
+            custom_fields["parent_task"] = parent_task
+        elif ctx.task_id:
+            custom_fields["parent_task"] = ctx.task_id
+        if task_type:
+            custom_fields["task_type"] = task_type
+        if story_points:
+            custom_fields["story_points"] = story_points
+
+        creator = ctx.agent_name or "agent"
+        parent_ref = parent_task or ctx.task_id or "N/A"
+
+        try:
+            task = await ctx.mc.create_task(
+                board_id,
+                title=title,
+                description=description,
+                priority=priority,
+                assigned_agent_id=assigned_agent_id,
+                custom_fields=custom_fields if custom_fields else None,
+                depends_on=depends_on,
+                auto_created=True,
+                auto_reason=f"Created by {creator} from task {parent_ref[:8]}",
+            )
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+        # Notify IRC
+        try:
+            await ctx.irc.notify(
+                "#fleet",
+                irc_tmpl.format_event(
+                    creator, "📋 SUBTASK",
+                    f"{title[:50]} → {agent_name or 'unassigned'}",
+                ),
+            )
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "task_id": task.id,
+            "title": task.title,
+            "assigned_to": agent_name or "(unassigned)",
+            "parent_task": custom_fields.get("parent_task", ""),
+            "depends_on": depends_on or [],
+            "is_blocked": bool(depends_on),
+        }
+
+    @server.tool()
+    async def fleet_approve(
+        approval_id: str,
+        decision: str = "approved",
+        comment: str = "",
+    ) -> dict:
+        """Approve or reject a pending task completion.
+
+        Use this to process approvals in the review queue.
+        fleet-ops and PM should use this during heartbeats.
+
+        Args:
+            approval_id: The approval ID to act on.
+            decision: "approved" or "rejected".
+            comment: Optional comment explaining the decision.
+        """
+        ctx = _get_ctx()
+        board_id = await ctx.resolve_board_id()
+
+        if decision not in ("approved", "rejected"):
+            return {"ok": False, "error": "decision must be 'approved' or 'rejected'"}
+
+        try:
+            approval = await ctx.mc.approve_approval(
+                board_id, approval_id, status=decision, comment=comment,
+            )
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+        emoji = "\u2705" if decision == "approved" else "\u274c"
+        try:
+            await ctx.irc.notify(
+                "#fleet",
+                irc_tmpl.format_event(
+                    ctx.agent_name or "agent",
+                    f"{emoji} {decision.upper()}",
+                    f"approval {approval_id[:8]}",
+                ),
+            )
+        except Exception:
+            pass
+
+        return {"ok": True, "approval_id": approval.id, "status": approval.status}
+
+    @server.tool()
+    async def fleet_agent_status() -> dict:
+        """Check fleet health: agents, tasks by status, pending approvals.
+
+        Returns a snapshot of the fleet for situational awareness.
+        Call this during heartbeats to understand what needs attention.
+        No arguments needed.
+        """
+        ctx = _get_ctx()
+        board_id = await ctx.resolve_board_id()
+        result: dict = {"board_id": board_id}
+
+        # Agents
+        try:
+            agents = await ctx.mc.list_agents()
+            result["agents"] = [
+                {"name": a.name, "status": a.status, "id": a.id}
+                for a in agents if "Gateway" not in a.name
+            ]
+        except Exception as e:
+            result["agents_error"] = str(e)
+
+        # Tasks by status
+        try:
+            tasks = await ctx.mc.list_tasks(board_id)
+            counts: dict[str, int] = {}
+            blocked_count = 0
+            unassigned_inbox = 0
+            for t in tasks:
+                s = t.status.value
+                counts[s] = counts.get(s, 0) + 1
+                if t.is_blocked:
+                    blocked_count += 1
+                if s == "inbox" and not t.assigned_agent_id:
+                    unassigned_inbox += 1
+            result["task_counts"] = counts
+            result["blocked_tasks"] = blocked_count
+            result["unassigned_inbox"] = unassigned_inbox
+        except Exception as e:
+            result["tasks_error"] = str(e)
+
+        # Pending approvals
+        try:
+            approvals = await ctx.mc.list_approvals(board_id, status="pending")
+            result["pending_approvals"] = [
+                {
+                    "id": a.id,
+                    "task_id": a.task_id[:8] if a.task_id else "",
+                    "confidence": a.confidence,
+                    "action_type": a.action_type,
+                }
+                for a in approvals
+            ]
+        except Exception:
+            result["pending_approvals"] = []
+
+        return result

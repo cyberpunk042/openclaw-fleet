@@ -14,3 +14,13 @@ mission_control:
   enabled: true
 
 agents_dir: agents
+
+# ─── Orchestrator ──────────────────────────────────────────────────────
+orchestrator:
+  auto_approve_threshold: 80.0
+  driver_agents:
+    - project-manager
+    - fleet-ops
+  driver_heartbeat_interval: 1800  # seconds (30 min)
+  max_concurrent_per_agent: 1
+  dry_run: false

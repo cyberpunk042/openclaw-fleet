@@ -1,0 +1,461 @@
+"""Fleet orchestrator — the autonomous brain.
+
+Runs in a loop, driving the fleet through the task lifecycle:
+1. Process pending approvals (auto-approve high-confidence)
+2. Transition approved review tasks to done
+3. Dispatch unblocked inbox tasks to assigned agents
+4. Evaluate parent tasks when all children complete
+5. Wake driver agents (PM, fleet-ops) on heartbeat
+
+Usage:
+  python -m fleet daemon orchestrator [--interval 30]
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from fleet.core.models import Approval, Task, TaskStatus
+from fleet.infra.config_loader import ConfigLoader
+from fleet.infra.irc_client import IRCClient
+from fleet.infra.mc_client import MCClient
+
+
+# ─── Cycle State ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class OrchestratorState:
+    """Track what happened each cycle for logging."""
+
+    approvals_processed: int = 0
+    tasks_transitioned: int = 0
+    tasks_dispatched: int = 0
+    parents_evaluated: int = 0
+    drivers_woken: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    @property
+    def total_actions(self) -> int:
+        return (
+            self.approvals_processed
+            + self.tasks_transitioned
+            + self.tasks_dispatched
+            + self.parents_evaluated
+            + self.drivers_woken
+        )
+
+
+# ─── Main Cycle ──────────────────────────────────────────────────────────
+
+
+async def run_orchestrator_cycle(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    config: dict,
+    dry_run: bool = False,
+) -> OrchestratorState:
+    """Execute one orchestrator cycle."""
+    state = OrchestratorState()
+
+    tasks = await mc.list_tasks(board_id)
+    agents = await mc.list_agents()
+    agent_map = {a.id: a for a in agents if "Gateway" not in a.name}
+    agent_name_map = {a.name: a for a in agents if "Gateway" not in a.name}
+
+    # Step 1: Process pending approvals
+    await _process_approvals(mc, irc, board_id, config, state, dry_run)
+
+    # Step 2: Transition review → done for approved tasks
+    await _transition_approved_reviews(mc, irc, board_id, tasks, state, dry_run)
+
+    # Step 3: Dispatch unblocked inbox tasks
+    await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run)
+
+    # Step 4: Evaluate parent completion
+    await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
+
+    # Step 5: Wake driver agents
+    await _wake_drivers(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
+
+    return state
+
+
+# ─── Step 1: Process Approvals ───────────────────────────────────────────
+
+
+async def _process_approvals(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    config: dict,
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Auto-approve high-confidence approvals, alert on others."""
+    threshold = config.get("auto_approve_threshold", 80.0)
+
+    try:
+        approvals = await mc.list_approvals(board_id, status="pending")
+    except Exception as e:
+        state.errors.append(f"list_approvals: {e}")
+        return
+
+    for approval in approvals:
+        try:
+            if approval.confidence >= threshold:
+                if dry_run:
+                    print(f"  [dry_run] WOULD approve {approval.id[:8]} "
+                          f"(confidence={approval.confidence:.0f}%)")
+                else:
+                    await mc.approve_approval(
+                        board_id, approval.id,
+                        status="approved",
+                        comment=(
+                            f"Auto-approved by orchestrator "
+                            f"(confidence={approval.confidence:.0f}%)"
+                        ),
+                    )
+                    await _notify(irc, "#fleet",
+                        f"[orchestrator] \u2705 AUTO-APPROVED: task "
+                        f"{approval.task_id[:8]} "
+                        f"(confidence={approval.confidence:.0f}%)")
+                state.approvals_processed += 1
+            else:
+                # Low confidence — alert for human review
+                await _notify(irc, "#reviews",
+                    f"[orchestrator] \u23f3 NEEDS REVIEW: task "
+                    f"{approval.task_id[:8]} "
+                    f"(confidence={approval.confidence:.0f}%)")
+        except Exception as e:
+            state.errors.append(f"approve {approval.id[:8]}: {e}")
+
+
+# ─── Step 2: Transition Approved Reviews ─────────────────────────────────
+
+
+async def _transition_approved_reviews(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Move review tasks to done if they have approved approvals."""
+    review_tasks = [t for t in tasks if t.status == TaskStatus.REVIEW]
+
+    for task in review_tasks:
+        try:
+            has_approval = await mc.task_has_approved_approval(board_id, task.id)
+            if has_approval:
+                if dry_run:
+                    print(f"  [dry_run] WOULD transition {task.id[:8]} → done: "
+                          f"{task.title[:40]}")
+                else:
+                    await mc.update_task(
+                        board_id, task.id,
+                        status="done",
+                        comment="**Auto-transitioned** to done — approval granted.",
+                    )
+                    await _notify(irc, "#fleet",
+                        f"[orchestrator] \u2705 DONE: {task.title[:50]}")
+                state.tasks_transitioned += 1
+        except Exception as e:
+            state.errors.append(f"transition {task.id[:8]}: {e}")
+
+
+# ─── Step 3: Dispatch Ready Tasks ───────────────────────────────────────
+
+
+async def _dispatch_ready_tasks(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    agent_map: dict,
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Find unblocked inbox tasks with assigned agents and dispatch them."""
+    from fleet.cli.dispatch import _run_dispatch
+
+    inbox_tasks = [
+        t for t in tasks
+        if t.status == TaskStatus.INBOX
+        and t.assigned_agent_id
+        and not t.is_blocked
+    ]
+
+    # Sort by priority
+    priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
+    inbox_tasks.sort(key=lambda t: priority_order.get(t.priority, 2))
+
+    # Track busy agents (those with in_progress tasks)
+    busy_agent_ids = {
+        t.assigned_agent_id
+        for t in tasks
+        if t.status == TaskStatus.IN_PROGRESS and t.assigned_agent_id
+    }
+
+    for task in inbox_tasks:
+        if task.assigned_agent_id in busy_agent_ids:
+            continue
+
+        agent = agent_map.get(task.assigned_agent_id)
+        if not agent or not agent.session_key:
+            continue
+
+        project = task.custom_fields.project or ""
+
+        if dry_run:
+            print(f"  [dry_run] WOULD dispatch {task.id[:8]} → {agent.name}: "
+                  f"{task.title[:40]}")
+            state.tasks_dispatched += 1
+            busy_agent_ids.add(task.assigned_agent_id)
+            continue
+
+        try:
+            result = await _run_dispatch(agent.name, task.id, project)
+            if result == 0:
+                state.tasks_dispatched += 1
+                busy_agent_ids.add(task.assigned_agent_id)
+                await _notify(irc, "#fleet",
+                    f"[orchestrator] \U0001f680 DISPATCHED: "
+                    f"{task.title[:50]} \u2192 {agent.name}")
+        except Exception as e:
+            state.errors.append(f"dispatch {task.id[:8]}: {e}")
+
+
+# ─── Step 4: Evaluate Parent Completion ──────────────────────────────────
+
+
+async def _evaluate_parents(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Check if parent tasks can move to review when all children complete."""
+    # Build parent → children mapping
+    parent_children: dict[str, list[Task]] = {}
+    for task in tasks:
+        parent_id = task.custom_fields.parent_task
+        if parent_id:
+            parent_children.setdefault(parent_id, []).append(task)
+
+    task_map = {t.id: t for t in tasks}
+
+    for parent_id, children in parent_children.items():
+        parent = task_map.get(parent_id)
+        if not parent:
+            continue
+
+        # Skip if parent is already done or in review
+        if parent.status in (TaskStatus.DONE, TaskStatus.REVIEW):
+            continue
+
+        # Check if ALL children are done
+        all_done = all(c.status == TaskStatus.DONE for c in children)
+
+        if all_done and len(children) > 0:
+            child_summary = ", ".join(f"{c.title[:30]}" for c in children[:5])
+            if len(children) > 5:
+                child_summary += f" (+{len(children) - 5} more)"
+
+            if dry_run:
+                print(f"  [dry_run] WOULD move parent {parent_id[:8]} → review: "
+                      f"{parent.title[:40]} ({len(children)} children done)")
+            else:
+                try:
+                    await mc.update_task(
+                        board_id, parent.id,
+                        status="review",
+                        comment=(
+                            f"**All {len(children)} subtasks completed.** "
+                            f"Moving to review.\n\n"
+                            f"Subtasks: {child_summary}"
+                        ),
+                    )
+                    await _notify(irc, "#fleet",
+                        f"[orchestrator] \U0001f4e6 PARENT READY: "
+                        f"{parent.title[:50]} ({len(children)} children done)")
+                except Exception as e:
+                    state.errors.append(f"parent {parent_id[:8]}: {e}")
+            state.parents_evaluated += 1
+
+
+# ─── Step 5: Wake Driver Agents ──────────────────────────────────────────
+
+DRIVER_AGENTS = ["project-manager", "fleet-ops"]
+_last_driver_wake: dict[str, datetime] = {}
+
+
+async def _wake_drivers(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    agent_name_map: dict,
+    config: dict,
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Wake driver agents periodically for heartbeat checks."""
+    now = datetime.now()
+    interval = config.get("driver_heartbeat_interval", 1800)
+    drivers = config.get("driver_agents", DRIVER_AGENTS)
+
+    # Check which agents have active tasks (don't wake if busy)
+    busy_agents = set()
+    for t in tasks:
+        if t.status == TaskStatus.IN_PROGRESS and t.custom_fields.agent_name:
+            busy_agents.add(t.custom_fields.agent_name)
+
+    for driver_name in drivers:
+        agent = agent_name_map.get(driver_name)
+        if not agent or not agent.session_key:
+            continue
+
+        if driver_name in busy_agents:
+            continue
+
+        last_wake = _last_driver_wake.get(driver_name)
+        if last_wake and (now - last_wake).total_seconds() < interval:
+            continue
+
+        # Check if driver already has a pending heartbeat task
+        has_heartbeat = any(
+            t.title.startswith("[heartbeat]")
+            and t.custom_fields.agent_name == driver_name
+            and t.status in (TaskStatus.INBOX, TaskStatus.IN_PROGRESS)
+            for t in tasks
+        )
+        if has_heartbeat:
+            _last_driver_wake[driver_name] = now
+            continue
+
+        if dry_run:
+            print(f"  [dry_run] WOULD wake driver: {driver_name}")
+            state.drivers_woken += 1
+            _last_driver_wake[driver_name] = now
+            continue
+
+        try:
+            task = await mc.create_task(
+                board_id,
+                title=f"[heartbeat] {driver_name} periodic check",
+                description=(
+                    f"Heartbeat task for {driver_name}. "
+                    "Check your HEARTBEAT.md for instructions. "
+                    "Use fleet_agent_status to assess fleet health. "
+                    "If everything is fine, complete with 'HEARTBEAT_OK'."
+                ),
+                priority="low",
+                assigned_agent_id=agent.id,
+                custom_fields={
+                    "agent_name": driver_name,
+                    "task_type": "subtask",
+                },
+                auto_created=True,
+                auto_reason=f"orchestrator heartbeat ({now.strftime('%H:%M')})",
+            )
+            _last_driver_wake[driver_name] = now
+            state.drivers_woken += 1
+        except Exception as e:
+            state.errors.append(f"wake {driver_name}: {e}")
+
+
+# ─── Helper ──────────────────────────────────────────────────────────────
+
+
+async def _notify(irc: IRCClient, channel: str, message: str) -> None:
+    """Best-effort IRC notification."""
+    try:
+        await irc.notify(channel, message)
+    except Exception:
+        pass
+
+
+# ─── Daemon Loop ─────────────────────────────────────────────────────────
+
+
+def _load_orchestrator_config(loader: ConfigLoader) -> dict:
+    """Load orchestrator config from fleet.yaml."""
+    import yaml
+
+    config_path = loader.fleet_dir / "config" / "fleet.yaml"
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+        return cfg.get("orchestrator", {})
+    return {}
+
+
+async def run_orchestrator_daemon(interval: int = 30) -> None:
+    """Run the orchestrator in a loop."""
+    loader = ConfigLoader()
+    env = loader.load_env()
+    token = env.get("LOCAL_AUTH_TOKEN", "")
+
+    if not token:
+        print("[orchestrator] ERROR: No LOCAL_AUTH_TOKEN")
+        return
+
+    config = _load_orchestrator_config(loader)
+    dry_run = config.get("dry_run", False)
+
+    oc_path = os.path.expanduser("~/.openclaw/openclaw.json")
+    gateway_token = ""
+    if os.path.exists(oc_path):
+        with open(oc_path) as f:
+            oc_cfg = json.load(f)
+        gateway_token = oc_cfg.get("gateway", {}).get("auth", {}).get("token", "")
+
+    mode = " [DRY RUN]" if dry_run else ""
+    print(f"[orchestrator] Daemon started{mode} (interval={interval}s)")
+    print(f"[orchestrator] Auto-approve threshold: "
+          f"{config.get('auto_approve_threshold', 80)}%")
+    print(f"[orchestrator] Driver agents: "
+          f"{config.get('driver_agents', DRIVER_AGENTS)}")
+
+    while True:
+        try:
+            mc = MCClient(token=token)
+            irc = IRCClient(gateway_token=gateway_token)
+            board_id = await mc.get_board_id()
+
+            if board_id:
+                state = await run_orchestrator_cycle(
+                    mc, irc, board_id, config, dry_run=dry_run,
+                )
+
+                ts = datetime.now().strftime("%H:%M:%S")
+                if state.total_actions > 0 or state.errors:
+                    print(
+                        f"[{ts}] [orchestrator] "
+                        f"approved={state.approvals_processed} "
+                        f"transitioned={state.tasks_transitioned} "
+                        f"dispatched={state.tasks_dispatched} "
+                        f"parents={state.parents_evaluated} "
+                        f"drivers={state.drivers_woken} "
+                        f"errors={len(state.errors)}"
+                    )
+                    for err in state.errors:
+                        print(f"  ERROR: {err}")
+
+            await mc.close()
+        except Exception as e:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [orchestrator] Error: {e}")
+
+        await asyncio.sleep(interval)

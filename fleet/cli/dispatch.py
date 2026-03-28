@@ -77,6 +77,15 @@ async def _run_dispatch(
         if work_dir:
             print(f"Worktree: {work_dir}")
 
+    # Update task custom fields with agent context
+    custom_fields = {"agent_name": agent_name}
+    if work_dir:
+        custom_fields["worktree"] = work_dir
+    try:
+        await mc.update_task(board_id, task_id, custom_fields=custom_fields)
+    except Exception:
+        pass
+
     # Update .mcp.json with task context
     _update_mcp_json(fleet_dir, agent, task_id, project_name, work_dir)
 

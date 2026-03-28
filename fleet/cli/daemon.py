@@ -18,6 +18,7 @@ from pathlib import Path
 
 from fleet.cli.sync import _run_sync
 from fleet.cli.quality import _run_quality
+from fleet.cli.orchestrator import run_orchestrator_daemon
 
 
 async def _run_sync_daemon(interval: int = 60) -> None:
@@ -161,13 +162,21 @@ async def _run_auth_daemon(interval: int = 120) -> None:
         await asyncio.sleep(interval)
 
 
-async def _run_all(sync_interval: int = 60, monitor_interval: int = 300) -> None:
+async def _run_all(
+    sync_interval: int = 60,
+    monitor_interval: int = 300,
+    orchestrator_interval: int = 30,
+) -> None:
     """Run all daemons concurrently."""
-    print(f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s, auth=120s)")
+    print(
+        f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s, "
+        f"auth=120s, orchestrator={orchestrator_interval}s)"
+    )
     await asyncio.gather(
         _run_sync_daemon(sync_interval),
         _run_auth_daemon(120),
         _run_monitor_daemon(monitor_interval),
+        run_orchestrator_daemon(orchestrator_interval),
     )
 
 
@@ -176,7 +185,7 @@ def run_daemon(args: list[str] | None = None) -> int:
     argv = args if args is not None else sys.argv[2:]
 
     if not argv:
-        print("Usage: fleet daemon <sync|monitor|all> [--interval N]")
+        print("Usage: fleet daemon <sync|monitor|orchestrator|all> [--interval N]")
         return 1
 
     mode = argv[0]
@@ -216,6 +225,8 @@ def run_daemon(args: list[str] | None = None) -> int:
             asyncio.run(_run_sync_daemon(interval))
         elif mode == "monitor":
             asyncio.run(_run_monitor_daemon(interval or monitor_interval))
+        elif mode == "orchestrator":
+            asyncio.run(run_orchestrator_daemon(interval or 30))
         elif mode == "all":
             asyncio.run(_run_all(sync_interval, monitor_interval))
         else:

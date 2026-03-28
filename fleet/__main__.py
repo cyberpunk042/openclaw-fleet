@@ -20,7 +20,8 @@ COMMANDS = {
     "auth": ("Check and refresh auth tokens", "fleet.cli.auth", "run_auth"),
     "board": ("Board management (info/tasks/cleanup/tags/fields)", "fleet.cli.board", "run_board"),
     "cache": ("Manage cache (stats/cleanup/export/import)", "fleet.cli.cache_cmd", "run_cache"),
-    "daemon": ("Run background daemons (sync/monitor/all)", "fleet.cli.daemon", "run_daemon"),
+    "daemon": ("Run background daemons (sync/monitor/orchestrator/all)", "fleet.cli.daemon", "run_daemon"),
+    "sprint": ("Sprint management (load/status)", "fleet.cli.sprint", "run_sprint"),
 }
 
 
@@ -46,7 +47,7 @@ def main() -> int:
     func = getattr(module, func_name)
 
     # Commands that accept args
-    if command in ("notify", "digest", "dispatch", "create", "daemon", "cache", "board", "auth", "trace", "project"):
+    if command in ("notify", "digest", "dispatch", "create", "daemon", "cache", "board", "auth", "trace", "project", "sprint"):
         return func(sys.argv[2:])
     else:
         return func()

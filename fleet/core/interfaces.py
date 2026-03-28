@@ -108,6 +108,23 @@ class ApprovalClient(ABC):
     ) -> Approval:
         """Create an approval request."""
 
+    @abstractmethod
+    async def approve_approval(
+        self,
+        board_id: str,
+        approval_id: str,
+        *,
+        status: str = "approved",
+        comment: str = "",
+    ) -> Approval:
+        """Approve or reject a pending approval."""
+
+    @abstractmethod
+    async def list_approvals(
+        self, board_id: str, status: str = ""
+    ) -> list[Approval]:
+        """List approvals on a board."""
+
 
 class AgentClient(ABC):
     """Interface for agent discovery and health."""

@@ -55,6 +55,22 @@ FIELDS = [
      "ui_visibility": "if_set", "description": "GitHub PR URL"},
     {"field_key": "worktree", "label": "Worktree", "field_type": "text",
      "ui_visibility": "hidden", "description": "Local worktree path"},
+    {"field_key": "agent_name", "label": "Agent", "field_type": "text",
+     "ui_visibility": "if_set", "description": "Assigned agent name"},
+    {"field_key": "story_points", "label": "Story Points", "field_type": "integer",
+     "ui_visibility": "if_set", "description": "Effort estimate (1/2/3/5/8/13)"},
+    {"field_key": "sprint", "label": "Sprint", "field_type": "text",
+     "ui_visibility": "if_set", "description": "Sprint identifier"},
+    {"field_key": "complexity", "label": "Complexity", "field_type": "text",
+     "ui_visibility": "if_set", "description": "low/medium/high"},
+    {"field_key": "model", "label": "Model", "field_type": "text",
+     "ui_visibility": "hidden", "description": "AI model used (sonnet/opus)"},
+    {"field_key": "parent_task", "label": "Parent Task", "field_type": "text",
+     "ui_visibility": "if_set", "description": "Parent task ID for hierarchy"},
+    {"field_key": "task_type", "label": "Task Type", "field_type": "text",
+     "ui_visibility": "always", "description": "epic/story/task/subtask/blocker/request/concern"},
+    {"field_key": "plan_id", "label": "Plan ID", "field_type": "text",
+     "ui_visibility": "if_set", "description": "Sprint plan or grouping reference"},
 ]
 
 print("=== Configuring Board Custom Fields ===")
@@ -107,6 +123,16 @@ type_tags = [
     {"name": "type:review", "color": "00bcd4", "description": "Code review"},
 ]
 
+# Hierarchy tags
+hierarchy_tags = [
+    {"name": "type:epic", "color": "673ab7", "description": "Epic — high-level initiative"},
+    {"name": "type:story", "color": "3f51b5", "description": "Story — user-facing capability"},
+    {"name": "type:subtask", "color": "03a9f4", "description": "Subtask — child of a story"},
+    {"name": "type:blocker", "color": "e91e63", "description": "Blocker — requires resolution"},
+    {"name": "type:request", "color": "ff9800", "description": "Request — needs input or action"},
+    {"name": "type:concern", "color": "795548", "description": "Concern — needs attention"},
+]
+
 # Status tags
 status_tags = [
     {"name": "needs-review", "color": "ff5722", "description": "Human review needed"},
@@ -114,7 +140,7 @@ status_tags = [
     {"name": "blocked", "color": "f44336", "description": "Blocked — needs attention"},
 ]
 
-all_tags = project_tags + type_tags + status_tags
+all_tags = project_tags + type_tags + hierarchy_tags + status_tags
 
 # Get existing tags
 existing_tags_resp = api("GET", "/api/v1/tags")

@@ -1,0 +1,134 @@
+# DSPD Sprint 1 — Plane Self-Hosting & Fleet Integration
+#
+# Goal: Get Plane running, integrated with fleet CLI, and PM agent using it.
+# Prerequisites: DSPD repo exists on GitHub (done), fleet project add (done).
+
+sprint:
+  id: dspd-s1
+  name: "DSPD Sprint 1: Plane Self-Hosting & CLI Integration"
+  start_date: 2026-03-28
+  end_date: 2026-04-11
+  goals:
+    - "Plane running self-hosted via Docker"
+    - "Fleet CLI can create/list items in Plane"
+    - "PM agent has Plane integration via MCP"
+
+tasks:
+  - id: s1-epic
+    title: "DSPD Sprint 1: Plane self-hosting and fleet integration"
+    type: epic
+    priority: high
+    description: >
+      Epic covering all Sprint 1 work: Docker setup, workspace configuration,
+      API integration, fleet CLI commands, and PM agent Plane MCP integration.
+
+  # Phase 1: Self-Host Plane
+  - id: s1-research
+    title: "S1-1: Research Plane Docker requirements and resource footprint"
+    type: task
+    parent: s1-epic
+    priority: high
+    agent: devops
+    project: dspd
+    story_points: 2
+    description: >
+      Research Plane's Docker self-hosting requirements. Document: CPU/RAM needs,
+      services (PostgreSQL, Redis/Valkey, RabbitMQ, MinIO, web, api, worker, beat, proxy),
+      port allocation (avoid conflict with OCMC 8000/3000), env vars needed.
+      Produce docker-compose.plane.yaml and plane.env.example.
+
+  - id: s1-compose
+    title: "S1-2: Add Plane to docker-compose and deploy"
+    type: task
+    parent: s1-epic
+    depends_on: [s1-research]
+    priority: high
+    agent: devops
+    project: dspd
+    story_points: 3
+    description: >
+      Deploy Plane using the docker-compose from S1-1. Verify all 12 services start.
+      Fix any issues. Add to setup.sh for automated deployment. Verify web UI on port 8080.
+
+  - id: s1-workspace
+    title: "S1-3: Configure Plane workspace and project"
+    type: task
+    parent: s1-epic
+    depends_on: [s1-compose]
+    priority: high
+    agent: devops
+    project: dspd
+    story_points: 2
+    description: >
+      Configure Plane: create workspace (fleet), create initial project (openclaw-fleet),
+      generate API key, verify API access. Script the configuration for IaC.
+
+  - id: s1-api-test
+    title: "S1-4: Generate API key and test Plane REST API"
+    type: task
+    parent: s1-epic
+    depends_on: [s1-workspace]
+    priority: medium
+    agent: devops
+    project: dspd
+    story_points: 2
+    description: >
+      Test Plane API: list projects, create work item, update status, list cycles.
+      Document working endpoints and authentication method.
+      Verify webhook support for future event-driven integration.
+
+  # Phase 2: Fleet CLI Integration
+  - id: s1-plane-client
+    title: "S1-5: Build fleet/infra/plane_client.py — Plane REST API wrapper"
+    type: story
+    parent: s1-epic
+    depends_on: [s1-api-test]
+    priority: high
+    agent: software-engineer
+    project: openclaw-fleet
+    story_points: 5
+    description: >
+      Create PlaneClient in fleet/infra/ following the same patterns as MCClient.
+      Implement: list_projects, create_issue, update_issue, list_cycles, list_states.
+      Use httpx async. Add to fleet config (plane_url, plane_api_key in .env).
+
+  - id: s1-plane-cli
+    title: "S1-6: Build fleet/cli/plane.py — CLI commands for Plane"
+    type: story
+    parent: s1-epic
+    depends_on: [s1-plane-client]
+    priority: high
+    agent: software-engineer
+    project: openclaw-fleet
+    story_points: 3
+    description: >
+      Add fleet CLI commands: fleet plane list, fleet plane create "title",
+      fleet plane sync (Plane ↔ OCMC). Register in __main__.py.
+
+  - id: s1-plane-sync
+    title: "S1-7: Implement Plane ↔ OCMC bidirectional sync"
+    type: story
+    parent: s1-epic
+    depends_on: [s1-plane-cli]
+    priority: medium
+    agent: software-engineer
+    project: openclaw-fleet
+    story_points: 5
+    description: >
+      Implement sync logic: PM creates Plane items → fleet creates OCMC tasks.
+      Agent completes OCMC task → fleet updates Plane item.
+      Track mapping between Plane issue ID and OCMC task ID in custom fields.
+
+  - id: s1-security
+    title: "S1-8: Security review of Plane deployment and API integration"
+    type: task
+    parent: s1-epic
+    depends_on: [s1-compose]
+    priority: medium
+    agent: devsecops-expert
+    project: dspd
+    story_points: 2
+    description: >
+      Review Plane deployment security: default credentials, exposed ports,
+      API key handling, network isolation from OCMC, CORS configuration.
+      Post findings via fleet_alert.
