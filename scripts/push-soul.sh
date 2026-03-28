@@ -52,6 +52,19 @@ for workspace in "$FLEET_DIR"/workspace-mc-*; do
         cp "$TEMPLATE_SETTINGS" "$workspace/.claude/settings.json"
     fi
 
+    # Symlink fleet skills into agent workspace (.agents/skills/)
+    FLEET_SKILLS="$FLEET_DIR/.agents/skills"
+    if [[ -d "$FLEET_SKILLS" ]]; then
+        mkdir -p "$workspace/.agents"
+        # Remove stale symlink if target changed
+        if [[ -L "$workspace/.agents/skills" ]]; then
+            rm "$workspace/.agents/skills"
+        fi
+        if [[ ! -e "$workspace/.agents/skills" ]]; then
+            ln -s "$FLEET_SKILLS" "$workspace/.agents/skills"
+        fi
+    fi
+
     echo "OK: $agent_name"
     updated=$((updated + 1))
 done
