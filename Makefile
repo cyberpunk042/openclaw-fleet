@@ -18,7 +18,7 @@ provision:
 
 # Comprehensive fleet status (agents, tasks, activity)
 status:
-	@bash scripts/fleet-status.sh
+	@.venv/bin/python -m fleet status 2>/dev/null || bash scripts/fleet-status.sh
 
 # Create task: make create-task TITLE="..." AGENT=architect PROJECT=nnrt DESC="..." DISPATCH=true
 create-task:
@@ -158,7 +158,7 @@ fleet-setup:
 
 # Sync tasks ↔ PRs (one-shot: merge detection, auto-close, worktree cleanup)
 sync:
-	@bash scripts/fleet-sync.sh
+	@.venv/bin/python -m fleet sync 2>/dev/null || bash scripts/fleet-sync.sh
 
 # Start sync daemon (background, 60s interval)
 sync-start:
@@ -197,6 +197,10 @@ changelog:
 	@bash scripts/generate-changelog.sh
 
 # ─── Cleanup ────────────────────────────────────────────────────────────────
+
+# Run fleet unit tests
+test:
+	@.venv/bin/python -m pytest fleet/tests/ -v --tb=short
 
 clean:
 	docker compose down -v
