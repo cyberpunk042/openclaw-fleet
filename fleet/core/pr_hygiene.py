@@ -156,6 +156,27 @@ def assess_pr_hygiene(
             except Exception:
                 pass
 
+        # 4. Orphaned PR — no linked task at all
+        if not linked_task:
+            report.issues.append(PRIssue(
+                issue_type="orphaned",
+                severity="medium",
+                pr_url=pr_url,
+                pr_number=pr_number,
+                pr_title=pr_title,
+                description=(
+                    f"PR #{pr_number} has no linked task in MC. "
+                    f"This may be stale work that was completed via a different PR, "
+                    f"or a PR created outside the fleet workflow."
+                ),
+                recommended_action=(
+                    "If the work was done via another PR → close this one. "
+                    "If this PR has unique work → create a task for it. "
+                    "fleet-ops should evaluate."
+                ),
+                target_agent="fleet-ops",
+            ))
+
     return report
 
 

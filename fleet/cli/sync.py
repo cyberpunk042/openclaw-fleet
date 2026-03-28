@@ -280,6 +280,22 @@ async def _check_pr_hygiene(mc, gh, irc, board_id, tasks, actions_count) -> None
             except Exception:
                 pass
 
+        elif issue.issue_type == "orphaned":
+            print(f"  ORPHANED: PR #{issue.pr_number} — no linked task")
+            # Close orphaned conflicting PRs (work done elsewhere)
+            if any(i.issue_type == "conflicting" and i.pr_number == issue.pr_number for i in report.issues):
+                try:
+                    repo = issue.pr_url.split("/pull/")[0].replace("https://github.com/", "")
+                    ok, _ = await gh._run([
+                        "gh", "pr", "close", str(issue.pr_number),
+                        "--repo", repo,
+                        "--comment", "Closing — orphaned PR with conflicts. No linked task. Work likely completed via different PR.",
+                    ])
+                    if ok:
+                        print(f"    Closed orphaned conflicting PR #{issue.pr_number}")
+                except Exception:
+                    pass
+
         elif issue.issue_type == "long_open":
             print(f"  STALE: PR #{issue.pr_number} open too long — {issue.description[:50]}")
 
