@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from fleet.core.agent_lifecycle import AgentStatus, FleetLifecycle
+from fleet.core.change_detector import ChangeDetector
 from fleet.core.models import Approval, Task, TaskStatus
 from fleet.core.notification_router import NotificationRouter
 from fleet.infra.config_loader import ConfigLoader
@@ -31,6 +32,7 @@ from fleet.infra.mc_client import MCClient
 # Global state (persists across cycles)
 _fleet_lifecycle = FleetLifecycle()
 _notification_router = NotificationRouter(cooldown_seconds=300)
+_change_detector = ChangeDetector()
 
 
 # ─── Cycle State ─────────────────────────────────────────────────────────
@@ -76,6 +78,9 @@ async def run_orchestrator_cycle(
     agent_map = {a.id: a for a in agents if "Gateway" not in a.name}
     agent_name_map = {a.name: a for a in agents if "Gateway" not in a.name}
     now = datetime.now()
+
+    # Detect changes since last cycle
+    changes = _change_detector.detect(tasks, now)
 
     # Update fleet lifecycle tracker with current activity
     active_agents: dict[str, str] = {}
