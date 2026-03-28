@@ -499,10 +499,30 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
-        # Create approval for quality gate
+        # Create approval for quality gate — with skill compliance check
         try:
+            from fleet.core.skill_enforcement import check_compliance
+
+            # Reconstruct tools used based on observable state
+            tools_used = ["fleet_read_context", "fleet_task_complete"]  # We know these
+            if commits:
+                tools_used.append("fleet_commit")
+            # Check if acceptance comment exists (fleet_task_accept was called)
+            # This is approximate — the acceptance comment in task comments indicates it
+            tools_used.append("fleet_task_accept")  # Assume if they got here
+
+            task_type_val = task_type or "task"
+            compliance = check_compliance(task_type_val, tools_used)
+            compliance_penalty = compliance.confidence_penalty
+
             test_score = 85 if test_passed else 30
-            confidence = 85.0 if test_passed else 50.0
+            base_confidence = 85.0 if test_passed else 50.0
+            confidence = max(base_confidence - compliance_penalty, 20.0)
+
+            compliance_note = ""
+            if compliance.required_missed:
+                compliance_note = f" Missing tools: {', '.join(compliance.required_missed)}."
+
             await ctx.mc.create_approval(
                 board_id,
                 task_ids=[ctx.task_id],
@@ -513,12 +533,13 @@ def register_tools(server: FastMCP) -> None:
                     "completeness": 85,
                     "quality": 85,
                     "tests": test_score,
+                    "compliance": 85 - int(compliance_penalty),
                 },
                 reason=(
                     f"Task completed by {agent_name}. "
                     f"PR: {pr.url}. "
                     f"{len(commits)} commit(s), {len(diff_stat)} file(s) changed. "
-                    f"Tests: {test_summary}. "
+                    f"Tests: {test_summary}.{compliance_note} "
                     f"Summary: {summary[:200]}"
                 ),
             )
@@ -886,14 +907,28 @@ def register_tools(server: FastMCP) -> None:
             comment: Reasoning for the decision. Required for rejections.
             task_id: Task ID (optional, resolved from approval if not given).
         """
+        from fleet.core.agent_roles import can_agent_reject, should_create_fix_task
+
         ctx = _get_ctx()
         board_id = await ctx.resolve_board_id()
+        agent = ctx.agent_name or ""
 
         if decision not in ("approved", "rejected"):
             return {"ok": False, "error": "decision must be 'approved' or 'rejected'"}
 
         if decision == "rejected" and not comment:
             return {"ok": False, "error": "comment is required when rejecting — explain what needs fixing"}
+
+        # Check PR authority for rejections
+        if decision == "rejected" and not can_agent_reject(agent):
+            return {
+                "ok": False,
+                "error": (
+                    f"{agent} cannot reject — only request changes. "
+                    f"Use fleet_task_progress to post feedback instead, "
+                    f"or ask fleet-ops to reject."
+                ),
+            }
 
         # Resolve approval
         try:
@@ -912,24 +947,57 @@ def register_tools(server: FastMCP) -> None:
                 await ctx.mc.update_task(
                     board_id, resolved_task_id,
                     status="done",
-                    comment=f"**Approved by {ctx.agent_name or 'lead'}**: {comment}",
+                    comment=f"**Approved by {agent or 'lead'}**: {comment}",
                 )
                 result["task_status"] = "done"
             except Exception as e:
                 result["transition_error"] = str(e)
 
         elif decision == "rejected" and resolved_task_id:
-            # Board lead moves review → inbox (rework)
-            # MC auto-notifies original agent with "Changes requested"
+            # Move review → inbox (rework). MC auto-notifies original agent.
             try:
                 await ctx.mc.update_task(
                     board_id, resolved_task_id,
                     status="inbox",
-                    comment=f"**Rejected by {ctx.agent_name or 'lead'}**: {comment}",
+                    comment=f"**Rejected by {agent or 'lead'}**: {comment}",
                 )
                 result["task_status"] = "inbox (rework)"
             except Exception as e:
                 result["transition_error"] = str(e)
+
+            # Auto-create fix task if this agent's role requires it
+            if should_create_fix_task(agent) and resolved_task_id:
+                try:
+                    original_task = await ctx.mc.get_task(board_id, resolved_task_id)
+                    original_agent = original_task.custom_fields.agent_name or ""
+                    fix_title = f"Fix: {original_task.title[:40]} — {comment[:30]}"
+
+                    agents = await ctx.mc.list_agents()
+                    original_agent_id = next(
+                        (a.id for a in agents if a.name == original_agent), None
+                    )
+
+                    await ctx.mc.create_task(
+                        board_id,
+                        title=fix_title,
+                        description=(
+                            f"Rejected by {agent}: {comment}\n\n"
+                            f"Original task: {original_task.title}\n"
+                            f"Fix the issues described above and re-submit."
+                        ),
+                        priority="high",
+                        assigned_agent_id=original_agent_id,
+                        custom_fields={
+                            "agent_name": original_agent,
+                            "parent_task": resolved_task_id,
+                            "task_type": "subtask",
+                            "project": original_task.custom_fields.project or "",
+                        },
+                    )
+                    result["fix_task_created"] = True
+                    result["fix_assigned_to"] = original_agent
+                except Exception:
+                    result["fix_task_created"] = False
 
         # IRC notification
         emoji = "\u2705" if decision == "approved" else "\u274c"

@@ -92,25 +92,152 @@ async def run_orchestrator_cycle(
             _fleet_lifecycle.get_or_create(a.name)
     _fleet_lifecycle.update_all(now, active_agents)
 
-    # Step 1: Ensure review tasks have approvals (so fleet-ops can review them)
+    # Step 1: Security scan — check new/changed tasks for suspicious content
+    await _security_scan(mc, irc, board_id, tasks, changes, state, dry_run)
+
+    # Step 2: Ensure review tasks have approvals (so fleet-ops can review them)
     await _ensure_review_approvals(mc, board_id, tasks, state, dry_run)
 
-    # Step 2: Wake fleet-ops urgently if there are pending approvals to process
+    # Step 3: Wake fleet-ops urgently if there are pending approvals to process
     await _wake_lead_for_reviews(mc, irc, board_id, tasks, agent_name_map, state, dry_run)
 
-    # Step 3: Dispatch unblocked inbox tasks to assigned agents
+    # Step 4: Dispatch unblocked inbox tasks to assigned agents
     await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run)
 
-    # Step 4: Evaluate parent task completion (all children done → parent to review)
+    # Step 5: Evaluate parent task completion (all children done → parent to review)
     await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
 
-    # Step 5: Smart heartbeats — only wake agents that need it based on lifecycle status
+    # Step 6: Health check — detect stuck tasks, offline agents, stale deps
+    await _health_check(mc, irc, board_id, tasks, agents, state, dry_run)
+
+    # Step 7: Smart heartbeats — only wake agents that need it based on lifecycle status
     await _lifecycle_heartbeats(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
 
     return state
 
 
-# ─── Step 1: Ensure Review Tasks Have Approvals ─────────────────────────
+# ─── Step 1: Security Scan ──────────────────────────────────────────────
+
+
+async def _security_scan(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    changes,
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Scan newly created or changed tasks for suspicious content."""
+    from fleet.core.behavioral_security import scan_task
+    from fleet.core.change_detector import ChangeSet
+
+    if not isinstance(changes, ChangeSet) or not changes.has_changes:
+        return
+
+    for change in changes.changes:
+        if change.change_type not in ("task_created", "task_status_changed"):
+            continue
+
+        task = next((t for t in tasks if t.id == change.task_id), None)
+        if not task:
+            continue
+
+        scan = scan_task(task.title, task.description or "")
+        if not scan.has_findings:
+            continue
+
+        for finding in scan.findings:
+            if dry_run:
+                print(f"  [dry_run] SECURITY: {finding.severity} — {finding.title} "
+                      f"on task {task.id[:8]}")
+                continue
+
+            # Alert via IRC
+            await _notify(irc, "#alerts",
+                f"[security] {finding.severity.upper()}: {finding.title} "
+                f"— task {task.id[:8]} {task.title[:30]}")
+
+            # Notify human via ntfy for critical findings
+            if finding.severity in ("critical", "high"):
+                await _notify_human(
+                    title=f"Security: {finding.title}",
+                    message=f"Task: {task.title[:50]}\n{finding.evidence}\n{finding.recommendation}",
+                    event_type="security_alert",
+                    severity=finding.severity,
+                )
+
+            # Set security_hold if needed
+            if finding.should_hold:
+                try:
+                    await mc.update_task(
+                        board_id, task.id,
+                        custom_fields={"security_hold": "true"},
+                        comment=f"**Security Hold** by orchestrator: {finding.title}\n{finding.recommendation}",
+                    )
+                except Exception:
+                    pass
+
+
+# ─── Step 6: Health Check ───────────────────────────────────────────────
+
+
+async def _health_check(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    agents: list,
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Run fleet health assessment and auto-resolve issues."""
+    from fleet.core.health import assess_fleet_health
+    from fleet.core.self_healing import plan_healing_actions
+
+    report = assess_fleet_health(tasks, agents)
+
+    if report.healthy:
+        return
+
+    actions = plan_healing_actions(report, agents)
+
+    for action in actions:
+        if action.escalate:
+            await _notify_human(
+                title=f"Fleet health: {action.issue_title}",
+                message=action.escalate_reason,
+                event_type="escalation",
+            )
+            continue
+
+        if not action.task_title:
+            continue
+
+        if dry_run:
+            print(f"  [dry_run] HEALTH: would create task for {action.target_agent}: "
+                  f"{action.task_title[:40]}")
+            continue
+
+        # Create remediation task
+        try:
+            target_agents = await mc.list_agents()
+            target_id = next(
+                (a.id for a in target_agents if a.name == action.target_agent), None
+            )
+            await mc.create_task(
+                board_id,
+                title=action.task_title,
+                description=action.task_description,
+                priority=action.priority,
+                assigned_agent_id=target_id,
+                custom_fields={"agent_name": action.target_agent, "task_type": "subtask"},
+            )
+        except Exception as e:
+            state.errors.append(f"health action: {e}")
+
+
+# ─── Step 2: Ensure Review Tasks Have Approvals ─────────────────────────
 #
 # The orchestrator does NOT approve tasks. That is fleet-ops' job as board lead.
 # MC auto-assigns review tasks to the board lead (fleet-ops).
