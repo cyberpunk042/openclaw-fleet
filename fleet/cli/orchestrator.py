@@ -70,78 +70,30 @@ async def run_orchestrator_cycle(
     agent_map = {a.id: a for a in agents if "Gateway" not in a.name}
     agent_name_map = {a.name: a for a in agents if "Gateway" not in a.name}
 
-    # Step 1: Process pending approvals
-    await _process_approvals(mc, irc, board_id, config, state, dry_run)
-
-    # Step 1.5: Create approvals for review tasks that lack them
+    # Step 1: Ensure review tasks have approvals (so fleet-ops can review them)
     await _ensure_review_approvals(mc, board_id, tasks, state, dry_run)
 
-    # Step 2: Transition review → done for approved tasks
-    await _transition_approved_reviews(mc, irc, board_id, tasks, state, dry_run)
-
-    # Step 3: Dispatch unblocked inbox tasks
+    # Step 2: Dispatch unblocked inbox tasks to assigned agents
     await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run)
 
-    # Step 4: Evaluate parent completion
+    # Step 3: Evaluate parent task completion (all children done → parent to review)
     await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
 
-    # Step 5: Wake driver agents
+    # Step 4: Wake driver agents (PM, fleet-ops) on heartbeat interval
     await _wake_drivers(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
 
     return state
 
 
-# ─── Step 1: Process Approvals ───────────────────────────────────────────
-
-
-async def _process_approvals(
-    mc: MCClient,
-    irc: IRCClient,
-    board_id: str,
-    config: dict,
-    state: OrchestratorState,
-    dry_run: bool,
-) -> None:
-    """Auto-approve high-confidence approvals, alert on others."""
-    threshold = config.get("auto_approve_threshold", 80.0)
-
-    try:
-        approvals = await mc.list_approvals(board_id, status="pending")
-    except Exception as e:
-        state.errors.append(f"list_approvals: {e}")
-        return
-
-    for approval in approvals:
-        try:
-            if approval.confidence >= threshold:
-                if dry_run:
-                    print(f"  [dry_run] WOULD approve {approval.id[:8]} "
-                          f"(confidence={approval.confidence:.0f}%)")
-                else:
-                    await mc.approve_approval(
-                        board_id, approval.id,
-                        status="approved",
-                        comment=(
-                            f"Auto-approved by orchestrator "
-                            f"(confidence={approval.confidence:.0f}%)"
-                        ),
-                    )
-                    await _notify(irc, "#fleet",
-                        f"[orchestrator] \u2705 AUTO-APPROVED: task "
-                        f"{approval.task_id[:8]} "
-                        f"(confidence={approval.confidence:.0f}%)")
-                state.approvals_processed += 1
-            else:
-                # Low confidence — alert for human review
-                await _notify(irc, "#reviews",
-                    f"[orchestrator] \u23f3 NEEDS REVIEW: task "
-                    f"{approval.task_id[:8]} "
-                    f"(confidence={approval.confidence:.0f}%)")
-        except Exception as e:
-            state.errors.append(f"approve {approval.id[:8]}: {e}")
-
-
-# ─── Step 1.5: Ensure Review Tasks Have Approvals ────────────────────────
+# ─── Step 1: Ensure Review Tasks Have Approvals ─────────────────────────
+#
+# The orchestrator does NOT approve tasks. That is fleet-ops' job as board lead.
+# MC auto-assigns review tasks to the board lead (fleet-ops).
+# fleet-ops reviews the work, runs quality checks, and approves or rejects.
+#
+# The orchestrator only ensures review tasks have pending approvals created,
+# so that fleet-ops has something to evaluate during their heartbeat.
+#
 
 
 async def _ensure_review_approvals(

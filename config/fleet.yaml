@@ -17,7 +17,8 @@ agents_dir: agents
 
 # ─── Orchestrator ──────────────────────────────────────────────────────
 orchestrator:
-  auto_approve_threshold: 80.0
+  # Orchestrator dispatches tasks, evaluates parents, wakes drivers.
+  # It does NOT approve tasks — that's fleet-ops' job as board lead.
   driver_agents:
     - project-manager
     - fleet-ops
