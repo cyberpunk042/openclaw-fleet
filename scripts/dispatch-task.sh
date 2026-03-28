@@ -145,8 +145,8 @@ echo ""
 echo "Description:"
 echo "$TASK_DESC"
 echo ""
-echo "Follow the Mission Control Workflow in your SOUL.md."
-echo "Read TOOLS.md for your credentials (AUTH_TOKEN, BASE_URL, BOARD_ID)."
+echo "FIRST: Call fleet_read_context(task_id=\"$TASK_ID\", project=\"$PROJECT_NAME\") to load your context."
+echo "Then follow the fleet tool workflow in your SOUL.md."
 } > "$MSG_FILE"
 
 # Dispatch via gateway
