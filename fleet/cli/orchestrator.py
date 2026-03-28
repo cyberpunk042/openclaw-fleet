@@ -21,10 +21,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from fleet.core.agent_lifecycle import AgentStatus, FleetLifecycle
 from fleet.core.models import Approval, Task, TaskStatus
 from fleet.infra.config_loader import ConfigLoader
 from fleet.infra.irc_client import IRCClient
 from fleet.infra.mc_client import MCClient
+
+# Global fleet lifecycle tracker (persists across cycles)
+_fleet_lifecycle = FleetLifecycle()
 
 
 # ─── Cycle State ─────────────────────────────────────────────────────────
@@ -69,6 +73,17 @@ async def run_orchestrator_cycle(
     agents = await mc.list_agents()
     agent_map = {a.id: a for a in agents if "Gateway" not in a.name}
     agent_name_map = {a.name: a for a in agents if "Gateway" not in a.name}
+    now = datetime.now()
+
+    # Update fleet lifecycle tracker with current activity
+    active_agents: dict[str, str] = {}
+    for t in tasks:
+        if t.status == TaskStatus.IN_PROGRESS and t.custom_fields.agent_name:
+            active_agents[t.custom_fields.agent_name] = t.id
+    for a in agents:
+        if "Gateway" not in a.name:
+            _fleet_lifecycle.get_or_create(a.name)
+    _fleet_lifecycle.update_all(now, active_agents)
 
     # Step 1: Ensure review tasks have approvals (so fleet-ops can review them)
     await _ensure_review_approvals(mc, board_id, tasks, state, dry_run)
@@ -82,8 +97,8 @@ async def run_orchestrator_cycle(
     # Step 4: Evaluate parent task completion (all children done → parent to review)
     await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
 
-    # Step 5: Wake driver agents (PM, fleet-ops) on heartbeat interval
-    await _wake_drivers(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
+    # Step 5: Smart heartbeats — only wake agents that need it based on lifecycle status
+    await _lifecycle_heartbeats(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
 
     return state
 
@@ -389,13 +404,12 @@ async def _evaluate_parents(
             state.parents_evaluated += 1
 
 
-# ─── Step 5: Wake Driver Agents ──────────────────────────────────────────
+# ─── Step 5: Lifecycle-Aware Heartbeats ──────────────────────────────────
 
 DRIVER_AGENTS = ["project-manager", "fleet-ops"]
-_last_driver_wake: dict[str, datetime] = {}
 
 
-async def _wake_drivers(
+async def _lifecycle_heartbeats(
     mc: MCClient,
     irc: IRCClient,
     board_id: str,
@@ -405,52 +419,65 @@ async def _wake_drivers(
     state: OrchestratorState,
     dry_run: bool,
 ) -> None:
-    """Wake driver agents periodically for heartbeat checks."""
+    """Send heartbeats based on agent lifecycle status.
+
+    Active agents → no heartbeat (they're working)
+    Idle agents → heartbeat every 5 minutes
+    Sleeping agents → heartbeat every 30 minutes
+    Offline agents → heartbeat every 2 hours
+
+    This replaces the fixed-interval driver wake with smart status management.
+    """
     now = datetime.now()
-    interval = config.get("driver_heartbeat_interval", 1800)
-    drivers = config.get("driver_agents", DRIVER_AGENTS)
+    drivers = set(config.get("driver_agents", DRIVER_AGENTS))
 
-    # Check which agents have active tasks (don't wake if busy)
-    busy_agents = set()
-    for t in tasks:
-        if t.status == TaskStatus.IN_PROGRESS and t.custom_fields.agent_name:
-            busy_agents.add(t.custom_fields.agent_name)
+    agents_needing_heartbeat = _fleet_lifecycle.agents_needing_heartbeat(now)
 
-    for driver_name in drivers:
-        agent = agent_name_map.get(driver_name)
+    for agent_state in agents_needing_heartbeat:
+        agent = agent_name_map.get(agent_state.name)
         if not agent or not agent.session_key:
             continue
 
-        if driver_name in busy_agents:
-            continue
-
-        last_wake = _last_driver_wake.get(driver_name)
-        if last_wake and (now - last_wake).total_seconds() < interval:
-            continue
-
-        # Check if driver already has a pending heartbeat task
-        has_heartbeat = any(
-            t.title.startswith("[heartbeat]")
-            and t.custom_fields.agent_name == driver_name
+        # Check if agent already has a pending heartbeat/review task
+        has_pending = any(
+            t.custom_fields.agent_name == agent_state.name
             and t.status in (TaskStatus.INBOX, TaskStatus.IN_PROGRESS)
+            and ("[heartbeat]" in t.title or "[review]" in t.title)
             for t in tasks
         )
-        if has_heartbeat:
-            _last_driver_wake[driver_name] = now
+        if has_pending:
+            agent_state.mark_heartbeat_sent(now)
             continue
 
+        # Only create heartbeat tasks for drivers and agents with specific work
+        # Worker agents in sleeping/offline don't need heartbeats unless they have work
+        if agent_state.name not in drivers and agent_state.status in (AgentStatus.SLEEPING, AgentStatus.OFFLINE):
+            # Check if this agent has any assigned inbox tasks
+            has_work = any(
+                t.custom_fields.agent_name == agent_state.name
+                and t.status == TaskStatus.INBOX
+                and not t.is_blocked
+                for t in tasks
+            )
+            if not has_work:
+                agent_state.mark_heartbeat_sent(now)
+                continue
+
         if dry_run:
-            print(f"  [dry_run] WOULD wake driver: {driver_name}")
+            print(f"  [dry_run] WOULD heartbeat {agent_state.name} "
+                  f"(status={agent_state.status.value})")
+            agent_state.mark_heartbeat_sent(now)
             state.drivers_woken += 1
-            _last_driver_wake[driver_name] = now
             continue
 
         try:
+            status_label = agent_state.status.value
             task = await mc.create_task(
                 board_id,
-                title=f"[heartbeat] {driver_name} periodic check",
+                title=f"[heartbeat] {agent_state.name} periodic check",
                 description=(
-                    f"Heartbeat task for {driver_name}. "
+                    f"Heartbeat task for {agent_state.name} "
+                    f"(status: {status_label}). "
                     "Check your HEARTBEAT.md for instructions. "
                     "Use fleet_agent_status to assess fleet health. "
                     "If everything is fine, complete with 'HEARTBEAT_OK'."
@@ -458,16 +485,14 @@ async def _wake_drivers(
                 priority="low",
                 assigned_agent_id=agent.id,
                 custom_fields={
-                    "agent_name": driver_name,
+                    "agent_name": agent_state.name,
                     "task_type": "subtask",
                 },
-                auto_created=True,
-                auto_reason=f"orchestrator heartbeat ({now.strftime('%H:%M')})",
             )
-            _last_driver_wake[driver_name] = now
+            agent_state.mark_heartbeat_sent(now)
             state.drivers_woken += 1
         except Exception as e:
-            state.errors.append(f"wake {driver_name}: {e}")
+            state.errors.append(f"heartbeat {agent_state.name}: {e}")
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────
