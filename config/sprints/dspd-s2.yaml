@@ -1,0 +1,132 @@
+# DSPD Sprint 2 — Fleet Autonomy Hardening & Plane Operational
+#
+# Goal: Verify Plane is actually running, fix agent-produced test failures,
+# deploy fleet improvements built this session, and start Sprint 2 of DSPD.
+# Sprint 1 produced code but tests are broken (pytest-asyncio missing).
+# This sprint fixes the quality gap and makes the fleet production-ready.
+
+sprint:
+  id: dspd-s2
+  name: "DSPD Sprint 2: Quality Hardening & Plane Operational"
+  start_date: 2026-03-29
+  end_date: 2026-04-12
+  goals:
+    - "Fix all failing tests from Sprint 1 agent output"
+    - "Plane actually running and accessible on port 8080"
+    - "Fleet framework pushed and verified on all agents"
+    - "Sprint velocity tracking operational"
+
+tasks:
+  - id: s2-epic
+    title: "DSPD Sprint 2: Quality hardening and Plane operational"
+    type: epic
+    priority: high
+    description: >
+      Sprint 2 epic. Sprint 1 produced code (PlaneClient, sync, CLI) but
+      tests are failing (pytest-asyncio missing). Plane needs to be actually
+      deployed and accessible. Fleet framework needs verification on all agents.
+
+  # Quality fixes from Sprint 1
+  - id: s2-fix-plane-tests
+    title: "Fix 43 failing Plane client tests (pytest-asyncio)"
+    type: task
+    parent: s2-epic
+    priority: urgent
+    agent: qa-engineer
+    project: openclaw-fleet
+    story_points: 3
+    description: >
+      The software-engineer produced fleet/tests/infra/test_plane_client.py with
+      @pytest.mark.asyncio markers but pytest-asyncio is not in dependencies.
+      Fix: add pytest-asyncio to pyproject.toml [test] dependencies. Verify all
+      43 async tests pass. Also fix 16 failing tests in fleet/tests/core/test_plane_sync.py.
+
+  - id: s2-fix-sync-tests
+    title: "Fix 16 failing Plane sync tests"
+    type: task
+    parent: s2-epic
+    depends_on: [s2-fix-plane-tests]
+    priority: high
+    agent: qa-engineer
+    project: openclaw-fleet
+    story_points: 3
+    description: >
+      fleet/tests/core/test_plane_sync.py has 16 failing async tests.
+      Same pytest-asyncio issue plus potential import/mock issues.
+      Verify all tests pass after fix.
+
+  # Plane deployment
+  - id: s2-deploy-plane
+    title: "Deploy Plane Docker services and verify web UI"
+    type: task
+    parent: s2-epic
+    priority: high
+    agent: devops
+    project: dspd
+    story_points: 5
+    description: >
+      Sprint 1 produced docker-compose.plane.yaml and plane.env.example.
+      Actually deploy Plane: cp plane.env.example plane.env, generate secrets,
+      docker compose -f docker-compose.plane.yaml up -d. Verify all 12 services
+      start. Verify web UI accessible on port 8080. Add to setup.sh for IaC.
+
+  - id: s2-plane-workspace
+    title: "Configure Plane workspace, project, and API key"
+    type: task
+    parent: s2-epic
+    depends_on: [s2-deploy-plane]
+    priority: high
+    agent: devops
+    project: dspd
+    story_points: 3
+    description: >
+      Configure Plane: create 'fleet' workspace, create initial projects
+      (openclaw-fleet, nnrt, dspd), generate API key, verify API access.
+      Script the configuration for IaC (add to setup.sh).
+
+  # Security review
+  - id: s2-security-review
+    title: "Security review: Plane deployment + fleet autonomy code"
+    type: task
+    parent: s2-epic
+    depends_on: [s2-deploy-plane]
+    priority: medium
+    agent: devsecops-expert
+    project: dspd
+    story_points: 3
+    description: >
+      Review Plane deployment security: default credentials in plane.env,
+      exposed ports, API key handling, network isolation from OCMC.
+      Also review fleet autonomy code: orchestrator, behavioral_security,
+      agent_roles — verify no security gaps in the automation layer.
+
+  # Framework verification
+  - id: s2-verify-framework
+    title: "Verify fleet framework on all agents — tools, memory, settings"
+    type: task
+    parent: s2-epic
+    priority: medium
+    agent: fleet-ops
+    project: openclaw-fleet
+    story_points: 2
+    description: >
+      Verify all 10 agents have: updated MC_WORKFLOW.md (13 tools),
+      STANDARDS.md with collaboration ethos, HEARTBEAT.md with role-specific
+      instructions, .claude/settings.json with effort/memory config,
+      .claude/memory/ initialized. Run push-agent-framework.sh and
+      configure-agent-settings.sh. Report any discrepancies.
+
+  # Documentation
+  - id: s2-docs-sprint1
+    title: "Document Sprint 1 outcomes and Sprint 2 plan"
+    type: task
+    parent: s2-epic
+    priority: low
+    agent: technical-writer
+    project: openclaw-fleet
+    story_points: 2
+    description: >
+      Write Sprint 1 retrospective: what was delivered, what broke, lessons learned.
+      Document Sprint 2 goals and task breakdown. Update CHANGELOG.md with
+      all commits from this session (48+ commits). Ensure docs/milestones/
+      documents are cross-referenced properly.
