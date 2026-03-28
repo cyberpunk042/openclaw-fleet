@@ -22,7 +22,13 @@ status:
 
 # Create task: make create-task TITLE="..." AGENT=architect PROJECT=nnrt DESC="..." DISPATCH=true
 create-task:
-	@bash scripts/create-task.sh "$(TITLE)" \
+	@.venv/bin/python -m fleet create "$(TITLE)" \
+		$(if $(AGENT),--agent $(AGENT)) \
+		$(if $(DESC),--desc "$(DESC)") \
+		$(if $(PRIORITY),--priority $(PRIORITY)) \
+		$(if $(PROJECT),--project $(PROJECT)) \
+		$(if $(DISPATCH),--dispatch) 2>/dev/null || \
+	bash scripts/create-task.sh "$(TITLE)" \
 		$(if $(AGENT),--agent $(AGENT)) \
 		$(if $(DESC),--desc "$(DESC)") \
 		$(if $(PRIORITY),--priority $(PRIORITY)) \
