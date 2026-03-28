@@ -45,13 +45,9 @@ if [[ "$USER_EXISTS" -gt 0 ]]; then
     echo "   User '$LOUNGE_USER' exists"
 else
     echo "   Creating user '$LOUNGE_USER'..."
-    # Create user with password via stdin
-    echo "$LOUNGE_PASS" | docker compose exec -T lounge thelounge add "$LOUNGE_USER" 2>/dev/null || {
-        # Some versions need --password flag
-        docker compose exec -T lounge thelounge add "$LOUNGE_USER" --password "$LOUNGE_PASS" 2>/dev/null || {
-            echo "   WARN: Could not create user automatically"
-            echo "   Create manually: docker compose exec lounge thelounge add $LOUNGE_USER"
-        }
+    docker compose exec -T lounge thelounge add "$LOUNGE_USER" --password "$LOUNGE_PASS" --save-logs 2>/dev/null || {
+        echo "   WARN: Could not create user automatically"
+        echo "   Run: docker compose exec lounge thelounge add $LOUNGE_USER --password $LOUNGE_PASS --save-logs"
     }
     echo "   User created"
 fi

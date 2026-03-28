@@ -29,8 +29,7 @@ module.exports = {
   // Message storage
   messageStorage: ["sqlite"],
 
-  // Search (requires sqlite storage)
-  searchEnabled: true,
+  // Search is enabled by default with sqlite storage
 
   // File uploads
   fileUpload: {
