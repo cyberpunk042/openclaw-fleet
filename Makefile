@@ -110,20 +110,23 @@ irc-down:
 	@bash scripts/stop-irc.sh
 
 irc-connect:
-	@if command -v weechat >/dev/null 2>&1; then \
-		weechat -r "/server add fleet localhost/6667; /connect fleet; /join \#fleet"; \
-	elif command -v irssi >/dev/null 2>&1; then \
-		irssi -c localhost -p 6667 -n human --join=\#fleet; \
-	else \
-		echo "No IRC client found. Install weechat or irssi:"; \
-		echo "  sudo apt install weechat   # or"; \
-		echo "  sudo apt install irssi"; \
-		echo ""; \
-		echo "Then connect manually:"; \
-		echo "  /server add fleet localhost/6667"; \
-		echo "  /connect fleet"; \
-		echo "  /join \#fleet"; \
-	fi
+	@echo "Open The Lounge in your browser:"
+	@echo "  http://localhost:9000"
+	@echo "  User: fleet  Pass: fleet"
+	@echo ""
+	@echo "Or use a CLI client:"
+	@echo "  weechat: /server add fleet localhost/6667 && /connect fleet && /join \#fleet,\#alerts,\#reviews"
+	@echo "  irssi:   /connect localhost 6667 && /join \#fleet && /join \#alerts && /join \#reviews"
+
+# The Lounge web IRC client
+lounge-up:
+	@bash scripts/setup-lounge.sh
+
+lounge-down:
+	@docker compose stop lounge && echo "The Lounge stopped"
+
+lounge-open:
+	@echo "http://localhost:9000  (fleet/fleet)"
 
 gateway:
 	@if ss -tlnp 2>/dev/null | grep -q ":18789"; then \

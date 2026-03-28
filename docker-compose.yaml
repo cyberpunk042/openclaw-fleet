@@ -107,7 +107,32 @@ services:
 
   # OCF Gateway runs on the host (not in Docker)
   # It needs direct access to Claude Code CLI
-  # Start it with: python -m gateway
+  # Start it with: openclaw gateway run --port 18789
+
+  # --- IRC Web Client (The Lounge) ---
+
+  lounge:
+    image: thelounge/thelounge:latest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - lounge_data:/var/opt/thelounge
+      - ./config/thelounge:/var/opt/thelounge/config-seed:ro
+    ports:
+      - "${LOUNGE_PORT:-9000}:9000"
+    restart: unless-stopped
+    entrypoint: >
+      sh -c '
+        if [ ! -f /var/opt/thelounge/config.js ]; then
+          cp /var/opt/thelounge/config-seed/config.js /var/opt/thelounge/config.js 2>/dev/null || true;
+        fi;
+        if [ ! -f /var/opt/thelounge/users/fleet.json ]; then
+          mkdir -p /var/opt/thelounge/users;
+          cp /var/opt/thelounge/config-seed/fleet.json /var/opt/thelounge/users/fleet.json 2>/dev/null || true;
+        fi;
+        exec thelounge start
+      '
 
 volumes:
   postgres_data:
+  lounge_data:

@@ -14,7 +14,7 @@ set -euo pipefail
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 IRC_PORT="${FLEET_IRC_PORT:-6667}"
-IRC_CHANNEL="${FLEET_IRC_CHANNEL:-#fleet}"
+IRC_CHANNELS="${FLEET_IRC_CHANNELS:-#fleet,#alerts,#reviews}"
 IRC_NICK="${FLEET_IRC_NICK:-fleet-bot}"
 IRC_PID_FILE="$FLEET_DIR/.irc.pid"
 
@@ -95,7 +95,7 @@ channels['irc'] = {
             'port': $IRC_PORT,
             'tls': False,
             'nick': '$IRC_NICK',
-            'channels': ['$IRC_CHANNEL'],
+            'channels': [c.strip() for c in '$IRC_CHANNELS'.split(',')],
             'dmPolicy': 'open',
             'allowFrom': ['*'],
         }

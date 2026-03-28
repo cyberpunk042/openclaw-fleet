@@ -19,6 +19,7 @@ AGENT=""
 EVENT=""
 TITLE=""
 URL=""
+CHANNEL="#fleet"
 PLAIN_MSG=""
 
 if [[ $# -eq 1 && "$1" != --* ]]; then
@@ -30,6 +31,7 @@ else
             --event) EVENT="$2"; shift 2 ;;
             --title) TITLE="$2"; shift 2 ;;
             --url) URL="$2"; shift 2 ;;
+            --channel) CHANNEL="$2"; shift 2 ;;
             *) PLAIN_MSG="${PLAIN_MSG:+$PLAIN_MSG }$1"; shift ;;
         esac
     done
@@ -48,8 +50,11 @@ else
 fi
 
 # Send via OpenClaw gateway send RPC
+export IRC_CHANNEL="$CHANNEL"
+export IRC_MSG="$MSG"
+
 python3 << PYEOF
-import asyncio, json, uuid
+import asyncio, json, uuid, os
 import websockets
 
 async def send_irc():
@@ -80,8 +85,8 @@ async def send_irc():
                 'type': 'req', 'id': rid, 'method': 'send',
                 'params': {
                     'channel': 'irc',
-                    'to': '#fleet',
-                    'message': $(python3 -c "import json; print(json.dumps('''$MSG'''))"),
+                    'to': os.environ.get('IRC_CHANNEL', '#fleet'),
+                    'message': os.environ.get('IRC_MSG', ''),
                     'accountId': 'fleet',
                     'idempotencyKey': str(uuid.uuid4()),
                 },
@@ -102,5 +107,5 @@ async def send_irc():
 
 ok = asyncio.run(send_irc())
 if ok:
-    print('Sent to #fleet')
+    print(f'Sent to {os.environ.get("IRC_CHANNEL", "#fleet")}')
 PYEOF

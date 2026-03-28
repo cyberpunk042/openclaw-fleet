@@ -174,7 +174,11 @@ echo ""
 bash scripts/setup-mc.sh
 echo ""
 
-# Step 10: Start sync daemon (task↔PR sync, worktree cleanup, IRC notifications)
+# Step 10: Start The Lounge (web IRC client)
+bash scripts/setup-lounge.sh
+echo ""
+
+# Step 11: Start sync daemon (task↔PR sync, worktree cleanup, IRC notifications)
 echo "=== Starting Sync Daemon ==="
 bash scripts/fleet-sync-daemon.sh &
 echo ""
@@ -188,10 +192,10 @@ echo "  Mission Control UI:  http://localhost:3000"
 echo "  Mission Control API: http://localhost:8000"
 echo "  OpenClaw Gateway:    ws://localhost:18789"
 echo "  OpenClaw Control UI: http://localhost:18789"
-echo "  IRC Server:          localhost:6667 (#fleet)"
+echo "  IRC Server:          localhost:6667"
+echo "  The Lounge (IRC UI): http://localhost:9000  (fleet/fleet)"
 echo ""
-echo "Connect to IRC:"
-echo "  make irc-connect"
+echo "IRC Channels: #fleet (general) · #alerts (urgent) · #reviews (PRs)"
 echo ""
 echo "Manage:"
 echo "  make status    — fleet overview"
