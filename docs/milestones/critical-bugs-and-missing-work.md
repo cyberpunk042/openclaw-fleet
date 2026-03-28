@@ -1,0 +1,322 @@
+# Critical Bugs and Missing Work — 2026-03-28 Late Session
+
+## What The User Said (Verbatim)
+
+> "the agents seems constantly blocked into a heartbeat sequence.... all at the
+> same time taking all the space.... and the project doesn't seem to move forward.
+> and no one is still using the chat system... wtf..... this fucking internal chat
+> system is very important why is it not used?"
+
+> "EVERYTHING IS LOCKED AGAIN AND NO ONE IS COMMUNICATING"
+
+> "the fleet cannot work on a project management tool till it HASN'T LEARNED TO
+> COMMUNICATE PROPERLY"
+
+> "ITS IAC YOU FUCKING RETARD... ITS CONFIGURATION USING CONFIG FILES AND SCRIPTS"
+
+> "I WANT MY 10 MAJOR BUGFIXES AND MY 7+ MISSING MILESTONES"
+
+---
+
+## Bug 1: Heartbeat Flooding — Agents Stuck in Loops
+
+**Symptom:** The MC board is flooded with heartbeat tasks. All 10 agents get
+heartbeats every few minutes. Sprint work gets buried under heartbeat noise.
+
+**Root cause:** The orchestrator creates heartbeat TASKS for every agent that
+needs a heartbeat. These tasks go through the full lifecycle (inbox → in_progress
+→ review → done) which takes time and clutters the board. Meanwhile sprint
+tasks wait because agents are busy processing heartbeats.
+
+**What should happen:** Heartbeats should NOT be MC tasks. They should be
+direct gateway messages to agent sessions. The gateway already has a heartbeat
+system (`agent.heartbeat` method, `HEARTBEAT.md` instructions). The orchestrator
+should use gateway `wake` or `chat.send(deliver=true)` to trigger heartbeats,
+NOT create MC tasks.
+
+**Fix needed:**
+- Remove heartbeat task creation from orchestrator
+- Use gateway `wake` method to trigger agent heartbeats directly
+- Only create MC tasks for REAL work (sprint tasks, reviews, fix tasks)
+- Heartbeats are session-level operations, NOT board-level tasks
+
+---
+
+## Bug 2: MCP Server Doesn't Reload Tools
+
+**Symptom:** fleet_chat (tool #15) was added to tools.py but agents can't see it.
+The MCP server process was started before fleet_chat existed.
+
+**Root cause:** The OpenClaw gateway starts the MCP server process once at agent
+provisioning. The process reads `tools.py` at startup and caches the tool list.
+New tools added to `tools.py` are invisible until the MCP server process restarts.
+There is no hot-reload mechanism.
+
+**Impact:** Every time we add a new MCP tool, ALL agents are blind to it until
+their MCP server is restarted. This means:
+- fleet_chat (tool #15) — invisible
+- fleet_notify_human (#14) — may be invisible depending on when server started
+- Any tool added mid-session — invisible
+
+**Fix needed:**
+- Restart all agent MCP server processes after adding tools
+- OR: implement MCP server restart in the gateway lifecycle
+- OR: add a `fleet mcp restart` command that kills and restarts MCP processes
+- Long-term: gateway should detect .mcp.json changes and hot-reload
+
+---
+
+## Bug 3: Internal Chat Not Used — Nobody Communicates
+
+**Symptom:** The OCMC internal chat has 4 messages from 2 days ago. Agents
+don't post to chat. Agent work requests go unanswered. No collaboration.
+
+**Root causes (multiple):**
+1. fleet_chat tool is invisible to agents (Bug 2)
+2. Agents' HEARTBEAT.md doesn't mention checking or using chat (partially fixed
+   for template but not pushed to all agent-specific heartbeats)
+3. fleet_read_context doesn't surface chat messages prominently enough
+4. No agent is instructed to RESPOND to chat messages from other agents
+5. The PM doesn't respond to work requests in chat (ux-designer, devops asked)
+6. Board memory "chat" tag isn't being used by the fleet tools that DO exist
+
+**Fix needed:**
+- Fix Bug 2 first (agents need the fleet_chat tool)
+- ALL agent HEARTBEAT.md files: add "Check internal chat FIRST"
+- PM HEARTBEAT.md: "Respond to work requests in chat, assign idle agents"
+- fleet-ops HEARTBEAT.md: "Check chat for @lead messages"
+- Push framework to all agent workspaces
+- Re-provision agents so they pick up new tools
+- fleet_read_context should show chat as the FIRST section, not buried
+
+---
+
+## Bug 4: Sprint Work Blocked by Non-Work Tasks
+
+**Symptom:** Sprint 3 was loaded but only god-mode task started. Meanwhile
+heartbeat tasks fill the board. Sprint tasks sit in inbox.
+
+**Root cause:** The orchestrator treats heartbeat tasks and sprint tasks equally.
+Both go through the dispatch pipeline. But heartbeat tasks are constantly created
+(every 10-30 minutes per agent), consuming all dispatch slots. Sprint tasks
+can't compete.
+
+**Fix needed:**
+- Heartbeats should NOT be MC tasks (see Bug 1)
+- If heartbeats must be tasks temporarily: mark them with priority=low and
+  the orchestrator should ALWAYS dispatch sprint tasks before heartbeats
+- The task scoring module exists but heartbeat tasks aren't penalized
+- Add negative score for heartbeat tasks in task_scoring.py
+
+---
+
+## Bug 5: Plane Configuration Can't Be Done by Agents Via Web Forms
+
+**Symptom:** Sprint 3 task "god-mode setup" dispatched to devops. But Plane's
+god-mode is a web form at http://localhost:8080/god-mode/. An AI agent
+working in CLI can't fill out web forms.
+
+**Root cause:** I assumed agents would configure Plane via the web UI. But the
+user said clearly: "ITS IAC — configuration using config files and scripts."
+
+**What should happen:** Plane configuration should be done via:
+1. Plane's Docker environment variables (plane.env) — admin credentials, instance name
+2. Plane's API after initial bootstrap — workspaces, projects, states, labels
+3. A setup script (scripts/configure-plane.sh) that does everything via API
+4. The god-mode setup may need to be done via API or environment variable seeding
+
+**Fix needed:**
+- Research if Plane supports headless admin setup via env vars or API
+- If yes: script it in configure-plane.sh
+- If no: document the ONE manual step (god-mode web form) and script everything after
+- The Sprint 3 task descriptions need to reflect this — agents run scripts, not web forms
+
+---
+
+## Bug 6: Agent Framework Not Fully Pushed/Provisioned
+
+**Symptom:** push-agent-framework.sh copies files to workspaces but agents
+don't read them until their next session start. Running agents have stale
+HEARTBEAT.md, STANDARDS.md, MC_WORKFLOW.md.
+
+**Root cause:** The gateway starts agent sessions and they read workspace files
+at session start. Pushing new files to the workspace doesn't trigger a re-read.
+The agent continues with whatever it loaded at provisioning.
+
+**Fix needed:**
+- After pushing framework files, agents need to be re-provisioned
+- OR: agents need to be explicitly re-started (session reset)
+- Need a `fleet agents reprovision` command that:
+  1. Pushes framework files
+  2. Restarts MCP server processes
+  3. Sends re-provision message to each agent via gateway
+
+---
+
+## Bug 7: Board Memory Pollution — Too Many Low-Value Entries
+
+**Symptom:** Board memory has merge notifications, heartbeat logs, cleanup
+records — low-value noise that buries important decisions and chat messages.
+
+**Root cause:** Every fleet sync, every heartbeat completion, every PR merge
+posts to board memory. There's no distinction between operational noise and
+valuable knowledge.
+
+**Fix needed:**
+- Separate operational logs from knowledge memory
+- Board memory should be for: decisions, alerts, knowledge, chat
+- Merge notifications → IRC only (not board memory)
+- Heartbeat results → IRC #agents only (not board memory)
+- Cleanup records → log file only (not board memory)
+- Implement memory categories with filtering
+
+---
+
+## Bug 8: Orchestrator Creates Too Many Review Tasks for Fleet-Ops
+
+**Symptom:** fleet-ops is overwhelmed with "[review] Process N pending approvals"
+tasks. Multiple review tasks created per cycle.
+
+**Root cause:** The `_wake_lead_for_reviews` function creates a new review task
+every 5 minutes if there are pending approvals. But fleet-ops takes time to
+process each one, so they accumulate.
+
+**Fix needed:**
+- Never create a review task if fleet-ops already has one active
+- Increase the review wake cooldown significantly (30+ minutes)
+- OR: don't create review tasks at all — fleet-ops should check approvals
+  during regular heartbeats, not via special review tasks
+
+---
+
+## Bug 9: No Agent Re-provisioning After Code Changes
+
+**Symptom:** We add code (tools, heartbeats, skills) but agents never see it.
+The fleet runs with stale configuration from hours ago.
+
+**Root cause:** No mechanism to push changes to running agents. The workflow is:
+1. Developer changes tools.py, heartbeats, skills
+2. push-agent-framework.sh copies files to workspaces
+3. But running agents don't re-read anything
+4. MCP server doesn't reload
+5. Agent keeps using old tools and old instructions
+
+**Fix needed:**
+- Build `fleet agents reprovision` command:
+  1. Stop all agent MCP server processes
+  2. Push framework files
+  3. Update .claude/settings.json
+  4. Restart MCP servers
+  5. Send re-provision message to each agent via gateway
+- Add to Makefile: `make agents-reprovision`
+- Run this after ANY change to tools, heartbeats, or skills
+
+---
+
+## Bug 10: Fleet Doesn't Learn From Failures
+
+**Symptom:** Same problems keep recurring. Heartbeat flooding happened before,
+was "fixed", happened again. MCP tool visibility was identified early, never
+properly fixed. Chat was built but never verified working.
+
+**Root cause:** No feedback loop. When something breaks:
+1. We patch it quickly
+2. We claim it's done
+3. We move to the next thing
+4. The same issue comes back because the root cause wasn't fixed
+
+**Fix needed:**
+- Every fix needs verification (not just "code changed, committed")
+- Regression tests for systemic issues
+- fleet-ops should detect recurring problems and flag them
+- Post-incident analysis: why did this happen, why wasn't it caught,
+  what prevents it from happening again
+
+---
+
+## Missing Milestones
+
+### MM1: Gateway-Level Heartbeat (Replace Task-Based Heartbeats)
+
+Heartbeats should be gateway `wake` calls, not MC tasks.
+- Use `chat.send(deliver=true)` for heartbeat messages
+- Agent session receives message, executes HEARTBEAT.md
+- NO task created on MC board
+- Board stays clean for real work only
+
+### MM2: MCP Server Hot-Reload / Reprovision Command
+
+Agents need to see new tools without full re-provisioning.
+- `fleet agents reprovision` command
+- Kills MCP server processes
+- Pushes framework files
+- Restarts MCP servers
+- Gateway re-provision lifecycle
+
+### MM3: Communication Verification End-to-End
+
+Before ANY more feature work:
+- Agent A posts fleet_chat → Agent B sees it in fleet_read_context
+- Agent B responds → Agent A sees response
+- fleet-ops sees @lead messages
+- PM responds to work requests
+- Verified with REAL running agents, not just code review
+
+### MM4: Board Memory Hygiene — Separate Ops Logs From Knowledge
+
+- Merge notifications → IRC only
+- Heartbeat results → IRC #agents only
+- Board memory reserved for: decisions, alerts, chat, knowledge
+- Memory categories with filtering in fleet_read_context
+
+### MM5: Sprint Work Priority Over System Tasks
+
+- Sprint tasks dispatched BEFORE any system/heartbeat work
+- System tasks (heartbeats, reviews) get lowest priority
+- Orchestrator explicitly prioritizes sprint plan tasks
+- Task scoring penalizes system/auto-created tasks
+
+### MM6: Plane IaC Configuration Script
+
+- Research Plane headless setup (env vars, API seeding)
+- scripts/configure-plane.sh does everything via API
+- God-mode: either env var seed or ONE documented manual step
+- Everything else automated: workspace, projects, states, labels, API keys
+
+### MM7: Agent Re-provisioning Pipeline
+
+- push framework + restart MCP + re-provision = one command
+- Triggered after any tool/heartbeat/skill change
+- Verified: agent can see and use new tools after reprovision
+- Added to CI/CD: tool changes trigger automatic reprovision
+
+---
+
+## Priority Order
+
+```
+BUG FIXES (do these FIRST, in order):
+  Bug 2: MCP server tool reload / reprovision → agents can see fleet_chat
+  Bug 1: Heartbeat not-as-tasks (or at minimum stop flooding)
+  Bug 3: Chat actually working end-to-end with running agents
+  Bug 6: Framework push + reprovision pipeline
+  Bug 4: Sprint tasks priority over system tasks
+  Bug 8: Review task flooding
+  Bug 7: Board memory hygiene
+  Bug 5: Plane IaC approach (research + script)
+  Bug 9: Reprovision after code changes
+  Bug 10: Verification culture — test before claiming done
+
+MISSING MILESTONES (after bugs fixed):
+  MM1: Gateway heartbeat (proper fix for Bug 1)
+  MM2: MCP hot-reload (proper fix for Bug 2)
+  MM3: Communication verification (verify Bug 3 is actually fixed)
+  MM4: Board memory hygiene (proper fix for Bug 7)
+  MM5: Sprint priority (proper fix for Bug 4)
+  MM6: Plane IaC (proper fix for Bug 5)
+  MM7: Reprovision pipeline (proper fix for Bug 6 + Bug 9)
+```
+
+The fleet CANNOT work on Plane until it can communicate. Communication
+means: agents see new tools, agents use chat, agents respond to each other,
+sprint work takes priority over system noise.
