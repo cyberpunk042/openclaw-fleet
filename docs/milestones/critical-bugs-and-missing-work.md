@@ -18,27 +18,59 @@
 
 ---
 
-## Bug 1: Heartbeat Flooding — Agents Stuck in Loops
+## Bug 1: Heartbeat Model Is Fundamentally Wrong
 
 **Symptom:** The MC board is flooded with heartbeat tasks. All 10 agents get
 heartbeats every few minutes. Sprint work gets buried under heartbeat noise.
 
-**Root cause:** The orchestrator creates heartbeat TASKS for every agent that
-needs a heartbeat. These tasks go through the full lifecycle (inbox → in_progress
-→ review → done) which takes time and clutters the board. Meanwhile sprint
-tasks wait because agents are busy processing heartbeats.
+**Root cause:** The orchestrator creates heartbeat TASKS on the MC board for
+every agent. This is wrong on multiple levels:
 
-**What should happen:** Heartbeats should NOT be MC tasks. They should be
-direct gateway messages to agent sessions. The gateway already has a heartbeat
-system (`agent.heartbeat` method, `HEARTBEAT.md` instructions). The orchestrator
-should use gateway `wake` or `chat.send(deliver=true)` to trigger heartbeats,
-NOT create MC tasks.
+1. **Don't create heartbeat tasks when an agent already has assigned work.**
+   If a task is assigned to an agent, the agent should just WORK ON IT.
+   The heartbeat for that agent is: check on your task, post progress,
+   participate in discussions about it. NOT a separate heartbeat task.
+
+2. **Heartbeats are for the OTHER things** — proactive communication,
+   answering questions, participating in architecture discussions,
+   reviewing UX proposals, checking board memory for relevant decisions,
+   contributing to backlog management, and fulfilling their soul/role
+   beyond just executing assigned tasks.
+
+3. **Heartbeats should NOT be MC tasks.** They should be gateway-level
+   wake calls. The gateway has `wake`, `chat.send(deliver=true)`,
+   and the agent's `HEARTBEAT.md` tells them what to do.
+
+4. **The orchestrator should wake agents based on EVENTS:**
+   - Task assigned to agent → wake that agent
+   - Agent tagged/mentioned in chat → wake that agent
+   - Agent's review gate triggered → wake that agent
+   - New decision in board memory relevant to agent's domain → wake
+   - Question posted that matches agent's expertise → wake
+   - No events for 30 minutes → periodic heartbeat (check in, participate)
+
+**What a heartbeat actually IS:**
+- NOT: "check if you have work"
+- IS: "participate in the fleet — check chat, respond to discussions,
+  review decisions, contribute opinions, check if your domain has open
+  questions, filter events and judge if they need your participation,
+  help with backlog management, proactive security scanning, etc."
+
+**When an agent has an assigned task:**
+- Don't send heartbeat — the agent is WORKING
+- If the agent needs a nudge (stuck too long) → send a check-in wake,
+  NOT a heartbeat task
+- If someone @mentions the agent → wake them to respond,
+  they'll context-switch from their task
 
 **Fix needed:**
-- Remove heartbeat task creation from orchestrator
-- Use gateway `wake` method to trigger agent heartbeats directly
-- Only create MC tasks for REAL work (sprint tasks, reviews, fix tasks)
-- Heartbeats are session-level operations, NOT board-level tasks
+- Remove heartbeat task creation from orchestrator entirely
+- Implement event-driven agent wake via gateway
+- Wake triggers: task assigned, @mention, review gate, domain-relevant event
+- Periodic heartbeat (30+ min) ONLY for idle agents with no assigned work
+- Heartbeat via gateway wake, NOT MC task
+- Agent HEARTBEAT.md describes what to do during heartbeat:
+  check chat, check events, participate, contribute to discussions
 
 ---
 
@@ -91,22 +123,29 @@ don't post to chat. Agent work requests go unanswered. No collaboration.
 
 ---
 
-## Bug 4: Sprint Work Blocked by Non-Work Tasks
+## Bug 4: Sprint Work Blocked — Orchestrator Doesn't React to Events
 
-**Symptom:** Sprint 3 was loaded but only god-mode task started. Meanwhile
-heartbeat tasks fill the board. Sprint tasks sit in inbox.
+**Symptom:** Sprint 3 was loaded but tasks sit in inbox even when dependencies
+are met. The orchestrator polls every 30 seconds but doesn't prioritize
+sprint tasks over system noise.
 
-**Root cause:** The orchestrator treats heartbeat tasks and sprint tasks equally.
-Both go through the dispatch pipeline. But heartbeat tasks are constantly created
-(every 10-30 minutes per agent), consuming all dispatch slots. Sprint tasks
-can't compete.
+**Root cause:** The orchestrator is a polling loop that treats all tasks equally.
+It doesn't react to events. When a task completes and unblocks a dependency,
+the orchestrator doesn't immediately dispatch the next task — it waits for
+the next 30-second cycle. Meanwhile heartbeat tasks consume dispatch slots.
+
+**What should happen:**
+1. When a task moves to done → immediately check what it unblocks → dispatch
+2. When a sprint is loaded → immediately dispatch all unblocked tasks
+3. Sprint tasks always dispatched before system tasks
+4. Event-driven: task.status_changed → orchestrator reacts immediately
+5. Agent assignment → wake agent immediately (deliver=true)
 
 **Fix needed:**
-- Heartbeats should NOT be MC tasks (see Bug 1)
-- If heartbeats must be tasks temporarily: mark them with priority=low and
-  the orchestrator should ALWAYS dispatch sprint tasks before heartbeats
-- The task scoring module exists but heartbeat tasks aren't penalized
-- Add negative score for heartbeat tasks in task_scoring.py
+- Orchestrator reacts to change_detector results: if tasks unblocked → dispatch NOW
+- Sprint tasks scored higher than system tasks in task_scoring
+- Agent wake uses deliver=true for immediate dispatch (not polling)
+- Consider: MC activity events or webhooks for real-time reaction
 
 ---
 
@@ -236,13 +275,50 @@ properly fixed. Chat was built but never verified working.
 
 ## Missing Milestones
 
-### MM1: Gateway-Level Heartbeat (Replace Task-Based Heartbeats)
+### MM1: Event-Driven Agent Wake System (Replace Task-Based Heartbeats)
 
-Heartbeats should be gateway `wake` calls, not MC tasks.
-- Use `chat.send(deliver=true)` for heartbeat messages
-- Agent session receives message, executes HEARTBEAT.md
-- NO task created on MC board
-- Board stays clean for real work only
+Complete replacement of the task-based heartbeat system with event-driven
+agent wake. Agents are woken by EVENTS, not by periodic task creation.
+
+**Wake triggers (orchestrator detects and wakes):**
+
+| Event | Who to Wake | Method |
+|-------|------------|--------|
+| Task assigned to agent | That agent | gateway wake (deliver=true) |
+| Agent @mentioned in chat | That agent | gateway wake |
+| Agent's review gate triggered | That agent (reviewer) | gateway wake |
+| Task completed in agent's project | PM (sprint progress) | gateway wake |
+| Security finding in agent's domain | devsecops-expert | gateway wake |
+| Architecture decision posted | architect | gateway wake |
+| Test failure detected | qa-engineer | gateway wake |
+| Human responds to escalation | The agent who escalated | gateway wake |
+| New Plane issue in agent's project | PM + relevant agent | gateway wake |
+| PR comment on agent's PR | That agent | gateway wake |
+
+**Periodic heartbeat (for idle agents only):**
+- Agent with NO assigned tasks and NO recent events → heartbeat every 30 min
+- Heartbeat via gateway `chat.send(deliver=true)` with HEARTBEAT.md context
+- Agent checks: chat, board memory, domain events, backlog, discussions
+- Agent participates: answers questions, reviews decisions, contributes opinions
+- NOT a MC task — a session-level message
+
+**What the orchestrator does differently:**
+1. change_detector detects events each cycle
+2. For each event: determine which agents are affected
+3. Wake affected agents via gateway (not MC task)
+4. Only create MC tasks for REAL assigned work
+5. Heartbeat is a FALLBACK for agents with no events for 30+ min
+
+**Sub-milestones:**
+| # | Scope |
+|---|-------|
+| MM1a | Remove heartbeat task creation from orchestrator |
+| MM1b | Implement gateway wake for event-driven agent activation |
+| MM1c | Event → agent mapping (which events affect which agents) |
+| MM1d | Tag/mention detection → wake mentioned agent |
+| MM1e | Agent event filtering (agent judges which events need participation) |
+| MM1f | Periodic heartbeat as fallback (30 min, gateway wake, not MC task) |
+| MM1g | Agent HEARTBEAT.md: participation-focused (chat, decisions, domain events) |
 
 ### MM2: MCP Server Hot-Reload / Reprovision Command
 
@@ -289,6 +365,46 @@ Before ANY more feature work:
 - Triggered after any tool/heartbeat/skill change
 - Verified: agent can see and use new tools after reprovision
 - Added to CI/CD: tool changes trigger automatic reprovision
+
+---
+
+### MM8: Agent Event Filtering and Participation Judgment
+
+> "we need also a way for them to filter events and have them look at them
+> during their heartbeat and judge if it require participation"
+
+Agents need to see a filtered event stream and decide what needs their attention.
+During heartbeat or when woken, agents receive events and judge:
+- Does this architecture decision affect my current work? → participate
+- Is this security alert in my domain? → investigate
+- Is this UX question something I can help with? → respond
+- Is this backlog item something I should pick up? → volunteer
+- Is this discussion relevant to my expertise? → contribute
+
+**Design: Agent Event Feed**
+
+Each agent gets a filtered event feed in fleet_read_context:
+```
+events_for_me: [
+  {type: "chat_mention", from: "architect", content: "...", needs_response: true},
+  {type: "decision", about: "API design", domain_match: 0.8, participation: "optional"},
+  {type: "review_gate", task: "S3-2", my_role: "qa", action: "run tests"},
+  {type: "backlog_item", title: "Add caching", matches_skill: true},
+]
+```
+
+The agent reads this and decides what to act on. Not everything needs action —
+some are informational (FYI a decision was made), some need response (someone
+asked you a question), some are work (review gate triggered).
+
+**Sub-milestones:**
+| # | Scope |
+|---|-------|
+| MM8a | Event feed builder: filter board events by agent domain/expertise |
+| MM8b | fleet_read_context includes filtered events_for_me |
+| MM8c | Agent HEARTBEAT.md: judge events, participate where appropriate |
+| MM8d | Tag system: agents can be tagged in board memory, tasks, chat |
+| MM8e | Domain matching: events auto-tagged with domain → matched to agent capabilities |
 
 ---
 
