@@ -179,14 +179,14 @@ monitor-stop:
 
 # Daily digest
 digest:
-	@bash scripts/fleet-digest.sh
+	@.venv/bin/python -m fleet digest 2>/dev/null || bash scripts/fleet-digest.sh
 
 digest-preview:
-	@bash scripts/fleet-digest.sh --dry-run
+	@.venv/bin/python -m fleet digest --dry-run 2>/dev/null || bash scripts/fleet-digest.sh --dry-run
 
 # Quality enforcement check
 quality:
-	@bash scripts/fleet-quality-check.sh
+	@.venv/bin/python -m fleet quality 2>/dev/null || bash scripts/fleet-quality-check.sh
 
 # Configure board custom fields and tags
 board-setup:

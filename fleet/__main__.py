@@ -11,6 +11,8 @@ COMMANDS = {
     "status": ("Fleet overview (agents, tasks, activity)", "fleet.cli.status", "run_status"),
     "sync": ("Sync tasks ↔ PRs (merge, close, cleanup)", "fleet.cli.sync", "run_sync"),
     "notify": ("Send IRC notification", "fleet.cli.notify", "run_notify"),
+    "digest": ("Generate daily fleet digest", "fleet.cli.digest", "run_digest"),
+    "quality": ("Run quality compliance checks", "fleet.cli.quality", "run_quality"),
 }
 
 
@@ -35,7 +37,8 @@ def main() -> int:
     module = __import__(module_path, fromlist=[func_name])
     func = getattr(module, func_name)
 
-    if command == "notify":
+    # Commands that accept args
+    if command in ("notify", "digest"):
         return func(sys.argv[2:])
     else:
         return func()
