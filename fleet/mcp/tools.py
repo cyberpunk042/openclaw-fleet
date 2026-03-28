@@ -123,14 +123,69 @@ def register_tools(server: FastMCP) -> None:
             urls = ctx.urls.resolve(project=ctx.project_name, task_id=ctx.task_id)
             result["urls"] = {"task": urls.task or "", "board": urls.board or ""}
 
+        # Board memory — categorized for agent awareness
         try:
-            memory = await ctx.mc.list_memory(board_id, limit=10)
+            memory = await ctx.mc.list_memory(board_id, limit=20)
             result["recent_memory"] = [
-                {"content": m.content[:200], "tags": m.tags, "source": m.source}
-                for m in memory
+                {"content": m.content[:300], "tags": m.tags, "source": m.source}
+                for m in memory[:5]
             ]
+            # Separate important categories for agent attention
+            result["recent_decisions"] = [
+                {"content": m.content[:300], "source": m.source}
+                for m in memory if "decision" in m.tags
+            ][:3]
+            result["active_alerts"] = [
+                {"content": m.content[:300], "source": m.source}
+                for m in memory if "alert" in m.tags
+            ][:3]
+            result["escalations"] = [
+                {"content": m.content[:300], "source": m.source}
+                for m in memory if "escalation" in m.tags
+            ][:3]
         except Exception:
             result["recent_memory"] = []
+
+        # Team activity — what each agent is working on (for collaboration awareness)
+        try:
+            all_tasks = await ctx.mc.list_tasks(board_id)
+            active_work = []
+            for t in all_tasks:
+                if t.status.value in ("in_progress", "review") and t.custom_fields.agent_name:
+                    active_work.append({
+                        "agent": t.custom_fields.agent_name,
+                        "task": t.title[:60],
+                        "status": t.status.value,
+                        "task_id": t.id[:8],
+                    })
+            result["team_activity"] = active_work[:10]
+        except Exception:
+            result["team_activity"] = []
+
+        # Task hierarchy — if this task has a parent, show siblings
+        if ctx.task_id:
+            try:
+                task_data = result.get("task", {})
+                parent_id = ""
+                if isinstance(task_data, dict) and not task_data.get("error"):
+                    t = await ctx.mc.get_task(board_id, ctx.task_id)
+                    parent_id = t.custom_fields.parent_task or ""
+
+                if parent_id:
+                    siblings = [
+                        {
+                            "id": t.id[:8],
+                            "title": t.title[:50],
+                            "status": t.status.value,
+                            "agent": t.custom_fields.agent_name or "",
+                        }
+                        for t in all_tasks
+                        if t.custom_fields.parent_task == parent_id and t.id != ctx.task_id
+                    ]
+                    result["parent_task_id"] = parent_id[:8]
+                    result["sibling_tasks"] = siblings[:10]
+            except Exception:
+                pass
 
         return result
 
