@@ -17,7 +17,7 @@ Your auto-memory is enabled. Claude Code saves important context between session
 - Don't write ephemeral details — focus on what helps you in FUTURE sessions
 - Auto-dream consolidates your short-term memory into long-term between sessions
 
-### Your Tools (13 Native MCP Tools)
+### Your Tools (15 Native MCP Tools)
 
 | Tool | When to Use |
 |------|------------|
@@ -33,6 +33,7 @@ Your auto-memory is enabled. Claude Code saves important context between session
 | `fleet_agent_status` | Check fleet health — agents, task counts, pending approvals |
 | `fleet_escalate` | Escalate to human — when you need direction or a decision |
 | `fleet_notify_human` | Send notification to human via ntfy (info/important/urgent) |
+| `fleet_chat` | Post to internal chat — communicate with teammates, @mention agents |
 
 ---
 
