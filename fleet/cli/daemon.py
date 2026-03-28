@@ -134,11 +134,39 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
         await asyncio.sleep(interval)
 
 
+async def _run_auth_daemon(interval: int = 120) -> None:
+    """Auto-refresh auth token and restart gateway if needed."""
+    from fleet.core.auth import refresh_token, token_needs_refresh
+    from fleet.infra.gh_client import GHClient
+
+    print(f"[auth] Daemon started (interval={interval}s)")
+    while True:
+        try:
+            if token_needs_refresh():
+                updated = refresh_token()
+                if updated:
+                    ts = datetime.now().strftime("%H:%M:%S")
+                    print(f"[{ts}] [auth] Token rotated — refreshed in ~/.openclaw/.env")
+                    # Restart gateway to pick up new token
+                    gh = GHClient()
+                    await gh._run(["pkill", "-f", "openclaw-gateway"])
+                    await asyncio.sleep(3)
+                    await gh._run(["openclaw", "gateway", "run", "--port", "18789"])
+                    await asyncio.sleep(5)
+                    print(f"[{ts}] [auth] Gateway restarted with new token")
+        except Exception as e:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [auth] Error: {e}")
+
+        await asyncio.sleep(interval)
+
+
 async def _run_all(sync_interval: int = 60, monitor_interval: int = 300) -> None:
-    """Run both daemons concurrently."""
-    print(f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s)")
+    """Run all daemons concurrently."""
+    print(f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s, auth=120s)")
     await asyncio.gather(
         _run_sync_daemon(sync_interval),
+        _run_auth_daemon(120),
         _run_monitor_daemon(monitor_interval),
     )
 
