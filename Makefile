@@ -114,6 +114,12 @@ agents:
 agents-register:
 	bash scripts/register-agents.sh
 
+agents-push:
+	bash scripts/push-agent-framework.sh
+
+agents-config:
+	bash scripts/configure-agent-settings.sh
+
 skills-list:
 	@bash scripts/install-skills.sh --list
 
