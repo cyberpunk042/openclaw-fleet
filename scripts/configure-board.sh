@@ -73,6 +73,8 @@ FIELDS = [
      "ui_visibility": "if_set", "description": "Sprint plan or grouping reference"},
     {"field_key": "review_gates", "label": "Review Gates", "field_type": "json",
      "ui_visibility": "if_set", "description": "Review gate status per reviewer [{agent, type, status, reason}]"},
+    {"field_key": "security_hold", "label": "Security Hold", "field_type": "text",
+     "ui_visibility": "if_set", "description": "Set by behavioral security — blocks approval processing"},
 ]
 
 print("=== Configuring Board Custom Fields ===")

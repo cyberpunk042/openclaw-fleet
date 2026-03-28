@@ -55,28 +55,18 @@ async def _load_sprint(plan_path: str) -> int:
 
     print(f"Loading sprint: {sprint_name} ({sprint_id})")
     print(f"  Tasks: {len(task_defs)}")
-    print()
 
+    # Pass 1: Create all tasks without dependencies
+    print("\n  Creating tasks...")
     for task_def in task_defs:
         local_id = task_def.get("id", "")
         title = task_def.get("title", "")
-
-        # Resolve MC task IDs for dependencies
-        depends_on = []
-        for dep_local_id in task_def.get("depends_on", []):
-            mc_id = id_map.get(dep_local_id)
-            if mc_id:
-                depends_on.append(mc_id)
-
-        # Resolve parent
-        parent_local = task_def.get("parent", "")
-        parent_mc_id = id_map.get(parent_local, "")
-
-        # Resolve agent
         agent_name = task_def.get("agent", "")
         agent_id = agent_id_map.get(agent_name)
 
-        # Build custom fields
+        parent_local = task_def.get("parent", "")
+        parent_mc_id = id_map.get(parent_local, "")
+
         custom_fields: dict = {
             "plan_id": sprint_id,
             "task_type": task_def.get("type", "task"),
@@ -99,21 +89,38 @@ async def _load_sprint(plan_path: str) -> int:
                 priority=task_def.get("priority", "medium"),
                 assigned_agent_id=agent_id or None,
                 custom_fields=custom_fields,
-                depends_on=depends_on if depends_on else None,
-                auto_created=True,
-                auto_reason=f"Sprint plan: {sprint_id}",
             )
             id_map[local_id] = task.id
             created += 1
-
-            blocked = " [BLOCKED]" if depends_on else ""
             agent_str = f" → {agent_name}" if agent_name else ""
-            print(f"  CREATED: {title[:50]}{agent_str}{blocked}")
-            print(f"           {task.id[:8]}")
+            print(f"    {local_id:15s} {title[:45]}{agent_str}")
         except Exception as e:
-            print(f"  ERROR: {title[:50]} — {e}")
+            print(f"    ERROR {local_id}: {e}")
 
-    print(f"\nSprint {sprint_id}: {created}/{len(task_defs)} tasks created")
+    # Pass 2: Wire dependencies via update_task
+    deps_defs = [td for td in task_defs if td.get("depends_on")]
+    if deps_defs:
+        print(f"\n  Wiring {len(deps_defs)} dependencies...")
+        for task_def in deps_defs:
+            local_id = task_def.get("id", "")
+            mc_id = id_map.get(local_id)
+            if not mc_id:
+                continue
+
+            dep_mc_ids = [
+                id_map[d] for d in task_def["depends_on"] if d in id_map
+            ]
+            if not dep_mc_ids:
+                continue
+
+            try:
+                await mc.update_task(board_id, mc_id, depends_on=dep_mc_ids)
+                dep_labels = task_def["depends_on"]
+                print(f"    {local_id} ← {dep_labels}")
+            except Exception as e:
+                print(f"    ERROR {local_id}: {e}")
+
+    print(f"\nSprint {sprint_id}: {created} tasks created")
     await mc.close()
     return 0
 
@@ -145,43 +152,35 @@ async def _sprint_status(plan_id: str) -> int:
         await mc.close()
         return 1
 
-    # Count by status
-    counts: dict[str, int] = {}
-    total_points = 0
-    done_points = 0
-    blocked = 0
+    # Use velocity module for comprehensive metrics
+    from fleet.core.velocity import (
+        compute_agent_metrics,
+        compute_sprint_metrics,
+        format_agent_report,
+        format_sprint_report,
+    )
 
-    for t in sprint_tasks:
-        s = t.status.value
-        counts[s] = counts.get(s, 0) + 1
-        sp = t.custom_fields.story_points or 0
-        total_points += sp
-        if t.status == TaskStatus.DONE:
-            done_points += sp
-        if t.is_blocked:
-            blocked += 1
+    metrics = compute_sprint_metrics(tasks, plan_id)
+    print(format_sprint_report(metrics))
 
-    print(f"Sprint: {plan_id}")
-    print(f"  Tasks: {len(sprint_tasks)}")
-    for status in ["inbox", "in_progress", "review", "done"]:
-        c = counts.get(status, 0)
-        if c:
-            print(f"    {status:15s} {c}")
-    if blocked:
-        print(f"    {'blocked':15s} {blocked}")
-    if total_points:
-        pct = (done_points / total_points * 100) if total_points else 0
-        print(f"  Story Points: {done_points}/{total_points} ({pct:.0f}%)")
-
+    # Task list
     print()
     for t in sprint_tasks:
         status_icon = {
-            "inbox": "📥", "in_progress": "🔄",
-            "review": "👀", "done": "✅",
-        }.get(t.status.value, "❓")
-        blocked_str = " 🚫" if t.is_blocked else ""
+            "inbox": "\U0001f4e5", "in_progress": "\U0001f504",
+            "review": "\U0001f440", "done": "\u2705",
+        }.get(t.status.value, "\u2753")
+        blocked_str = " \U0001f6ab" if t.is_blocked else ""
         agent = t.custom_fields.agent_name or ""
-        print(f"  {status_icon} {t.title[:50]:50s} {agent:20s}{blocked_str}")
+        sp = f"({t.custom_fields.story_points}sp)" if t.custom_fields.story_points else ""
+        print(f"  {status_icon} {t.title[:45]:45s} {agent:18s} {sp}{blocked_str}")
+
+    # Agent performance for this sprint
+    sprint_agent_tasks = [t for t in tasks if t.custom_fields.plan_id == plan_id or t.custom_fields.sprint == plan_id]
+    agent_metrics = compute_agent_metrics(sprint_agent_tasks)
+    if agent_metrics:
+        print()
+        print(format_agent_report(agent_metrics))
 
     await mc.close()
     return 0
