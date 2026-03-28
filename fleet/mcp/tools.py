@@ -199,6 +199,69 @@ def register_tools(server: FastMCP) -> None:
             except Exception:
                 pass
 
+        # Sprint context — active sprint metrics
+        try:
+            from fleet.core.velocity import compute_sprint_metrics
+            # Find active sprint from task's plan_id or most recent
+            sprint_id = ""
+            if ctx.task_id:
+                try:
+                    t = await ctx.mc.get_task(board_id, ctx.task_id)
+                    sprint_id = t.custom_fields.plan_id or t.custom_fields.sprint or ""
+                except Exception:
+                    pass
+            if sprint_id and all_tasks:
+                metrics = compute_sprint_metrics(all_tasks, sprint_id)
+                result["sprint_context"] = {
+                    "plan_id": sprint_id,
+                    "completion_pct": round(metrics.completion_pct),
+                    "done": metrics.done_tasks,
+                    "total": metrics.total_tasks,
+                    "story_points": f"{metrics.done_story_points}/{metrics.total_story_points}",
+                    "is_complete": metrics.is_complete,
+                }
+        except Exception:
+            pass
+
+        # Agent role and authority
+        try:
+            from fleet.core.agent_roles import get_agent_role
+            agent = ctx.agent_name or ""
+            if agent:
+                role = get_agent_role(agent)
+                if role:
+                    result["agent_role"] = {
+                        "primary": role.primary_role,
+                        "secondary": role.main_secondary_role,
+                        "can_reject": role.pr_authority.can_reject,
+                        "can_close_pr": role.pr_authority.can_close_pr,
+                        "review_domains": role.review_domains[:5],
+                    }
+        except Exception:
+            pass
+
+        # Fleet health summary
+        try:
+            if all_tasks:
+                agents_list = await ctx.mc.list_agents()
+                online = sum(1 for a in agents_list if a.status == "online" and "Gateway" not in a.name)
+                total = sum(1 for a in agents_list if "Gateway" not in a.name)
+                blocked = sum(1 for t in all_tasks if t.is_blocked)
+                pending = 0
+                try:
+                    approvals = await ctx.mc.list_approvals(board_id, status="pending")
+                    pending = len(approvals)
+                except Exception:
+                    pass
+                result["fleet_health"] = {
+                    "agents_online": online,
+                    "agents_total": total,
+                    "tasks_blocked": blocked,
+                    "pending_approvals": pending,
+                }
+        except Exception:
+            pass
+
         return result
 
     @server.tool()
