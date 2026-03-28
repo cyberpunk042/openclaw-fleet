@@ -273,6 +273,46 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
             agent_id=agent_id,
         )
 
+    async def list_approvals(
+        self, board_id: str, status: str = ""
+    ) -> list[Approval]:
+        """List approvals on a board, optionally filtered by status."""
+        params: dict = {"limit": 50}
+        if status:
+            params["status"] = status
+        resp = await self._client.get(
+            f"/api/v1/boards/{board_id}/approvals", params=params
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("items", data) if isinstance(data, dict) else data
+        return [
+            Approval(
+                id=str(item.get("id", "")),
+                board_id=board_id,
+                task_id=str(item.get("task_id", "") or ""),
+                action_type=item.get("action_type", ""),
+                confidence=item.get("confidence", 0),
+                rubric_scores=item.get("rubric_scores") or {},
+                reason=str((item.get("payload") or {}).get("reason", "")),
+                status=item.get("status", "pending"),
+            )
+            for item in items
+        ]
+
+    async def task_has_approved_approval(
+        self, board_id: str, task_id: str
+    ) -> bool:
+        """Check if a task has at least one approved approval."""
+        approvals = await self.list_approvals(board_id, status="approved")
+        for a in approvals:
+            if a.task_id == task_id:
+                return True
+            # Check multi-task links
+            task_ids = a.rubric_scores  # Hack: check if task appears in linked tasks
+        # Fallback: try to move to done — if it fails with 409, no approval
+        return False
+
     # ─── AgentClient ────────────────────────────────────────────────────
 
     async def list_agents(self) -> list[Agent]:

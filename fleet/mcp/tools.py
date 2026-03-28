@@ -315,6 +315,28 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
+        # Create approval for quality gate
+        try:
+            await ctx.mc.create_approval(
+                board_id,
+                task_ids=[ctx.task_id],
+                action_type="task_completion",
+                confidence=85.0,  # Agent self-assessment default
+                rubric_scores={
+                    "correctness": 85,
+                    "completeness": 85,
+                    "quality": 85,
+                },
+                reason=(
+                    f"Task completed by {agent_name}. "
+                    f"PR: {pr.url}. "
+                    f"{len(commits)} commit(s), {len(diff_stat)} file(s) changed. "
+                    f"Summary: {summary[:200]}"
+                ),
+            )
+        except Exception:
+            pass  # Approval creation is best-effort
+
         # IRC notifications using templates
         try:
             await ctx.irc.notify(

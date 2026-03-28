@@ -79,25 +79,29 @@ async def _run_sync() -> int:
             else:
                 print(f"    FAIL: merge failed")
 
-        # Task review + PR merged → close task
+        # Task review + PR merged → close task (requires approval)
         elif task.status.value == "review" and pr_state == "MERGED":
-            print(f"  DONE: {task.title[:50]} — PR merged")
-            await mc.update_task(
-                board_id, task.id,
-                status="done",
-                comment=f"**Auto-closed** — PR was merged: {pr_url}",
-            )
-            await mc.post_memory(
-                board_id,
-                content=f"**Completed**: {task.title}\nPR: {pr_url} (merged)",
-                tags=["completed", f"project:{task.custom_fields.project or 'fleet'}"],
-                source="fleet-sync",
-            )
             try:
-                await irc.notify("#fleet", format_task_done(task.title))
+                await mc.update_task(
+                    board_id, task.id,
+                    status="done",
+                    comment=f"**Auto-closed** — PR merged: {pr_url}",
+                )
+                print(f"  DONE: {task.title[:50]} — PR merged + approved")
+                await mc.post_memory(
+                    board_id,
+                    content=f"**Completed**: {task.title}\nPR: {pr_url} (merged)",
+                    tags=["completed", f"project:{task.custom_fields.project or 'fleet'}"],
+                    source="fleet-sync",
+                )
+                try:
+                    await irc.notify("#fleet", format_task_done(task.title))
+                except Exception:
+                    pass
+                actions += 1
             except Exception:
-                pass
-            actions += 1
+                # Likely 409 — approval required but not yet approved
+                print(f"  PENDING: {task.title[:50]} — PR merged, awaiting approval")
 
         # Task done → cleanup worktree
         if task.status.value == "done":
