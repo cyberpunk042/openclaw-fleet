@@ -150,23 +150,101 @@ The orchestrator makes MC API calls every 30 seconds:
 - These are HTTP calls, not token-consuming — BUT if the orchestrator was
   triggering agent wakes on each cycle, that's wake calls every 30 seconds.
 
-### 2.3 Why It Happened So Fast
+### 2.3 Hard Evidence From Logs
+
+**MCP server starts today: 2,123**
+Each MCP server start = an agent session = token consumption.
+2,123 sessions × minimum 1,000 tokens = **2+ million tokens minimum today.**
+
+**Gateway heartbeat cycles logged: 9**
+Each cycle fires heartbeats for ALL 11 agents with heartbeat config.
+9 cycles × 11 agents = 99 sessions from heartbeats alone.
+
+**Gateway restarts: 4**
+Each restart re-initializes ALL heartbeat timers — so immediately after
+restart, ALL agents get heartbeated simultaneously. 4 restarts × 11 agents
+= 44 simultaneous sessions in bursts.
+
+**Edit failures: 12**
+Agents failing to edit MEMORY.md repeatedly — each failure consumes tokens
+on the attempt, then retries, consuming more tokens.
+
+**22 agents in gateway config — DUPLICATES**
+Every agent appears TWICE:
+- Once from initial registration (no heartbeat config)
+- Once from MC provisioning (heartbeat.every=10m)
+This means the gateway manages 22 agent entries, 11 with active heartbeats.
+
+### 2.4 Why It Happened So Fast
 
 > "20% of plan was gone in 5 seconds"
 
-5 seconds is too fast for 30-second orchestrator cycles. This suggests:
-1. The gateway heartbeat system was the primary drain (it runs independently)
-2. Multiple agents were triggered simultaneously
-3. OR: there was an actual infinite loop in the fleet code
+The 2,123 MCP server starts prove this wasn't just heartbeats. Something
+caused a BURST of agent sessions. Possible causes:
 
-**Most likely scenario:**
-- Gateway heartbeat fired for multiple agents simultaneously
-- Each agent session ran in parallel (Claude Code sessions are concurrent)
-- 5-10 agents × 10,000-20,000 tokens each = 50,000-200,000 tokens in one batch
-- Multiple batches in rapid succession
-- 20% of plan consumed
+1. **Gateway restart fires ALL heartbeats simultaneously.** After each of
+   the 4 restarts, all 11 agents get heartbeated at once = 11 parallel
+   Claude Code sessions consuming tokens simultaneously.
 
-### 2.4 The Two Budget Problem
+2. **Orchestrator dispatch + gateway heartbeat overlapping.** The orchestrator
+   dispatched tasks via `_send_chat` while the gateway was ALSO firing
+   heartbeats for the same agents. Double sessions for the same agents.
+
+3. **MCP server respawning rapidly.** 2,123 MCP starts in one day is
+   ~88 per hour or ~1.5 per minute. If these cluster (which they do
+   around gateway restarts), that's dozens of sessions in seconds.
+
+4. **Agent sessions triggering MORE agent sessions.** When fleet-ops
+   reviews a task, it calls fleet_task_create which creates MC tasks,
+   which triggers MC activity events, which could trigger more agent wakes.
+   Cascading effect.
+
+5. **The orchestrator _send_chat calls might have been firing every 30
+   seconds** (the orchestrator cycle) if the wake conditions were always met
+   (e.g., always detecting pending reviews, always detecting idle drivers).
+
+### 2.5 THE ACTUAL ROOT CAUSE
+
+**Normal heartbeats (15-60 min) are fine and expected.** The problem is NOT
+the heartbeat interval. The problem is that code changes in commit `9ed54b3`
+introduced `_send_chat` calls into the orchestrator that create uncontrolled
+Claude Code sessions. Combined with multiple gateway processes still running,
+this created a runaway token drain.
+
+**What changed in commit `9ed54b3`:**
+- `_lifecycle_heartbeats` rewritten to call `_send_chat(session_key, message)`
+- `_wake_lead_for_reviews` rewritten to call `_send_chat`
+- Every `_send_chat` = WebSocket to gateway = gateway spawns Claude Code session
+- The orchestrator runs every 30 seconds
+- Module-level globals (`_last_review_wake`, `_fleet_lifecycle`) RESET on process restart
+- On fresh start: `_last_review_wake is None` → immediately triggers `_send_chat`
+- There are ALWAYS review tasks on board → fleet-ops woken EVERY restart
+
+**The cascade:**
+1. Daemon starts → first orchestrator cycle
+2. `_last_review_wake` is None → `_send_chat` to fleet-ops (Claude Code session spawned)
+3. `_lifecycle_heartbeats` checks PM and fleet-ops → `_send_chat` to both (2 more sessions)
+4. 30 seconds later → next cycle → conditions may still trigger → more sessions
+5. Gateway ALSO fires its own heartbeats independently → more sessions on top
+6. Each session spawns MCP server → reads all tools → consumes tokens just starting
+7. **2,123 MCP server starts in one day = 2,123 token-consuming sessions**
+
+**The second drain (when user thought agents were "down"):**
+- User killed fleet daemon processes → our code stopped
+- BUT: OpenClaw gateway (PID 8761) was STILL RUNNING
+- AND: a stale gateway from March 26 (PID 17858) was ALSO running
+- Gateway fires heartbeats independently → spawns Claude Code sessions
+- Reprovision script killed MCP servers → gateway auto-respawned them
+- **The gateway is autonomous — killing our code doesn't stop it**
+
+**The fundamental problem:**
+ANY process that calls the gateway creates Claude Code sessions that consume
+tokens. The gateway, the orchestrator's `_send_chat`, the dispatch function —
+all of them. There is ZERO rate limiting, ZERO token budget awareness, ZERO
+circuit breaker anywhere in the chain. A single bad condition in the
+orchestrator can trigger unlimited sessions in rapid succession.
+
+### 2.6 The Two Budget Problem
 
 > "there seem to be two budget and somehow the weekly budget which I never was
 > before even on lower plan is getting close really fast"
@@ -181,20 +259,59 @@ Claude Code has:
 
 ## Part 3: Required Fixes (Priority Order)
 
-### FIX 0: Gateway Heartbeat Interval — INCREASE MASSIVELY
+### FIX 0: REVERT — Orchestrator Must NOT Call _send_chat
 
-**The single most impactful fix.** The gateway's heartbeat_config drives
-independent agent cycling that we don't control from the orchestrator.
+**The commit `9ed54b3` introduced `_send_chat` calls in the orchestrator.**
+This was the catastrophic mistake. `_send_chat` bypasses all gateway controls
+and directly spawns Claude Code sessions. The orchestrator ran every 30 seconds
+and could trigger unlimited sessions.
 
-Current: `"every": "10m"` → 6 heartbeats/hour/agent → 60/hour total
-MUST BE: `"every": "120m"` minimum → 0.5/hour/agent → 5/hour total
+**REVERT to MC task creation for heartbeats and reviews.**
+MC task creation is CHEAP (one HTTP POST, no tokens consumed).
+The gateway then controls when the agent actually runs.
+The gateway has its own heartbeat system and rate controls.
+We should work WITH the gateway, not bypass it.
 
-For idle agents: `"every": "480m"` (8 hours) — basically off
+**The orchestrator should NEVER call `_send_chat` or any function that
+directly triggers Claude Code sessions.** Only the dispatch function should
+do that, and only when explicitly dispatching a real task.
 
-**How to change:**
-- Modify `~/.openclaw/openclaw.json` → agents.list[].heartbeat.every
-- OR: use MC API to update agent heartbeat_config
-- OR: use board group heartbeat API to set globally
+**Fix:**
+1. Revert `_lifecycle_heartbeats` to create MC tasks (or remove entirely
+   and let gateway heartbeats handle it)
+2. Revert `_wake_lead_for_reviews` to create MC tasks (or remove entirely)
+3. Add a HARD RULE in orchestrator: no `_send_chat` imports, no gateway calls
+4. Add guard: track number of sessions spawned per hour, hard-stop at threshold
+
+### FIX 0b: Gateway Process Cleanup
+
+**The single most impactful fix.** The gateway config has 22 agents (duplicates)
+all heartbeating at 10-minute intervals independently of our orchestrator.
+
+**Problem 1: 22 agents, should be 11**
+Every agent appears twice in `~/.openclaw/openclaw.json`:
+- Once from `scripts/register-agents.sh` (id: agent-name, no heartbeat)
+- Once from MC provisioning (id: mc-UUID, heartbeat: 10m)
+The duplicates must be removed. Only the MC-provisioned versions should remain.
+
+**Problem 2: heartbeat.every=10m is far too aggressive**
+10 minutes × 11 agents = 66 sessions/hour of pure overhead.
+The gateway heartbeat should be the FALLBACK, not the primary driver.
+When the fleet has work, the orchestrator dispatches explicitly.
+When idle, heartbeats should be rare (60m minimum, 480m when sleeping).
+
+**Problem 3: Gateway restarts fire ALL heartbeats simultaneously**
+Each of the 4 gateway restarts today triggered 11 parallel sessions.
+This is the burst that caused the 5-second 20% drain.
+
+**Fix:**
+1. Remove duplicate agents from openclaw.json (keep only mc-UUID versions)
+2. Set heartbeat.every to "never" or "480m" for all agents
+3. The fleet orchestrator controls when agents wake (via dispatch + events)
+4. Gateway heartbeat becomes emergency-only fallback
+5. Script this cleanup in scripts/configure-gateway.sh for reproducibility
+6. Add guard: if gateway restarts, DON'T fire all heartbeats immediately —
+   stagger them or skip the first cycle
 
 ### FIX 1: Fleet Pause / Kill Switch
 
@@ -291,6 +408,135 @@ Human selects profile via `fleet effort conservative` or config.
 
 ---
 
+## Part 3b: Deeper Design Flaws
+
+### Design Flaw 1: Why Pass Through Claude to Call a Tool You Can Call Directly?
+
+> "why pass through claude to call a tool when you can call it directly?
+> it make no sense"
+
+The fleet's MCP tools (fleet_read_context, fleet_agent_status, etc.) are
+HTTP calls to the MC API wrapped in Claude Code tool handlers. When the
+ORCHESTRATOR needs to check task status, it calls `mc.list_tasks()` directly
+— that's a cheap HTTP call, no tokens.
+
+But when an AGENT needs to check task status, it calls `fleet_read_context()`
+which runs inside a Claude Code session consuming tokens just to make the
+same HTTP call.
+
+**The problem:** Agent heartbeats call fleet_read_context + fleet_agent_status
++ fleet_chat = 3 tool calls inside a Claude session = thousands of tokens
+for what is essentially 3 HTTP requests.
+
+**What should happen:**
+- The orchestrator calls MC API directly (it already does — this is correct)
+- Agent heartbeats should be MINIMAL — if there's nothing to do, don't call tools
+- For routine checks (is there work for me?), the orchestrator should PRE-CHECK
+  and only wake the agent if there IS something for them
+- The agent should never be woken just to call fleet_agent_status and say
+  "nothing to do" — that's wasting tokens on a question the orchestrator
+  already knows the answer to
+
+### Design Flaw 2: Why Call 5 Tools When a Chain Does It All?
+
+> "And when call 5 tools when you can just call a chain that does it all?
+> it a mix of communication and logic and pragmatism"
+
+An agent heartbeat currently does:
+1. `fleet_read_context()` — fetch task, memory, chat (API calls + tokens)
+2. `fleet_agent_status()` — fetch agents, tasks, approvals (more API calls + tokens)
+3. Read results, think about them (tokens for reasoning)
+4. `fleet_chat("HEARTBEAT_OK")` — post to memory (API call + tokens)
+5. Respond with summary (more tokens)
+
+That's 5 tool calls + reasoning for what could be ONE optimized operation.
+
+**What should happen:**
+- A single `fleet_heartbeat()` tool that does everything in one call:
+  checks assigned tasks, checks chat, checks events, returns a summary
+- The agent reads the summary and only acts if something needs attention
+- OR better: the orchestrator pre-computes the heartbeat context and sends
+  it WITH the wake message, so the agent doesn't need to call any tools
+  just to learn there's nothing to do
+
+### Design Flaw 3: Events That Trigger Agents Are Not ALL Events
+
+> "events that trigger agent are not all events and the reason we have
+> heartbeat is to avoid uncontrolled loop"
+
+The heartbeat IS the controlled rhythm. It prevents uncontrolled loops by
+ensuring agents only check in at fixed intervals. The catastrophic bug was
+BYPASSING this rhythm by calling `_send_chat` directly, which created
+sessions outside the heartbeat cycle.
+
+**Rules for event-driven waking:**
+- Task assigned to agent → wake (this is dispatch, controlled by orchestrator)
+- Agent @mentioned in chat → wake at NEXT heartbeat (not immediately)
+- Review gate triggered → wake at NEXT heartbeat
+- Sprint milestone → notification only (ntfy), not agent wake
+- Task completed by another agent → orchestrator checks deps, dispatches if needed
+- Board memory posted → do NOT wake anyone (they'll see it at next heartbeat)
+
+**The heartbeat is the ONLY rhythm.** Everything else either:
+1. Waits for the next heartbeat (non-urgent)
+2. Goes through dispatch (urgent, controlled, one-time)
+3. Goes to notification (ntfy/IRC, no token cost)
+
+There must NEVER be a code path that creates Claude Code sessions outside
+of dispatch (for real tasks) and heartbeat (on the gateway's controlled timer).
+
+### Design Flaw 4: Cascade Prevention
+
+> "we really need to avoid brainless loop and recursive chain that don't
+> end and infinite loop"
+
+Cascades happen when:
+- Agent A completes task → creates follow-up task for Agent B
+- Agent B gets woken → completes → creates task for Agent C
+- Agent C → Agent D → ... infinite chain
+
+**Prevention:**
+- Auto-created tasks do NOT trigger immediate dispatch
+- They go to inbox and wait for the NEXT orchestrator cycle
+- The orchestrator has a max-dispatch-per-cycle limit (e.g., 3)
+- If more than 3 tasks are ready, dispatch 3 and wait for next cycle
+- The orchestrator tracks chain depth — if a task was auto-created by an
+  agent that was auto-created by another agent → alert, don't dispatch
+- Maximum chain depth: 3 levels (human → PM → agent → subtask). Beyond
+  that requires human approval.
+
+---
+
+## Part 3c: Complete Bug List (10+)
+
+1. **Orchestrator called _send_chat directly** — bypassed gateway controls,
+   created unlimited Claude Code sessions every 30 seconds
+2. **Gateway has 22 duplicate agents** — 11 extra entries from initial registration,
+   doubling heartbeat targets
+3. **Stale gateway processes** — old gateway from March 26 still running,
+   independently cycling agents
+4. **Module globals reset on restart** — `_last_review_wake` resets to None,
+   triggering immediate wake on every daemon restart
+5. **No session rate limiting** — nothing prevents 100 sessions/minute
+6. **No token budget awareness** — fleet has no concept of cost
+7. **Agent heartbeats call unnecessary tools** — fleet_read_context +
+   fleet_agent_status just to say "nothing to do" = wasted tokens
+8. **No cascade depth limit** — agent-created tasks can trigger infinite chains
+9. **No max-dispatch-per-cycle** — orchestrator can dispatch ALL unblocked tasks
+   in one cycle, spawning 10 sessions simultaneously
+10. **fleet_task_complete calls fleet_read_context internally** — nested tool calls
+    inside tool calls, doubling token usage
+11. **Board has 90% noise tasks** — reading task list costs tokens proportional
+    to list size; 90 noise tasks = 90% wasted context
+12. **Gateway restart fires ALL heartbeats immediately** — no stagger, no warmup,
+    11 parallel sessions at once
+13. **No fleet pause command** — can't stop the drain without killing processes
+14. **No outage/rate-limit detection** — fleet keeps hammering when API is throttled
+15. **Orchestrator creates review/heartbeat MC tasks that consume agent sessions
+    to process** — even "cheap" MC tasks trigger agent sessions when dispatched
+
+---
+
 ## Part 4: Agent Role Reality Check
 
 > "think of them as real employees with real role that even when there is no
@@ -370,19 +616,30 @@ This is a future milestone but important to note:
 
 ## Part 6: Milestone Summary
 
-### Immediate (before ANY fleet restart):
+### CRITICAL (before ANY fleet restart):
 
-| # | Milestone | Priority |
-|---|-----------|----------|
-| C0 | Investigate exact cause of 20% drain in 5 seconds | CRITICAL |
-| C1 | Increase gateway heartbeat interval to 120m+ | CRITICAL |
-| C2 | Build fleet pause/resume commands | CRITICAL |
-| C3 | Build budget monitoring with auto-pause | CRITICAL |
-| C4 | Prevent infinite loops (dispatch/wake/session guards) | CRITICAL |
-| C5 | Short-circuit empty heartbeats (HEARTBEAT_OK fast path) | HIGH |
-| C6 | fleet-ops as budget guardian | HIGH |
-| C7 | Outage and reset detection | HIGH |
-| C8 | Effort profiles (full/conservative/minimal/paused) | HIGH |
+| # | Milestone | Bugs Fixed |
+|---|-----------|-----------|
+| C0 | REVERT orchestrator _send_chat calls — no direct session creation | Bug 1, 4, 9 |
+| C1 | Clean gateway config — remove 11 duplicate agents | Bug 2 |
+| C2 | Kill stale gateway processes — script to detect and clean | Bug 3 |
+| C3 | Build fleet pause/resume — kill switch for the fleet | Bug 13 |
+| C4 | Session rate limiter — max N sessions per hour, hard stop | Bug 5, 9 |
+| C5 | Token budget monitor — track usage, alert thresholds, auto-pause | Bug 6 |
+| C6 | Max dispatch per cycle — orchestrator dispatches max 3 per cycle | Bug 8, 9 |
+| C7 | Cascade depth limit — max 3 levels of auto-created tasks | Bug 8 |
+
+### HIGH (safety and efficiency):
+
+| # | Milestone | Bugs Fixed |
+|---|-----------|-----------|
+| C8 | Optimized heartbeat — fleet_heartbeat single tool OR pre-computed context | Bug 7, Design 1+2 |
+| C9 | Event filtering — only relevant events wake agents, rest waits for heartbeat | Design 3 |
+| C10 | Board cleanup — remove 90 noise tasks before relaunch | Bug 11 |
+| C11 | Gateway restart stagger — don't fire all heartbeats simultaneously | Bug 12 |
+| C12 | Outage and rate-limit detection — back off when throttled | Bug 14 |
+| C13 | Effort profiles — full/conservative/minimal/paused | FIX 7 |
+| C14 | fleet-ops as budget guardian — monitor usage, detect anomalies | FIX 5 |
 
 ### After fleet is safe to restart:
 
