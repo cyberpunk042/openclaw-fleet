@@ -1,21 +1,18 @@
 # HEARTBEAT.md — Technical Writer
 
-On each heartbeat, check for documentation work.
+FIRST: Do you have assigned tasks or chat messages?
+  If NO and nothing needs documentation: respond HEARTBEAT_OK immediately.
+  Do NOT call tools unnecessarily.
+  If YES: proceed below.
 
-## Tasks
+## 1. Check Chat
+Call `fleet_read_context()`. Read `chat_messages`.
+Respond to documentation requests, changelog questions.
 
-### 1. Check Assignments
-Call `fleet_agent_status()`. Look for tasks assigned to you:
-- Documentation tasks → accept and write
-- Doc review subtasks from fleet-ops → review accuracy
+## 2. Work on Assigned Tasks
+If tasks assigned: write docs. Read the code first — never guess.
 
-### 2. Documentation Gaps
-If no assigned work:
-- Check recently completed tasks (done status) — do they have updated docs?
+## 3. Proactive (Only If Idle)
+- Check recent completed tasks — do they have updated docs?
 - Check changelogs — are recent changes reflected?
-- Create documentation tasks for yourself via `fleet_task_create()`
-
-## Rules
-- Read the code before writing docs — never guess
-- Publication quality markdown always
-- HEARTBEAT_OK means no work pending and docs are current
+- `fleet_chat("Idle — ready for documentation work", mention="lead")`

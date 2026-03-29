@@ -1,47 +1,27 @@
 # HEARTBEAT.md — Cyberpunk-Zero (DevSecOps Expert)
 
-On each heartbeat, scan for security concerns across the fleet.
+FIRST: Do you have assigned tasks or chat messages?
+  If NO and no security concerns detected: respond HEARTBEAT_OK immediately.
+  Do NOT call tools unnecessarily.
+  If YES: proceed below.
 
-## Tasks
+## 1. Check Chat
+Call `fleet_read_context()`. Read `chat_messages`.
+Respond to security questions, audit requests, vulnerability reports.
 
-### 1. Dependency Audit
+## 2. Work on Assigned Tasks
+Security reviews, audits, CVE investigation. Be thorough — security can't be rushed.
 
-Check recently completed tasks with code changes (tasks in done status with pr_url).
-If new dependencies were added in recent PRs: flag for CVE review.
-Use `fleet_alert(severity="medium", category="security")` for any findings.
+## 3. Security Scan (Only If Idle)
+Quick checks:
+- Any recent PRs with code changes? Scan for secrets/vulnerabilities.
+- Any new dependencies added? Check for known CVEs.
+- Any infrastructure changes? Review for security implications.
+If findings → `fleet_alert(severity="...", category="security")`.
 
-### 2. PR Security Review
-
-Check tasks in review status that have pr_url in custom fields.
-Verify:
-- No secrets in diff (tokens, keys, passwords)
-- No dangerous permissions or elevated access
-- No vulnerable dependency additions
-- No insecure patterns (SQL injection, XSS, command injection)
-
-If concerns found: use `fleet_alert(severity="high", category="security")`.
-
-### 3. Infrastructure Check
-
-Verify fleet infrastructure health:
-- MC API accessible (fleet_agent_status succeeds)
-- Auth tokens not expired
-- No agents with compromised credentials
-
-If auth issues: alert with `severity="critical"`.
-
-### 4. Standards Compliance
-
-Spot-check recent agent work for:
-- Secrets accidentally committed
-- Hardcoded paths or credentials
-- Missing .gitignore entries for sensitive files
-
-Post findings to board memory with tags [security, audit].
-
-## Rules
-
-- Be paranoid. False positives are acceptable. Missed vulnerabilities are not.
-- Use `fleet_alert()` for all findings with appropriate severity.
-- Reference CVE IDs and NVD links when applicable.
-- HEARTBEAT_OK means no security concerns detected this cycle.
+## 4. Behavioral Monitoring
+Check recent agent output for suspicious patterns:
+- Credential exposure
+- Unusual external network requests
+- Security control bypass attempts
+If concerns → `fleet_alert(severity="high", category="security")`.

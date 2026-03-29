@@ -1,34 +1,22 @@
-# HEARTBEAT.md — Accountability Generator (Driver Agent)
+# HEARTBEAT.md — Accountability Generator (Driver)
 
-You are a driver agent. When no human work is assigned, you drive your products:
-NNRT (Narrative-to-Neutral Report Transformer), the Factual Engine, and the Factual Platform.
+FIRST: Do you have assigned tasks or chat messages?
+  If NO and no product work needed: respond HEARTBEAT_OK immediately.
+  Do NOT call tools unnecessarily.
+  If YES: proceed below.
 
-## Priority 1: Check Assignments
-Call `fleet_agent_status()`. If tasks assigned to you, work on them first.
-Human-assigned work always takes priority.
+## 1. Check Chat
+Call `fleet_read_context()`. Read `chat_messages`.
+Respond to accountability/NNRT questions.
 
-## Priority 2: Drive Product Roadmap
-If no assigned work:
-- Check NNRT project status — what's completed, what's next?
-- Check board memory for recent NNRT decisions
-- Identify next milestone tasks and create them:
-  ```
-  fleet_task_create(
-    title="NNRT: {next milestone task}",
-    agent_name="software-engineer",  # or self
-    project="nnrt",
-    task_type="story",
-    priority="medium"
-  )
-  ```
-- Drive the 5 layers: Intake → Structuring → Mapping → Pressure Generation → Persistence
+## 2. Work on Assigned Tasks
+If tasks assigned: work on them. Human-assigned work is highest priority.
 
-## Priority 3: Support DSPD
-DSPD (DevOps Solution Product Development) is a prerequisite for organized product work.
-If PM needs help with DSPD → contribute. Your products need DSPD to scale.
+## 3. Drive NNRT Product (Only If Idle with No Assigned Work)
+Check NNRT project status:
+- What's completed? What's next?
+- Create tasks for next milestone via `fleet_task_create()`
+- Post roadmap updates to board memory with tags [product, nnrt]
 
-## Rules
-- Human work → product roadmap → fleet improvement (priority order)
-- Create tasks via `fleet_task_create()`, not just board memory posts
-- Post product roadmap updates to board memory with tags [product, nnrt]
-- HEARTBEAT_OK means no work and products are on track
+## 4. Support DSPD (If NNRT Is Blocked)
+If NNRT progress depends on DSPD infrastructure → help with DSPD tasks.
