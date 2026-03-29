@@ -63,6 +63,7 @@ def _build_review_gates(task_type: str, has_code: bool) -> list[dict]:
 
 # Shared context — initialized on first tool call
 _ctx: FleetMCPContext | None = None
+_event_store = None
 
 
 def _get_ctx() -> FleetMCPContext:
@@ -71,6 +72,46 @@ def _get_ctx() -> FleetMCPContext:
     if _ctx is None:
         _ctx = FleetMCPContext.from_env()
     return _ctx
+
+
+def _emit_event(
+    event_type: str,
+    source: str = "",
+    subject: str = "",
+    recipient: str = "all",
+    priority: str = "info",
+    mentions: list | None = None,
+    tags: list | None = None,
+    surfaces: list | None = None,
+    **extra_data,
+) -> None:
+    """Emit a fleet event to the persistent store.
+
+    Every MCP tool should emit events so the event bus can route them
+    to the right agents and surfaces. This is the deterministic logic layer.
+    """
+    global _event_store
+    try:
+        from fleet.core.events import create_event, EventStore
+        if _event_store is None:
+            _event_store = EventStore()
+        ctx = _get_ctx()
+        event = create_event(
+            event_type=event_type,
+            source=source or f"fleet/mcp/tools/{event_type.split('.')[-1]}",
+            subject=subject,
+            recipient=recipient,
+            priority=priority,
+            mentions=mentions,
+            tags=tags,
+            surfaces=surfaces or ["internal"],
+            agent=ctx.agent_name or "",
+            fleet_id=ctx.fleet_id or "",
+            **extra_data,
+        )
+        _event_store.append(event)
+    except Exception:
+        pass  # Event emission must never break tool execution
 
 
 def register_tools(server: FastMCP) -> None:
@@ -646,6 +687,23 @@ def register_tools(server: FastMCP) -> None:
             )
         except Exception:
             pass
+
+        # Emit event for the event bus
+        _emit_event(
+            "fleet.task.completed",
+            subject=ctx.task_id,
+            recipient="fleet-ops",
+            priority="important",
+            mentions=["fleet-ops"],
+            tags=["review", f"project:{ctx.project_name or 'unknown'}"],
+            surfaces=["internal", "public", "channel", "notify", "plane"],
+            summary=summary,
+            pr_url=pr.url,
+            branch=branch,
+            commits=len(commits),
+            files_changed=len(diff_stat),
+            test_passed=test_passed,
+        )
 
         return {
             "ok": True,
