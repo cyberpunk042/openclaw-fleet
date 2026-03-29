@@ -123,6 +123,20 @@ if [[ -d "$FLEET_DIR/.venv" ]]; then
 fi
 echo ""
 
+# Step 0c: Generate fleet identity (unique per machine)
+echo "=== Fleet Identity ==="
+if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
+    "$FLEET_DIR/.venv/bin/python" -c "
+from fleet.core.federation import generate_fleet_identity, load_fleet_identity
+identity = generate_fleet_identity('$FLEET_DIR')
+print(f'  Fleet ID:   {identity.fleet_id}')
+print(f'  Fleet Name: {identity.fleet_name}')
+print(f'  Machine:    {identity.machine_id}')
+print(f'  Prefix:     {identity.agent_prefix}')
+" 2>/dev/null || echo "  SKIP: Fleet identity (venv not ready)"
+fi
+echo ""
+
 # Step 1: Install OpenClaw
 bash scripts/install-openclaw.sh
 echo ""
