@@ -132,6 +132,29 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [monitor] Error: {e}")
 
+        # Self-healing: check gateway health and restart if crashed
+        try:
+            import subprocess
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=5) as _hc:
+                resp = await _hc.get("http://localhost:18789/")
+                # Gateway is alive
+        except Exception:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [monitor] Gateway DOWN — restarting...")
+            fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
+            start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+            if os.path.exists(start_script):
+                result = subprocess.run(
+                    ["bash", start_script],
+                    capture_output=True, text=True, timeout=120,
+                )
+                ts = datetime.now().strftime("%H:%M:%S")
+                if result.returncode == 0:
+                    print(f"[{ts}] [monitor] Gateway restarted successfully")
+                else:
+                    print(f"[{ts}] [monitor] Gateway restart FAILED: {result.stderr[:200]}")
+
         await asyncio.sleep(interval)
 
 
