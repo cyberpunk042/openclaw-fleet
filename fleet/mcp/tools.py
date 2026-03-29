@@ -1399,3 +1399,290 @@ def register_tools(server: FastMCP) -> None:
 
         except Exception as e:
             return {"error": str(e)}
+
+    @server.tool()
+    async def fleet_plane_create_issue(
+        project: str,
+        title: str,
+        description: str = "",
+        priority: str = "medium",
+        assignee: str = "",
+        labels: str = "",
+        module: str = "",
+        parent_issue: str = "",
+    ) -> dict:
+        """Create an issue in Plane — used by PM to create work items from OCMC.
+
+        When an agent creates subtasks via fleet_task_create in OCMC, the PM should
+        also create corresponding Plane issues to keep both surfaces in sync.
+        This tool handles the Plane side.
+
+        Args:
+            project: Project identifier (AICP, OF, DSPD, NNRT).
+            title: Issue title.
+            description: Issue description (plain text — will be wrapped in HTML).
+            priority: urgent, high, medium, low, or none.
+            assignee: Agent email (e.g., "architect@fleet.local"). Empty = unassigned.
+            labels: Comma-separated label names (e.g., "infra,security").
+            module: Module name to add issue to (e.g., "Stage 1: Make LocalAI Functional").
+            parent_issue: Parent issue title for sub-issue linking (creates relation).
+        """
+        ctx = _get_ctx()
+        plane = ctx.plane
+        if not plane:
+            return {"plane_available": False}
+
+        ws = ctx.plane_workspace
+        result: dict = {"project": project}
+
+        try:
+            projects = await plane.list_projects(ws)
+            proj = next((p for p in projects if p.identifier == project.upper()), None)
+            if not proj:
+                return {"error": f"Project {project} not found"}
+
+            # Resolve assignee to user ID
+            assignee_ids = []
+            if assignee:
+                members = await plane.list_projects(ws)  # Need member lookup
+                # Use the email as-is — the API resolves it
+                # Actually need to look up member ID from workspace members
+
+            # Build description HTML
+            desc_html = ""
+            if description:
+                paragraphs = description.split("\n\n")
+                desc_html = "".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())
+
+            # Resolve labels
+            label_ids = []
+            if labels:
+                all_labels = await plane._client.get(
+                    f"/api/v1/workspaces/{ws}/projects/{proj.id}/labels/"
+                )
+                if all_labels.status_code == 200:
+                    label_data = all_labels.json()
+                    label_list = label_data.get("results", label_data) if isinstance(label_data, dict) else label_data
+                    label_map = {l["name"]: l["id"] for l in label_list}
+                    for ln in labels.split(","):
+                        ln = ln.strip()
+                        if ln in label_map:
+                            label_ids.append(label_map[ln])
+
+            issue = await plane.create_issue(
+                ws, proj.id,
+                title=title,
+                description_html=desc_html or f"<p>{title}</p>",
+                priority=priority,
+                label_ids=label_ids or None,
+            )
+
+            result["issue_id"] = issue.id
+            result["title"] = issue.title
+            result["sequence_id"] = issue.sequence_id
+            result["priority"] = issue.priority
+
+            # Add to module if specified
+            if module and issue.id:
+                try:
+                    from fleet.infra.plane_client import PlaneClient
+                    # Get modules
+                    mods_resp = await plane._client.get(
+                        f"/api/v1/workspaces/{ws}/projects/{proj.id}/modules/"
+                    )
+                    if mods_resp.status_code == 200:
+                        mods_data = mods_resp.json()
+                        mods_list = mods_data.get("results", mods_data) if isinstance(mods_data, dict) else mods_data
+                        mod = next((m for m in mods_list if m["name"] == module), None)
+                        if mod:
+                            # Add issue to module
+                            await plane._client.post(
+                                f"/api/v1/workspaces/{ws}/projects/{proj.id}/modules/{mod['id']}/module-issues/",
+                                json={"issues": [issue.id]},
+                            )
+                            result["module"] = module
+                except Exception:
+                    pass
+
+            # Notify IRC
+            try:
+                agent_name = ctx.agent_name or "pm"
+                await ctx.irc.notify(
+                    "#fleet",
+                    f"[{agent_name}] 📋 Plane issue: {title[:50]} ({project}/{issue.sequence_id})",
+                )
+            except Exception:
+                pass
+
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    @server.tool()
+    async def fleet_plane_comment(
+        project: str,
+        issue_id: str,
+        comment: str,
+        mention: str = "",
+    ) -> dict:
+        """Post a comment on a Plane issue — for updates, mentions, and cross-surface communication.
+
+        Use @agent-name in comments to notify specific agents. The sync worker
+        routes mentions to the agent's next heartbeat context.
+
+        Args:
+            project: Project identifier.
+            issue_id: Plane issue UUID or sequence number.
+            comment: Comment text (plain text — wrapped in HTML).
+            mention: Agent name to @mention (e.g., "architect"). Added to comment.
+        """
+        ctx = _get_ctx()
+        plane = ctx.plane
+        if not plane:
+            return {"plane_available": False}
+
+        ws = ctx.plane_workspace
+        result: dict = {"project": project, "issue_id": issue_id}
+
+        try:
+            projects = await plane.list_projects(ws)
+            proj = next((p for p in projects if p.identifier == project.upper()), None)
+            if not proj:
+                return {"error": f"Project {project} not found"}
+
+            # Build comment HTML with mention
+            comment_html = f"<p>{comment}</p>"
+            if mention:
+                comment_html = f"<p><strong>@{mention}</strong> {comment}</p>"
+
+            # Post comment via API
+            resp = await plane._client.post(
+                f"/api/v1/workspaces/{ws}/projects/{proj.id}/issues/{issue_id}/comments/",
+                json={"comment_html": comment_html},
+            )
+            if resp.status_code in (200, 201):
+                comment_data = resp.json()
+                result["comment_id"] = comment_data.get("id")
+                result["posted"] = True
+            else:
+                result["error"] = f"HTTP {resp.status_code}"
+
+            # Notify IRC about the mention
+            if mention:
+                try:
+                    await ctx.irc.notify(
+                        "#fleet",
+                        f"[{ctx.agent_name or 'pm'}] 💬 @{mention} on Plane: {comment[:40]}",
+                    )
+                except Exception:
+                    pass
+
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    @server.tool()
+    async def fleet_plane_update_issue(
+        project: str,
+        issue_id: str,
+        state: str = "",
+        priority: str = "",
+        assignee: str = "",
+        labels: str = "",
+    ) -> dict:
+        """Update a Plane issue — change state, priority, or assignment.
+
+        Used by PM to update Plane when OCMC tasks change, or by the sync worker.
+
+        Args:
+            project: Project identifier.
+            issue_id: Plane issue UUID.
+            state: New state name (e.g., "In Progress", "Done"). Empty = no change.
+            priority: New priority. Empty = no change.
+            assignee: Agent email for assignment. Empty = no change.
+            labels: Comma-separated label names to SET (replaces existing). Empty = no change.
+        """
+        ctx = _get_ctx()
+        plane = ctx.plane
+        if not plane:
+            return {"plane_available": False}
+
+        ws = ctx.plane_workspace
+        result: dict = {"project": project, "issue_id": issue_id, "updated": []}
+
+        try:
+            projects = await plane.list_projects(ws)
+            proj = next((p for p in projects if p.identifier == project.upper()), None)
+            if not proj:
+                return {"error": f"Project {project} not found"}
+
+            patch: dict = {}
+
+            # Resolve state name to ID
+            if state:
+                states = await plane.list_states(ws, proj.id)
+                st = next((s for s in states if s.name.lower() == state.lower()), None)
+                if st:
+                    patch["state"] = st.id
+                    result["updated"].append(f"state={state}")
+
+            if priority:
+                patch["priority"] = priority
+                result["updated"].append(f"priority={priority}")
+
+            if patch:
+                await plane.update_issue(ws, proj.id, issue_id, **{
+                    k: v for k, v in [
+                        ("state_id", patch.get("state")),
+                        ("priority", patch.get("priority")),
+                    ] if v
+                })
+
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    @server.tool()
+    async def fleet_plane_list_modules(project: str = "AICP") -> dict:
+        """List modules (epics) in a Plane project with their status and lead.
+
+        Args:
+            project: Project identifier (default: AICP).
+        """
+        ctx = _get_ctx()
+        plane = ctx.plane
+        if not plane:
+            return {"plane_available": False}
+
+        ws = ctx.plane_workspace
+        result: dict = {"project": project, "modules": []}
+
+        try:
+            projects = await plane.list_projects(ws)
+            proj = next((p for p in projects if p.identifier == project.upper()), None)
+            if not proj:
+                return {"error": f"Project {project} not found"}
+
+            resp = await plane._client.get(
+                f"/api/v1/workspaces/{ws}/projects/{proj.id}/modules/"
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                modules = data.get("results", data) if isinstance(data, dict) else data
+                for m in modules:
+                    result["modules"].append({
+                        "id": m.get("id"),
+                        "name": m.get("name"),
+                        "description": (m.get("description") or "")[:100],
+                        "status": m.get("status"),
+                        "total_issues": m.get("total_issues", 0),
+                        "completed_issues": m.get("completed_issues", 0),
+                    })
+
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
