@@ -13,10 +13,17 @@ echo "=== Pushing Fleet Framework to Agent Workspaces ==="
 
 pushed=0
 skipped=0
+declare -A SEEN_AGENTS  # Track agents already processed (avoid duplicates)
 
 for mcp_file in "$FLEET_DIR"/workspace-mc-*/.mcp.json; do
   workspace_dir="$(dirname "$mcp_file")"
   agent_name=$(python3 -c "import json; print(json.load(open('$mcp_file'))['mcpServers']['fleet']['env']['FLEET_AGENT'])" 2>/dev/null || continue)
+
+  # Skip duplicate workspaces for the same agent (old vs new UUIDs)
+  if [[ -n "${SEEN_AGENTS[$agent_name]:-}" ]]; then
+    continue
+  fi
+  SEEN_AGENTS[$agent_name]=1
   agent_dir="$FLEET_DIR/agents/$agent_name"
 
   # Copy shared framework files from template

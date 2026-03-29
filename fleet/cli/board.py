@@ -82,34 +82,44 @@ async def _board_tasks(mc: MCClient, board_id: str) -> int:
 
 
 async def _board_cleanup(mc: MCClient, board_id: str) -> int:
-    """Clean up stale tasks."""
+    """Clean up noise tasks — archive heartbeats, review process, conflicts."""
+    from fleet.core.board_cleanup import plan_cleanup
+
     tasks = await mc.list_tasks(board_id)
-    now = datetime.now(timezone.utc)
-    actions = 0
+    result = plan_cleanup(tasks)
 
     print(f"{BOLD}Board Cleanup{NC}")
+    print(f"  Total tasks: {result.archived + result.kept}")
+    print(f"  Noise (archivable): {result.archived}")
+    print(f"  Real work (keep): {result.kept}")
 
-    # Find tasks that are stale
+    if result.categories:
+        print(f"\n  Noise breakdown:")
+        for cat, count in sorted(result.categories.items()):
+            print(f"    {cat}: {count}")
+
+    if result.archived == 0:
+        print(f"\n  {GREEN}Board is clean — no noise tasks{NC}")
+    else:
+        print(f"\n  {result.archived} noise tasks can be archived")
+        print(f"  {DIM}Archive IDs saved for reference{NC}")
+
+    # Also check stale active tasks
+    now = datetime.now(timezone.utc)
+    stale = 0
     for t in tasks:
         hours = 0
         if t.updated_at:
             hours = (now - t.updated_at).total_seconds() / 3600
-
-        # Old inbox tasks (> 48h)
         if t.status.value == "inbox" and hours > 48:
             print(f"  {YELLOW}STALE INBOX{NC}: {t.title[:50]} ({int(hours)}h)")
-            actions += 1
-
-        # Review tasks without PR (> 24h) — likely completed without PR
+            stale += 1
         if t.status.value == "review" and not t.custom_fields.pr_url and hours > 24:
             print(f"  {YELLOW}REVIEW NO PR{NC}: {t.title[:50]} ({int(hours)}h)")
-            actions += 1
+            stale += 1
 
-    if actions == 0:
-        print(f"  {GREEN}Board is clean{NC}")
-    else:
-        print(f"\n  {actions} items need attention")
-        print(f"  {DIM}Use MC dashboard to resolve these manually{NC}")
+    if stale:
+        print(f"\n  {stale} stale active tasks need attention")
 
     return 0
 

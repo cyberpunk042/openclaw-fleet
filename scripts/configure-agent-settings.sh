@@ -23,9 +23,14 @@ declare -A AGENT_CONFIG=(
   ["accountability-generator"]="high|acceptEdits"
 )
 
+declare -A SEEN_AGENTS  # Avoid processing duplicate workspaces
+
 for mcp_file in "$FLEET_DIR"/workspace-mc-*/.mcp.json; do
   workspace_dir="$(dirname "$mcp_file")"
   agent_name=$(python3 -c "import json; print(json.load(open('$mcp_file'))['mcpServers']['fleet']['env']['FLEET_AGENT'])" 2>/dev/null || continue)
+
+  if [[ -n "${SEEN_AGENTS[$agent_name]:-}" ]]; then continue; fi
+  SEEN_AGENTS[$agent_name]=1
 
   config="${AGENT_CONFIG[$agent_name]:-medium|acceptEdits}"
   effort=$(echo "$config" | cut -d'|' -f1)

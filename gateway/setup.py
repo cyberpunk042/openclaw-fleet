@@ -412,7 +412,7 @@ def run_setup() -> int:
         try:
             r = httpx.post(
                 f"{mc_url}/api/v1/gateways/{gw_id}/templates/sync?rotate_tokens=true&force_bootstrap=true",
-                headers=setup.headers, json={}, timeout=30.0,
+                headers=setup.headers, json={}, timeout=120.0,
             )
             if r.status_code in (200, 201):
                 result = r.json()
