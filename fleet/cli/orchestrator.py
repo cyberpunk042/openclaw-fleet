@@ -74,7 +74,22 @@ async def run_orchestrator_cycle(
     dry_run: bool = False,
 ) -> OrchestratorState:
     """Execute one orchestrator cycle."""
+    from fleet.core.effort_profiles import get_active_profile_name, get_profile
+
     state = OrchestratorState()
+
+    # Check effort profile — fleet may be paused or in minimal mode
+    profile_name = config.get("effort_profile", "full")
+    profile = get_profile(profile_name)
+    if profile and not profile.allow_dispatch:
+        return state  # Profile says don't dispatch — skip cycle
+
+    # Override max dispatch from profile
+    if profile:
+        config["max_dispatch_per_cycle"] = min(
+            config.get("max_dispatch_per_cycle", 2),
+            profile.max_dispatch_per_cycle,
+        )
 
     tasks = await mc.list_tasks(board_id)
     agents = await mc.list_agents()

@@ -36,4 +36,8 @@ orchestrator:
     - fleet-ops
   driver_heartbeat_interval: 600  # seconds (10 min) — shorter during active sprints
   max_concurrent_per_agent: 1
+  max_dispatch_per_cycle: 2
   dry_run: false
+  # Effort profile: full, conservative, minimal, paused
+  # Controls fleet intensity — budget, model selection, active agents
+  effort_profile: conservative  # Start conservative after the drain incident

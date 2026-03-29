@@ -31,7 +31,7 @@ removed = []
 for a in agents:
     agent_id = a.get("id", "")
     name = a.get("name", "")
-    if agent_id.startswith("mc-") or agent_id == "main" or "Gateway" in name:
+    if agent_id.startswith("mc-") or "Gateway" in name:
         cleaned.append(a)
     else:
         removed.append(f"{name} (id: {agent_id})")
