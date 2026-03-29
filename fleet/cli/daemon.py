@@ -136,6 +136,17 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
             except Exception:
                 pass
 
+            # Config watcher — detect manual config changes
+            try:
+                from fleet.core.config_watcher import ConfigWatcher
+                config_watcher = ConfigWatcher()
+                config_events = config_watcher.check()
+                if config_events:
+                    for ce in config_events:
+                        print(f"[{ts}] [monitor] Config changed: {ce.get('file', '?')} ({ce.get('config_type', '?')})")
+            except Exception:
+                pass
+
             ts = datetime.now().strftime("%H:%M:%S")
             if alerts:
                 print(f"[{ts}] [monitor] {alerts} alerts")
