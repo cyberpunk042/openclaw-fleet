@@ -197,13 +197,33 @@ echo ""
 bash scripts/setup-lounge.sh
 echo ""
 
-# Step 11: Start fleet daemons (sync + board monitor)
+# Step 11: Clean gateway config (remove duplicates, set safe heartbeat intervals)
+echo "=== Cleaning Gateway Config ==="
+bash scripts/clean-gateway-config.sh
+echo ""
+
+# Step 12: Configure agent Claude Code settings (effort, memory, permissions)
+echo "=== Configuring Agent Settings ==="
+bash scripts/configure-agent-settings.sh
+echo ""
+
+# Step 13: Push fleet framework to all agent workspaces
+echo "=== Pushing Agent Framework ==="
+bash scripts/push-agent-framework.sh
+echo ""
+
+# Step 14: Configure board custom fields and tags
+echo "=== Configuring Board ==="
+bash scripts/configure-board.sh
+echo ""
+
+# Step 15: Start fleet daemons (sync + monitor + orchestrator in conservative mode)
 echo "=== Starting Fleet Daemons ==="
+echo "NOTE: Effort profile is CONSERVATIVE. Use 'fleet effort full' when ready."
 if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
     "$FLEET_DIR/.venv/bin/python" -m fleet daemon all &
 else
-    bash scripts/fleet-sync-daemon.sh &
-    bash scripts/fleet-monitor-daemon.sh &
+    echo "ERROR: Python venv not found. Run: uv venv --python 3.11 && uv pip install -e ."
 fi
 echo "Fleet daemons started"
 echo ""
@@ -220,7 +240,13 @@ echo "  OpenClaw Control UI: http://localhost:18789"
 echo "  IRC Server:          localhost:6667"
 echo "  The Lounge (IRC UI): http://localhost:9000  (fleet/fleet)"
 echo ""
-echo "IRC Channels: #fleet (general) · #alerts (urgent) · #reviews (PRs)"
+echo "IRC Channels: #fleet #alerts #reviews #sprint #agents #security #human #builds #memory #plane"
+echo ""
+echo "Safety:"
+echo "  Effort profile:   conservative (max 1 dispatch/cycle, sonnet only)"
+echo "  Heartbeats:       staggered 30-90m per agent"
+echo "  Budget monitor:   reads CLAUDE_QUOTA_* — auto-pause at 90%"
+echo "  Kill switch:      fleet pause / fleet resume"
 echo ""
 echo "Manage:"
 echo "  make status    — fleet overview"
