@@ -101,6 +101,38 @@ class ChainRunner:
         except Exception:
             pass  # Event emission must never break chain execution
 
+        # Generate and execute cross-references
+        try:
+            from fleet.core.cross_refs import generate_cross_refs
+            chain_event = create_event(
+                f"fleet.{chain.operation}",
+                source="fleet/core/chain_runner",
+                subject=chain.task_id,
+                agent=chain.source_agent,
+                **{k: v for k, v in chain.events[0].params.items() if k in (
+                    "summary", "pr_url", "branch", "project", "title",
+                    "severity", "details", "cycle_name",
+                )}
+            ) if chain.events else None
+
+            if chain_event:
+                refs = generate_cross_refs(chain_event)
+                for ref in refs:
+                    try:
+                        if ref.target_surface == "irc" and self._irc:
+                            channel = ref.target_id or "#fleet"
+                            await self._irc.notify(channel, ref.content)
+                        elif ref.target_surface == "ocmc" and ref.action == "memory" and self._mc:
+                            await self._mc.post_memory(
+                                self._board_id,
+                                content=ref.content,
+                                tags=["cross-ref", chain.operation],
+                            )
+                    except Exception:
+                        pass  # Cross-refs are best-effort
+        except Exception:
+            pass
+
         return result
 
     async def _execute_event(self, event: Event) -> None:
