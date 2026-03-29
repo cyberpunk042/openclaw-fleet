@@ -74,6 +74,15 @@ def _get_ctx() -> FleetMCPContext:
     return _ctx
 
 
+def _report_error(tool_name: str, error: str) -> None:
+    """Report a tool error to the error log for orchestrator visibility."""
+    try:
+        from fleet.core.error_reporter import report_error
+        report_error(tool_name, error)
+    except Exception:
+        pass  # Error reporting must never break tool execution
+
+
 def _emit_event(
     event_type: str,
     source: str = "",
@@ -300,6 +309,35 @@ def register_tools(server: FastMCP) -> None:
                     "tasks_blocked": blocked,
                     "pending_approvals": pending,
                 }
+        except Exception:
+            pass
+
+        # Event feed — unseen events for this agent from the event bus
+        try:
+            from fleet.core.events import EventStore
+            from fleet.core.event_router import build_agent_feed
+            agent = ctx.agent_name or ""
+            if agent:
+                store = EventStore()
+                unseen = store.query(agent_name=agent, unseen_only=True, limit=20)
+                if unseen:
+                    feed = build_agent_feed(unseen, agent, limit=10)
+                    result["event_feed"] = {
+                        "unseen_count": len(unseen),
+                        "items": [
+                            {
+                                "type": e["type"],
+                                "priority": e["priority"],
+                                "time": e["time"],
+                                "data": {k: v for k, v in e["data"].items()
+                                         if k in ("title", "summary", "message", "agent",
+                                                  "pr_url", "decision", "severity", "comment")},
+                            }
+                            for e in feed[:5]
+                        ],
+                    }
+                    # Mark as seen
+                    store.mark_seen(agent, [e["id"] for e in feed])
         except Exception:
             pass
 
@@ -532,6 +570,7 @@ def register_tools(server: FastMCP) -> None:
         # Push
         push_ok = await ctx.gh.push_branch(cwd, branch)
         if not push_ok:
+            _report_error("fleet_task_complete", "Push failed. Check git remote auth.")
             return {"ok": False, "error": "Push failed. Check git remote auth."}
 
         # Resolve URLs
@@ -575,6 +614,7 @@ def register_tools(server: FastMCP) -> None:
                 body=pr_body,
             )
         except Exception as e:
+            _report_error("fleet_task_complete", f"PR creation failed: {e}")
             return {"ok": False, "error": f"PR creation failed: {e}"}
 
         # Update MC custom fields + review gates
