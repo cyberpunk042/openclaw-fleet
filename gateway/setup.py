@@ -236,7 +236,7 @@ class FleetSetup:
         try:
             r = httpx.post(
                 f"{self.mc_url}/api/v1/agents",
-                headers=self.headers, json=data, timeout=10.0,
+                headers=self.headers, json=data, timeout=30.0,
             )
             if r.status_code in (200, 201):
                 return r.json()
@@ -422,6 +422,8 @@ def run_setup() -> int:
                 if result:
                     print(f"   OK: {name}")
                     registered += 1
+                    # Let gateway process config.patch + SIGUSR1 before next agent
+                    import time; time.sleep(3)
                 else:
                     print(f"   WARN: {name} failed")
         print(f"   Registered {registered}/{len(local_agents)} agents")
