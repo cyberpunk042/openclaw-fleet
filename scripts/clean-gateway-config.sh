@@ -124,11 +124,17 @@ try:
         for a in cleaned:
             name = a.get("name", "")
             if name in mc_agents:
-                mc_id = f'mc-{mc_agents[name]["id"]}'
-                if a.get("id") != mc_id:
-                    old_id = a.get("id", "?")
-                    a["id"] = mc_id
-                    a["workspace"] = os.path.expanduser(f"~/openclaw-fleet/workspace-mc-{mc_agents[name]['id']}")
+                mc_agent = mc_agents[name]
+                # Derive gateway agent ID from openclaw_session_id (format: agent:{gw_id}:main)
+                session_id = mc_agent.get("openclaw_session_id", "")
+                parts = session_id.split(":") if session_id else []
+                if len(parts) >= 2:
+                    gw_agent_id = parts[1]
+                else:
+                    gw_agent_id = f'mc-{mc_agent["id"]}'
+                if a.get("id") != gw_agent_id:
+                    a["id"] = gw_agent_id
+                    a["workspace"] = os.path.expanduser(f"~/openclaw-fleet/workspace-mc-{mc_agent['id']}")
                     synced += 1
         if synced:
             print(f"\nSynced {synced} agent IDs with MC database")

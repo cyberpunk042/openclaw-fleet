@@ -45,43 +45,51 @@ done
 # Run fleet setup (registers gateway, board, agents in MC)
 echo ""
 echo "Running fleet setup..."
+source .env 2>/dev/null || true
 python3 -m gateway.setup
 
 # Configure board custom fields and tags
 echo ""
 bash scripts/configure-board.sh
 
-# Sync templates (push TOOLS.md with auth tokens to agents)
+# Template sync already handled by gateway.setup (step 7 above).
+# If it timed out there, retry once with a 180s timeout.
 echo ""
-echo "Syncing agent templates..."
 source .env 2>/dev/null || true
 if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
-    # Get gateway ID
-    GW_ID=$(curl -s -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" http://localhost:8000/api/v1/gateways \
+    ONLINE=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/agents \
         | python3 -c "
-import json, sys
+import json,sys
 data = json.load(sys.stdin)
-items = data.get('items', data) if isinstance(data, dict) else data
-for g in items:
-    if 'OpenClaw' in g.get('name', '') or 'OCF' in g.get('name', ''):
-        print(g['id'])
-        break
-" 2>/dev/null)
+items = data.get('items',data) if isinstance(data,dict) else data
+online = sum(1 for a in items if a.get('status')=='online' and 'Gateway' not in a.get('name',''))
+total = sum(1 for a in items if 'Gateway' not in a.get('name',''))
+print(f'{online}/{total}')
+" 2>/dev/null || echo "?/?")
+    echo "Agent status: $ONLINE online"
 
-    if [[ -n "$GW_ID" ]]; then
-        RESULT=$(curl -s -X POST \
-            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
-            -H "Content-Type: application/json" \
-            "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync?rotate_tokens=true&force_bootstrap=true" \
-            -d '{}')
-        UPDATED=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('agents_updated',0))" 2>/dev/null)
-        ERRORS=$(echo "$RESULT" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('errors',[])))" 2>/dev/null)
-        echo "Templates synced: $UPDATED agents updated, $ERRORS errors"
-    else
-        echo "WARN: Could not find gateway ID for template sync"
+    if [[ "$ONLINE" == "0/"* ]]; then
+        echo "Retrying template sync (180s timeout)..."
+        GW_ID=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            http://localhost:8000/api/v1/gateways \
+            | python3 -c "
+import json,sys; data=json.load(sys.stdin)
+items=data.get('items',data) if isinstance(data,dict) else data
+print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'OpenClaw' in g.get('name','')))
+" 2>/dev/null || true)
+        if [[ -n "${GW_ID:-}" ]]; then
+            RESULT=$(curl -sf -m 180 -X POST \
+                -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync?rotate_tokens=true&force_bootstrap=true" \
+                -d '{}' 2>&1 || echo '{"agents_updated":"?","errors":[]}')
+            UPDATED=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('agents_updated',0))" 2>/dev/null || echo "?")
+            echo "Retry result: $UPDATED agents updated"
+        fi
     fi
 else
-    echo "WARN: No LOCAL_AUTH_TOKEN, skipping template sync"
+    echo "WARN: No LOCAL_AUTH_TOKEN, skipping agent check"
 fi
 
 # Push SOUL.md and Claude Code settings to agent workspaces

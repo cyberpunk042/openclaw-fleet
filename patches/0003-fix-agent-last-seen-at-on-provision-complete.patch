@@ -1,0 +1,15 @@
+diff --git a/backend/app/services/openclaw/db_agent_state.py b/backend/app/services/openclaw/db_agent_state.py
+index 9d0a772..e9f36a3 100644
+--- a/backend/app/services/openclaw/db_agent_state.py
++++ b/backend/app/services/openclaw/db_agent_state.py
+@@ -54,4 +54,9 @@ def mark_provision_complete(
+     agent.status = status
+     agent.provision_requested_at = None
+     agent.provision_action = None
+-    agent.updated_at = utcnow()
++    now = utcnow()
++    agent.updated_at = now
++    # Always refresh last_seen_at on successful provisioning so
++    # with_computed_status doesn't override to "provisioning" or "offline"
++    if status == "online":
++        agent.last_seen_at = now

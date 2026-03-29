@@ -1,0 +1,15 @@
+diff --git a/backend/app/services/openclaw/provisioning_db.py b/backend/app/services/openclaw/provisioning_db.py
+index 15f8e68..c7e1ff2 100644
+--- a/backend/app/services/openclaw/provisioning_db.py
++++ b/backend/app/services/openclaw/provisioning_db.py
+@@ -357,6 +357,10 @@ def _parse_tools_md(content: str) -> dict[str, str]:
+         line = raw.strip()
+         if not line or line.startswith("#"):
+             continue
++        # Strip markdown list formatting: "- `KEY=value`" → "KEY=value"
++        if line.startswith("- "):
++            line = line[2:].strip()
++        line = line.strip("`")
+         match = _TOOLS_KV_RE.match(line)
+         if not match:
+             continue

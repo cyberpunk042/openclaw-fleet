@@ -100,7 +100,7 @@ channels['irc'] = {
             'port': $IRC_PORT,
             'tls': False,
             'nick': '$IRC_NICK',
-            'channels': [c.strip() for c in '#fleetS'.split(',')],
+            'channels': ['#fleet'],
             'dmPolicy': 'open',
             'allowFrom': ['*'],
         }

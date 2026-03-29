@@ -310,9 +310,11 @@ def run_setup() -> int:
 
     if user.get("name") == "Local User" or not user.get("timezone"):
         tz = _detect_timezone()
+        display_name = os.environ.get("FLEET_USER_NAME", "Fleet Admin")
+        first_name = display_name.split()[0]
         print("   Updating user profile...")
-        setup.update_user("Jean Fortin", "Jean", timezone=tz)
-        print(f"   Updated: Jean Fortin (timezone: {tz})")
+        setup.update_user(display_name, first_name, timezone=tz)
+        print(f"   Updated: {display_name} (timezone: {tz})")
 
     # Step 3: Organization
     print("\n3. Checking organization...")
@@ -454,7 +456,7 @@ def run_setup() -> int:
         try:
             r = httpx.post(
                 f"{mc_url}/api/v1/gateways/{gw_id}/templates/sync?rotate_tokens=true&force_bootstrap=true",
-                headers=setup.headers, json={}, timeout=120.0,
+                headers=setup.headers, json={}, timeout=300.0,
             )
             if r.status_code in (200, 201):
                 result = r.json()
