@@ -22,6 +22,7 @@ import logging
 from typing import Optional
 
 from fleet.core.event_chain import ChainResult, Event, EventChain, EventSurface
+from fleet.core.events import EventStore, create_event
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,25 @@ class ChainRunner:
                         "Non-required event failed: [%s] %s: %s",
                         event.surface.value, event.action, e,
                     )
+
+        # Emit chain execution as a CloudEvent for the event bus
+        try:
+            store = EventStore()
+            store.append(create_event(
+                f"fleet.chain.{chain.operation}",
+                source="fleet/core/chain_runner",
+                subject=chain.task_id or "",
+                recipient="all",
+                priority="info",
+                tags=["chain", chain.operation],
+                surfaces=[e.surface.value for e in chain.events if e.executed],
+                total_events=result.total_events,
+                executed=result.executed,
+                failed=result.failed,
+                agent=chain.source_agent,
+            ))
+        except Exception:
+            pass  # Event emission must never break chain execution
 
         return result
 
