@@ -120,6 +120,22 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
                             pass
                         alerts += 1
 
+            # OCMC watcher — detect state changes and emit events
+            try:
+                from fleet.core.ocmc_watcher import OCMCWatcher
+                ocmc_watcher = OCMCWatcher()
+                approvals_list = []
+                try:
+                    approvals_list = await mc.list_approvals(board_id, status="pending")
+                except Exception:
+                    pass
+                ocmc_events = ocmc_watcher.poll(tasks, agents, approvals_list)
+                if ocmc_events:
+                    for oe in ocmc_events[:3]:
+                        print(f"[{ts}] [monitor] Event: {oe.get('type', '?')}")
+            except Exception:
+                pass
+
             ts = datetime.now().strftime("%H:%M:%S")
             if alerts:
                 print(f"[{ts}] [monitor] {alerts} alerts")
