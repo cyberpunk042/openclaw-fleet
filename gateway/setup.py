@@ -402,6 +402,27 @@ def run_setup() -> int:
                 else:
                     print(f"   WARN: {name} failed")
         print(f"   Registered {registered}/{len(local_agents)} agents")
+
+        # Step 6b: Set fleet-ops as board lead
+        print("\n6b. Setting fleet-ops as board lead...")
+        fleet_ops_agent = next((a for a in mc_agents if a.get("name") == "fleet-ops"), None)
+        if fleet_ops_agent:
+            try:
+                agent_id = fleet_ops_agent["id"]
+                # Use direct DB update since the API doesn't support is_board_lead
+                import subprocess
+                subprocess.run([
+                    "docker", "compose", "exec", "-T", "db",
+                    "psql", "-U", "postgres", "mission_control", "-c",
+                    f"UPDATE agents SET is_board_lead = true WHERE id = '{agent_id}';"
+                    f"UPDATE agents SET is_board_lead = false WHERE id != '{agent_id}' "
+                    f"AND board_id = '{board_id}';",
+                ], capture_output=True, timeout=10, cwd=os.path.dirname(os.path.dirname(__file__)))
+                print(f"   OK: fleet-ops is board lead")
+            except Exception as e:
+                print(f"   WARN: Could not set board lead: {e}")
+        else:
+            print("   WARN: fleet-ops not found in agents")
     else:
         print("\n   Skipping agents (no board)")
 
