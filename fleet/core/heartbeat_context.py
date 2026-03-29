@@ -64,6 +64,12 @@ class HeartbeatBundle:
     # Mentions
     mentioned_by: list[str] = field(default_factory=list)
 
+    # Plane sprint data (PM and fleet-ops only — optional surface)
+    plane_available: bool = False
+    plane_sprint: str = ""
+    plane_new_items: list[dict] = field(default_factory=list)
+    plane_blocked: int = 0
+
     # Budget warning (if any)
     budget_warning: str = ""
 
@@ -107,6 +113,21 @@ class HeartbeatBundle:
         # Sprint
         if self.sprint_summary:
             lines.append(f"🏃 Sprint: {self.sprint_summary}")
+            lines.append("")
+
+        # Plane (PM and fleet-ops)
+        if self.plane_available:
+            if self.plane_sprint:
+                lines.append(f"📊 Plane sprint: {self.plane_sprint}")
+            if self.plane_new_items:
+                lines.append(f"📥 {len(self.plane_new_items)} new Plane item(s):")
+                for item in self.plane_new_items[:3]:
+                    lines.append(f"  - [{item.get('priority','?')}] {item.get('title','?')[:60]}")
+            if self.plane_blocked > 0:
+                lines.append(f"🚫 {self.plane_blocked} blocked in Plane")
+            lines.append("")
+        elif self.agent_name in ("project-manager", "fleet-ops"):
+            lines.append("📊 Plane: not configured")
             lines.append("")
 
         # Fleet health
