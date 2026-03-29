@@ -670,11 +670,23 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
     print(f"[orchestrator] Driver agents: "
           f"{config.get('driver_agents', DRIVER_AGENTS)}")
 
+    from fleet.core.outage_detector import OutageDetector
+    _outage = OutageDetector()
+
     while True:
+        # Check if we should run this cycle (outage/backoff)
+        should_run, skip_reason = _outage.should_run_cycle()
+        if not should_run:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"[{ts}] [orchestrator] Skipping: {skip_reason}")
+            await asyncio.sleep(interval)
+            continue
+
         try:
             mc = MCClient(token=token)
             irc = IRCClient(gateway_token=gateway_token)
             board_id = await mc.get_board_id()
+            _outage.record_success("mc_api")
 
             if board_id:
                 state = await run_orchestrator_cycle(
@@ -697,7 +709,13 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
 
             await mc.close()
         except Exception as e:
+            _outage.record_failure("mc_api", str(e))
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [orchestrator] Error: {e}")
+            # Alert on repeated failures
+            alerts = _outage.get_alerts()
+            if alerts:
+                for alert in alerts:
+                    print(f"  OUTAGE: {alert}")
 
         await asyncio.sleep(interval)

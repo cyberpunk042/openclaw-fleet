@@ -65,12 +65,8 @@ async def _run_sync() -> int:
                 await mc.post_comment(
                     board_id, task.id, f"**Auto-merged** PR: {pr_url}"
                 )
-                await mc.post_memory(
-                    board_id,
-                    content=f"**Merged**: {task.title}\nPR: {pr_url}",
-                    tags=["merged", f"project:{task.custom_fields.project or 'fleet'}"],
-                    source="fleet-sync",
-                )
+                # NOTE: No board memory post — merge notifications go to IRC/ntfy only.
+                # Board memory is reserved for decisions, alerts, knowledge, chat.
                 try:
                     await irc.notify("#fleet", format_merged(task.title, pr_url))
                 except Exception:
@@ -115,12 +111,7 @@ async def _run_sync() -> int:
                     comment=f"**Human merged** PR on GitHub: {pr_url}",
                 )
                 print(f"  DONE: {task.title[:50]} — human merged PR")
-                await mc.post_memory(
-                    board_id,
-                    content=f"**Merged by human**: {task.title}\nPR: {pr_url}",
-                    tags=["merged", "human", f"project:{task.custom_fields.project or 'fleet'}"],
-                    source="fleet-sync",
-                )
+                # No board memory — IRC/ntfy only for operational events
                 try:
                     await irc.notify("#fleet", format_task_done(task.title))
                 except Exception:
@@ -142,16 +133,7 @@ async def _run_sync() -> int:
                         f"Check board memory or IRC for direction."
                     ),
                 )
-                await mc.post_memory(
-                    board_id,
-                    content=(
-                        f"**PR closed by human**: {task.title}\n"
-                        f"PR: {pr_url} — closed without merge. "
-                        f"Task moved to inbox for review/rework."
-                    ),
-                    tags=["pr-closed", "human", f"project:{task.custom_fields.project or 'fleet'}"],
-                    source="fleet-sync",
-                )
+                # No board memory — PR close goes to IRC/ntfy only
                 try:
                     await irc.notify("#fleet",
                         f"[fleet] \u274c PR CLOSED: {task.title[:40]} — human closed {pr_url}")
