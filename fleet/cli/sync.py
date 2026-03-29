@@ -171,6 +171,9 @@ async def _run_sync() -> int:
                 if ok:
                     actions += 1
 
+    # PR comment detection — check active PRs for new human comments
+    await _check_pr_comments(mc, gh, irc, board_id, tasks)
+
     # PR hygiene check — detect conflicts, stale PRs, orphaned PRs
     await _check_pr_hygiene(mc, gh, irc, board_id, tasks, actions)
 
@@ -192,6 +195,65 @@ async def _run_sync() -> int:
 
     await mc.close()
     return 0
+
+
+_pr_comment_counts: dict[str, int] = {}  # PR URL → last known comment count
+
+
+async def _check_pr_comments(mc, gh, irc, board_id, tasks) -> None:
+    """Check active task PRs for new human comments."""
+    from fleet.core.remote_watcher import classify_human_comment
+
+    active_prs = [
+        t for t in tasks
+        if t.status.value in ("in_progress", "review")
+        and t.custom_fields.pr_url
+    ]
+
+    for task in active_prs[:5]:  # Max 5 per cycle (rate limit)
+        pr_url = task.custom_fields.pr_url
+        try:
+            import json as _json
+            ok, output = await gh._run([
+                "gh", "pr", "view", pr_url, "--json", "comments",
+            ])
+            if not ok:
+                continue
+
+            data = _json.loads(output)
+            comments = data.get("comments", [])
+            current_count = len(comments)
+            prev_count = _pr_comment_counts.get(pr_url, current_count)
+
+            if current_count > prev_count:
+                new_comments = comments[prev_count:]
+                for c in new_comments:
+                    body = c.get("body", "")
+                    author = c.get("author", {}).get("login", "human")
+                    if author in ("github-actions", "dependabot"):
+                        continue
+
+                    change = classify_human_comment(task, body, author)
+                    print(f"  PR COMMENT: {pr_url} by {author}: {change.action_needed[:50]}")
+
+                    try:
+                        await mc.post_comment(
+                            board_id, task.id,
+                            f"**GitHub comment by {author}**: {body[:200]}\n\n"
+                            f"Action: {change.action_needed}",
+                        )
+                    except Exception:
+                        pass
+
+                    try:
+                        await irc.notify("#reviews",
+                            f"[sync] PR comment by {author} on {task.title[:30]}: {body[:60]}")
+                    except Exception:
+                        pass
+
+            _pr_comment_counts[pr_url] = current_count
+        except Exception:
+            continue
 
 
 async def _check_pr_hygiene(mc, gh, irc, board_id, tasks, actions_count) -> None:
