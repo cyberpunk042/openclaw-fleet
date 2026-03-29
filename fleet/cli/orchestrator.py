@@ -110,8 +110,11 @@ async def run_orchestrator_cycle(
     # Step 6: Health check — detect stuck tasks, offline agents, stale deps
     await _health_check(mc, irc, board_id, tasks, agents, state, dry_run)
 
-    # Step 7: Smart heartbeats — only wake agents that need it based on lifecycle status
-    await _lifecycle_heartbeats(mc, irc, board_id, tasks, agent_name_map, config, state, dry_run)
+    # NOTE: Heartbeats are managed by the GATEWAY, not the orchestrator.
+    # The orchestrator NEVER creates Claude Code sessions directly.
+    # The gateway's heartbeat system (HEARTBEAT.md, heartbeat_config.every)
+    # handles agent cycling at controlled intervals.
+    # The orchestrator only: dispatch tasks, evaluate parents, check health.
 
     return state
 
@@ -375,33 +378,17 @@ async def _wake_lead_for_reviews(
         _last_review_wake = now
         return
 
-    # Gateway wake — NOT an MC task
+    # NOTE: Do NOT call _send_chat here. MC auto-assigns review tasks to
+    # fleet-ops (board lead). The gateway wakes fleet-ops on its heartbeat.
+    # We just log that reviews are pending — no session creation.
     try:
-        from fleet.cli.dispatch import _send_chat
-
         pending = await mc.list_approvals(board_id, status="pending")
-        if not pending:
-            return
-
-        approval_list = "\n".join(
-            f"- task {a.task_id[:8]} (confidence={a.confidence:.0f}%)"
-            for a in pending[:5]
-        )
-
-        message = (
-            f"REVIEW NEEDED — {len(pending)} pending approvals\n\n"
-            f"Tasks in review: {review_count}\n"
-            f"Pending approvals:\n{approval_list}\n\n"
-            f"Use fleet_agent_status() for the full picture.\n"
-            f"For each: review the work, then fleet_approve() or reject.\n"
-            f"See your HEARTBEAT.md for the full review chain process."
-        )
-        ok, _ = await _send_chat(fleet_ops.session_key, message)
-        if ok:
+        if pending:
             _last_review_wake = now
-            state.drivers_woken += 1
-    except Exception as e:
-        state.errors.append(f"wake fleet-ops for reviews: {e}")
+            await _notify(irc, "#reviews",
+                f"[orchestrator] {len(pending)} pending approvals for fleet-ops")
+    except Exception:
+        pass
 
 
 # ─── Step 3: Dispatch Ready Tasks ───────────────────────────────────────
@@ -438,7 +425,13 @@ async def _dispatch_ready_tasks(
         if t.status == TaskStatus.IN_PROGRESS and t.assigned_agent_id
     }
 
+    # SAFETY: Max 2 dispatches per cycle to prevent session storms
+    max_dispatch = config.get("max_dispatch_per_cycle", 2)
+
     for task in inbox_tasks:
+        if state.tasks_dispatched >= max_dispatch:
+            break  # Remaining tasks wait for next cycle
+
         if task.assigned_agent_id in busy_agent_ids:
             continue
 
@@ -538,83 +531,10 @@ async def _evaluate_parents(
             state.parents_evaluated += 1
 
 
-# ─── Step 5: Lifecycle-Aware Heartbeats ──────────────────────────────────
-
-DRIVER_AGENTS = ["project-manager", "fleet-ops"]
-
-
-async def _lifecycle_heartbeats(
-    mc: MCClient,
-    irc: IRCClient,
-    board_id: str,
-    tasks: list[Task],
-    agent_name_map: dict,
-    config: dict,
-    state: OrchestratorState,
-    dry_run: bool,
-) -> None:
-    """Send heartbeats via gateway wake — NOT MC tasks.
-
-    Heartbeats are for PARTICIPATION: check chat, respond to discussions,
-    review decisions, contribute to domain events, help with backlog.
-    NOT for "check if you have work" — assigned tasks are dispatched directly.
-
-    Only idle DRIVER agents with no assigned work get heartbeats.
-    Workers with no assigned work do NOT get heartbeats.
-    Agents with assigned tasks are already working — no heartbeat needed.
-    """
-    now = datetime.now()
-    drivers = set(config.get("driver_agents", DRIVER_AGENTS))
-
-    agents_needing_heartbeat = _fleet_lifecycle.agents_needing_heartbeat(now)
-
-    from fleet.cli.dispatch import _send_chat
-
-    for agent_state in agents_needing_heartbeat:
-        agent = agent_name_map.get(agent_state.name)
-        if not agent or not agent.session_key:
-            continue
-
-        # NEVER heartbeat an agent that has assigned work — they're working on it
-        has_assigned_work = any(
-            t.custom_fields.agent_name == agent_state.name
-            and t.status in (TaskStatus.INBOX, TaskStatus.IN_PROGRESS)
-            for t in tasks
-        )
-        if has_assigned_work:
-            agent_state.mark_heartbeat_sent(now)
-            continue
-
-        # Only driver agents get periodic heartbeats when idle
-        # Workers without assigned work stay quiet
-        if agent_state.name not in drivers:
-            agent_state.mark_heartbeat_sent(now)
-            continue
-
-        if dry_run:
-            print(f"  [dry_run] WOULD wake {agent_state.name} "
-                  f"(heartbeat, status={agent_state.status.value})")
-            agent_state.mark_heartbeat_sent(now)
-            state.drivers_woken += 1
-            continue
-
-        # Gateway wake — NOT an MC task
-        try:
-            message = (
-                f"HEARTBEAT — {agent_state.name}\n\n"
-                f"Check your HEARTBEAT.md for instructions.\n"
-                f"Call fleet_read_context() to see chat, events, team activity.\n"
-                f"Call fleet_chat() to communicate with teammates.\n"
-                f"Call fleet_agent_status() to check fleet health.\n\n"
-                f"Focus: chat responses, domain events, backlog, discussions.\n"
-                f"If nothing needs attention: HEARTBEAT_OK."
-            )
-            ok, _ = await _send_chat(agent.session_key, message)
-            if ok:
-                agent_state.mark_heartbeat_sent(now)
-                state.drivers_woken += 1
-        except Exception as e:
-            state.errors.append(f"heartbeat {agent_state.name}: {e}")
+# NOTE: _lifecycle_heartbeats REMOVED.
+# Heartbeats are managed by the GATEWAY's own heartbeat system.
+# The orchestrator MUST NEVER call _send_chat or create sessions directly.
+# See docs/milestones/catastrophic-usage-drain-investigation.md for why.
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────
