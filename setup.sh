@@ -116,7 +116,7 @@ fi
 
 # Install fleet package in venv
 if [[ -d "$FLEET_DIR/.venv" ]]; then
-    uv pip install --python "$FLEET_DIR/.venv/bin/python" -q -e "$FLEET_DIR" 2>/dev/null || {
+    uv pip install --python "$FLEET_DIR/.venv/bin/python" -q -e "$FLEET_DIR[dev]" 2>/dev/null || {
         echo "  WARN: Fleet package install failed"
     }
     echo "  Python venv: OK (.venv with Python 3.11+)"
