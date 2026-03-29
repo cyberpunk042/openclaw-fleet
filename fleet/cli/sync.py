@@ -17,6 +17,16 @@ from fleet.infra.irc_client import IRCClient
 from fleet.infra.mc_client import MCClient
 from fleet.templates.irc import format_merged, format_task_done
 
+# Event emission for the event bus
+def _sync_emit_event(event_type, **kwargs):
+    try:
+        from fleet.core.events import create_event, EventStore
+        store = EventStore()
+        event = create_event(event_type, source="fleet/cli/sync", **kwargs)
+        store.append(event)
+    except Exception:
+        pass
+
 
 async def _run_sync() -> int:
     """Execute one sync pass."""
@@ -85,6 +95,16 @@ async def _run_sync() -> int:
                     await ntfy.close()
                 except Exception:
                     pass
+                _sync_emit_event(
+                    "fleet.github.pr_merged",
+                    subject=task.id,
+                    recipient=task.custom_fields.agent_name or "all",
+                    priority="info",
+                    tags=["merged", f"project:{task.custom_fields.project or 'unknown'}"],
+                    surfaces=["internal", "channel", "notify"],
+                    pr_url=pr_url,
+                    task_title=task.title[:60],
+                )
                 actions += 1
             else:
                 print(f"    FAIL: merge failed")
@@ -111,6 +131,17 @@ async def _run_sync() -> int:
                     comment=f"**Human merged** PR on GitHub: {pr_url}",
                 )
                 print(f"  DONE: {task.title[:50]} — human merged PR")
+                _sync_emit_event(
+                    "fleet.github.pr_merged",
+                    subject=task.id,
+                    recipient=task.custom_fields.agent_name or "all",
+                    priority="important",
+                    mentions=[task.custom_fields.agent_name] if task.custom_fields.agent_name else [],
+                    tags=["merged", "human_action"],
+                    surfaces=["internal", "channel"],
+                    pr_url=pr_url,
+                    human_merged=True,
+                )
                 # No board memory — IRC/ntfy only for operational events
                 try:
                     await irc.notify("#fleet", format_task_done(task.title))
