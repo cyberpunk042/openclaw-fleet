@@ -219,6 +219,13 @@ kept = [a for a in agents if 'Gateway' in a.get('name', '')]
 print(f'  Cleared {len(agents) - len(kept)} agent entries for MC to re-provision')
 cfg['agents']['list'] = kept
 with open(p, 'w') as f: json.dump(cfg, f, indent=2)
+
+# Reset gateway config health so it accepts the smaller config
+# (gateway refuses to load if file size dropped vs 'last known good')
+health_path = os.path.expanduser('~/.openclaw/logs/config-health.json')
+if os.path.exists(health_path):
+    os.remove(health_path)
+    print('  Reset gateway config health checkpoint')
 " 2>/dev/null || echo "  SKIP"
 echo ""
 
@@ -272,6 +279,33 @@ if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
     echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
 else
     echo "ERROR: Python venv not found. Run: uv venv --python 3.11 && uv pip install -e ."
+fi
+echo ""
+
+# Step 16: Final template sync (refreshes last_seen_at so agents show "online")
+# Must be the LAST thing before the completion message — any delay >10min
+# causes MC to compute status as "offline".
+echo "=== Final Agent Sync ==="
+source "$FLEET_DIR/.env" 2>/dev/null || true
+if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
+    GW_ID=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/gateways \
+        | python3 -c "
+import json,sys; data=json.load(sys.stdin)
+items=data.get('items',data) if isinstance(data,dict) else data
+print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'OpenClaw' in g.get('name','')))
+" 2>/dev/null || true)
+    if [[ -n "${GW_ID:-}" ]]; then
+        # Sync WITHOUT force_bootstrap — agents already exist in gateway.
+        # force_bootstrap triggers agents.create → config.patch → SIGUSR1 storm → OOM.
+        RESULT=$(curl -sf -m 180 -X POST \
+            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync" \
+            -d '{}' 2>&1 || echo '{"agents_updated":"?"}')
+        UPDATED=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('agents_updated',0))" 2>/dev/null || echo "?")
+        echo "  $UPDATED agents online"
+    fi
 fi
 echo ""
 

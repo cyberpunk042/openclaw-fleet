@@ -120,7 +120,7 @@ async def run_orchestrator_cycle(
     await _wake_lead_for_reviews(mc, irc, board_id, tasks, agent_name_map, state, dry_run)
 
     # Step 4: Dispatch unblocked inbox tasks to assigned agents
-    await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run)
+    await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run, config)
 
     # Step 5: Evaluate parent task completion (all children done → parent to review)
     await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
@@ -420,6 +420,7 @@ async def _dispatch_ready_tasks(
     agent_map: dict,
     state: OrchestratorState,
     dry_run: bool,
+    config: dict | None = None,
 ) -> None:
     """Find unblocked inbox tasks with assigned agents and dispatch them."""
     from fleet.cli.dispatch import _run_dispatch
@@ -482,7 +483,7 @@ async def _dispatch_ready_tasks(
     }
 
     # SAFETY: Max 2 dispatches per cycle to prevent session storms
-    max_dispatch = config.get("max_dispatch_per_cycle", 2)
+    max_dispatch = (config or {}).get("max_dispatch_per_cycle", 2)
 
     for task in inbox_tasks:
         if state.tasks_dispatched >= max_dispatch:
@@ -681,7 +682,7 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
     print(f"[orchestrator] Auto-approve threshold: "
           f"{config.get('auto_approve_threshold', 80)}%")
     print(f"[orchestrator] Driver agents: "
-          f"{config.get('driver_agents', DRIVER_AGENTS)}")
+          f"{config.get('driver_agents', ['project-manager', 'fleet-ops'])}")
 
     from fleet.core.outage_detector import OutageDetector
     _outage = OutageDetector()

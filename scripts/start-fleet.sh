@@ -23,6 +23,9 @@ if pgrep -f "openclaw$" >/dev/null 2>&1; then
 fi
 
 # Start gateway in background (detached from shell)
+# Increase Node.js heap to 4GB — template sync causes rapid config patches
+# that exhaust the default ~1.7GB heap during SIGUSR1 restart storms.
+export NODE_OPTIONS="--max-old-space-size=4096"
 nohup openclaw gateway run --port 18789 > "$FLEET_DIR/.gateway.log" 2>&1 &
 disown
 GATEWAY_PID=$!
@@ -37,4 +40,6 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
-echo "  WARNING: Gateway may not be ready yet. Check: curl http://localhost:18789/"
+echo "  ERROR: Gateway failed to start within 60 seconds."
+echo "  Check logs: tail -50 $FLEET_DIR/.gateway.log"
+exit 1
