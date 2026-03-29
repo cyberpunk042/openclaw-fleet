@@ -381,6 +381,27 @@ def run_setup() -> int:
     else:
         print("   WARN: No gateway, cannot create board")
 
+    # Step 5b: Configure board settings (review chain gates)
+    if board:
+        board_id_cfg = board.get("id", "")
+        try:
+            r = httpx.patch(
+                f"{mc_url}/api/v1/boards/{board_id_cfg}",
+                headers=setup.headers,
+                json={
+                    "require_review_before_done": True,
+                    "comment_required_for_review": True,
+                    "block_status_changes_with_pending_approval": True,
+                },
+                timeout=10.0,
+            )
+            if r.status_code == 200:
+                print("   OK: Board gates enabled (review, comment, approval)")
+            else:
+                print(f"   WARN: Board config returned {r.status_code}")
+        except Exception as e:
+            print(f"   WARN: Could not set board config: {e}")
+
     # Step 6: Register agents
     if board:
         board_id = board.get("id", "")
@@ -405,7 +426,7 @@ def run_setup() -> int:
 
         # Step 6b: Set fleet-ops as board lead
         print("\n6b. Setting fleet-ops as board lead...")
-        fleet_ops_agent = next((a for a in mc_agents if a.get("name") == "fleet-ops"), None)
+        fleet_ops_agent = next((a for a in existing if a.get("name") == "fleet-ops"), None)
         if fleet_ops_agent:
             try:
                 agent_id = fleet_ops_agent["id"]
