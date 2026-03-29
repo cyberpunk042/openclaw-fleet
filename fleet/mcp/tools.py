@@ -956,6 +956,34 @@ def register_tools(server: FastMCP) -> None:
         ctx = _get_ctx()
         board_id = await ctx.resolve_board_id()
 
+        # CASCADE DEPTH CHECK — prevent infinite auto-creation chains
+        # Max depth: 3 levels (human → PM → agent → subtask)
+        MAX_CASCADE_DEPTH = 3
+        resolved_parent = parent_task or ctx.task_id or ""
+        if resolved_parent:
+            try:
+                depth = 0
+                check_id = resolved_parent
+                all_tasks = await ctx.mc.list_tasks(board_id)
+                task_map = {t.id: t for t in all_tasks}
+                while check_id and depth < MAX_CASCADE_DEPTH + 1:
+                    t = task_map.get(check_id)
+                    if not t:
+                        break
+                    check_id = t.custom_fields.parent_task or ""
+                    depth += 1
+                if depth >= MAX_CASCADE_DEPTH:
+                    return {
+                        "ok": False,
+                        "error": (
+                            f"Cascade depth limit ({MAX_CASCADE_DEPTH}) reached. "
+                            f"Cannot create subtask of subtask of subtask. "
+                            f"Simplify the task hierarchy or escalate to PM."
+                        ),
+                    }
+            except Exception:
+                pass  # Don't block on depth check failure
+
         # Resolve agent ID if name provided
         assigned_agent_id = None
         if agent_name:
