@@ -221,11 +221,12 @@ echo ""
 echo "=== Starting Fleet Daemons ==="
 echo "NOTE: Effort profile is CONSERVATIVE. Use 'fleet effort full' when ready."
 if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
-    "$FLEET_DIR/.venv/bin/python" -m fleet daemon all &
+    nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
+    disown
+    echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
 else
     echo "ERROR: Python venv not found. Run: uv venv --python 3.11 && uv pip install -e ."
 fi
-echo "Fleet daemons started"
 echo ""
 
 echo "╔══════════════════════════════════════╗"

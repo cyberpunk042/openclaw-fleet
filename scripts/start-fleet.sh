@@ -14,8 +14,10 @@ if pgrep -f "openclaw-gateway" >/dev/null 2>&1; then
     exit 0
 fi
 
-# Start gateway in background
-openclaw gateway run --port 18789 &
+# Start gateway in background (detached from shell)
+FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+nohup openclaw gateway run --port 18789 > "$FLEET_DIR/.gateway.log" 2>&1 &
+disown
 GATEWAY_PID=$!
 
 # Wait for it to be ready
