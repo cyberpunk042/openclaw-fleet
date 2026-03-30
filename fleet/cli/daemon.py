@@ -147,6 +147,18 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
             except Exception:
                 pass
 
+            # Config sync — export Plane state to YAML configs + git commit
+            try:
+                from fleet.core.config_sync import ConfigSync
+                syncer = ConfigSync()
+                sync_result = syncer.export_and_commit()
+                if sync_result.get("committed"):
+                    print(f"[{ts}] [monitor] Config synced to git: {sync_result.get('files', [])}")
+                elif sync_result.get("error"):
+                    pass  # Silent — not all cycles need a sync
+            except Exception:
+                pass
+
             ts = datetime.now().strftime("%H:%M:%S")
             if alerts:
                 print(f"[{ts}] [monitor] {alerts} alerts")

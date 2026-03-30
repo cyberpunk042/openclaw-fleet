@@ -274,7 +274,8 @@ echo ""
 echo "=== Starting Fleet Daemons ==="
 echo "NOTE: Effort profile is CONSERVATIVE. Use 'fleet effort full' when ready."
 if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
-    PYTHONUNBUFFERED=1 nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
+    # Source .env for latest Plane credentials + fleet config
+    PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
     disown
     echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
 else
