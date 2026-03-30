@@ -213,6 +213,20 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
         resp.raise_for_status()
         return resp.json()
 
+    async def list_comments(
+        self, board_id: str, task_id: str, limit: int = 50
+    ) -> list[dict]:
+        """List comments on a task."""
+        resp = await self._client.get(
+            f"/api/v1/boards/{board_id}/tasks/{task_id}/comments",
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("items", data) if isinstance(data, dict) else data
+        if isinstance(items, list):
+            return items[:limit]
+        return []
+
     # ─── MemoryClient ───────────────────────────────────────────────────
 
     async def post_memory(

@@ -250,6 +250,7 @@ class EventStore:
     def query(
         self,
         agent_name: str = "",
+        subject: str = "",
         event_types: list[str] | None = None,
         since: str = "",
         unseen_only: bool = False,
@@ -268,6 +269,10 @@ class EventStore:
                 try:
                     record = json.loads(line)
                 except json.JSONDecodeError:
+                    continue
+
+                # Subject filter
+                if subject and record.get("subject", "") != subject:
                     continue
 
                 # Type filter
