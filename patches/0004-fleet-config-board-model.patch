@@ -1,0 +1,34 @@
+diff --git a/backend/app/models/boards.py b/backend/app/models/boards.py
+index 2023c9c..a04dcdc 100644
+--- a/backend/app/models/boards.py
++++ b/backend/app/models/boards.py
+@@ -45,5 +45,9 @@ class Board(TenantScoped, table=True):
+     block_status_changes_with_pending_approval: bool = Field(default=False)
+     only_lead_can_change_status: bool = Field(default=False)
+     max_agents: int = Field(default=1)
++    fleet_config: dict[str, object] | None = Field(
++        default=None,
++        sa_column=Column(JSON),
++    )
+     created_at: datetime = Field(default_factory=utcnow)
+     updated_at: datetime = Field(default_factory=utcnow)
+diff --git a/backend/app/schemas/boards.py b/backend/app/schemas/boards.py
+index 3d2cdef..ef1292d 100644
+--- a/backend/app/schemas/boards.py
++++ b/backend/app/schemas/boards.py
+@@ -35,6 +35,7 @@ class BoardBase(SQLModel):
+     block_status_changes_with_pending_approval: bool = False
+     only_lead_can_change_status: bool = False
+     max_agents: int = Field(default=1, ge=0)
++    fleet_config: dict[str, object] | None = None
+ 
+ 
+ class BoardCreate(BoardBase):
+@@ -80,6 +81,7 @@ class BoardUpdate(SQLModel):
+     block_status_changes_with_pending_approval: bool | None = None
+     only_lead_can_change_status: bool | None = None
+     max_agents: int | None = Field(default=None, ge=0)
++    fleet_config: dict[str, object] | None = None
+ 
+     @model_validator(mode="after")
+     def validate_gateway_id(self) -> Self:
