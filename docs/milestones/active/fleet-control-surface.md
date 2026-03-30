@@ -1,8 +1,8 @@
 # Fleet Control Surface — User Command & Control
 
 **Date:** 2026-03-30
-**Status:** Design discussion — requirements capture
-**Scope:** How the user controls the fleet, sees events, and sets operational modes
+**Status:** Design — grounded in MC vendor analysis
+**Scope:** How the user controls the fleet through the OCMC UI
 
 ---
 
@@ -31,410 +31,622 @@
 
 ## What This Means
 
-The user needs a **command center** — not just a task board. A place where they:
+The fleet control surface lives in the **header bar** — the sticky navbar
+at the top of every OCMC page. Always visible. Always accessible. The user
+doesn't navigate to a separate page or open a panel. The controls are RIGHT
+THERE in the header, on every page, at all times.
 
-1. **Set the fleet's operational mode** (what kind of work agents do)
-2. **See the event stream** in real-time (what's happening, who's doing what)
-3. **Control pace** (pause, resume, stop, finish current)
-4. **Direct focus** (force a cycle: planning, analysis, investigation, crisis)
-5. **Choose backend mode** (LocalAI only, Claude only, hybrid)
-6. **Give directives** (tell PM to start priority X, tell fleet-ops to review Y)
+Three **independent** control axes as compact dropdowns in the header:
 
-And this control must be **adaptive** — it changes the orchestrator behavior,
-agent heartbeat responses, dispatch rules, and effort profiles. But it
-doesn't replace the PM or fleet-ops — they still do their jobs, just within
-the mode the user set.
+1. **Work Mode** — where new work comes from
+2. **Cycle Phase** — what kind of work agents do
+3. **Backend Mode** — which AI backend processes requests
 
----
-
-## Current State — What OCMC Already Offers
-
-### Board Memory
-- Agents read board memory every heartbeat
-- `/pause` and `/resume` commands in board memory
-- Board memory is the user's voice to the fleet
-
-### Effort Profiles (fleet/core/effort_profiles.py)
-Already built — 4 profiles:
-- **full**: max 2 dispatch/cycle, opus + sonnet
-- **conservative**: max 1 dispatch/cycle, sonnet only (current default)
-- **minimal**: max 1 dispatch every 3 cycles, sonnet only
-- **paused**: zero dispatch, agents respond HEARTBEAT_OK only
-
-### Fleet Pause/Resume (fleet/cli/pause.py)
-Already built:
-- `fleet pause` — writes /pause to board memory, agents stop
-- `fleet resume` — writes /resume, agents restart
-- But: no granularity (all-or-nothing)
-
-### Board Config Gates
-MC supports:
-- `require_review_before_done` — enforces review chain
-- `comment_required_for_review` — forces reasoning
-- `block_status_changes_with_pending_approval` — prevents skipping
+These axes are independent. Any combination is valid. Setting one does not
+affect the others.
+6. **Directives** — the user types a command to an agent or the fleet
 
 ---
 
-## What's Missing — The Control Surface
+## Three Control Axes
 
-### 1. Operational Modes (beyond pause/resume)
+### Axis 1 — Work Mode (where does new work come from?)
 
-Current: `full | conservative | minimal | paused`
+| Value | What It Means |
+|-------|---------------|
+| **Full Autonomous** | Everything open. PM pulls from Plane, orchestrator dispatches freely, all agents work. |
+| **Project Management Work** | PM is active on Plane. Pulls priorities, creates tasks, drives sprints. |
+| **Local Work Only** | Agents work on OCMC tasks only. PM does NOT pull new work from Plane. Plane sync still runs — always. |
+| **Finish Current Work** | No new dispatch. Agents with in-progress tasks finish them. Then idle. |
+| **Work Paused** | No new dispatch. Agents idle. Nothing moves. |
 
-Proposed — richer mode system:
+**Key clarification:** "Local Work Only" means local to the OCMC board —
+work that's already on the board. It does NOT mean LocalAI. It does NOT
+disable Plane sync. Plane sync is infrastructure; it always runs.
 
-| Mode | Dispatch | Focus | Who Works |
-|------|----------|-------|-----------|
-| **Full Autonomous** | Max rate, all agents | All projects, all priorities | Everyone |
-| **Project Management Work** | PM + fleet-ops only | Backlog, planning, sprint | PM, fleet-ops |
-| **Local Work Only** | Conservative, no cloud | Only LocalAI-routable tasks | Agents on LocalAI |
-| **Work Paused** | Zero dispatch | Nothing new | Agents idle (HEARTBEAT_OK) |
-| **Finish Current Work** | No new dispatch | Agents complete in-progress only | Those with active tasks |
-| **Planning Mode** | PM only | Sprint planning, backlog grooming | PM agent |
-| **Analysis Mode** | Architect + PM | Architecture review, complexity assessment | Architect, PM |
-| **Investigation Mode** | Any assigned | Spikes and research tasks only | Assigned agents |
-| **Crisis Management** | fleet-ops + devsecops | Security, hotfix, incident response | Ops team |
-| **Review Only** | fleet-ops | Process pending reviews, clear queue | fleet-ops |
-| **Hybrid (LocalAI+Claude)** | Normal rate | Route by complexity | Everyone, mixed backends |
-| **Claude Only** | Normal rate | All tasks use Claude | Everyone |
-| **LocalAI Only** | Conservative | Only tasks LocalAI can handle | Everyone, local only |
+### Axis 2 — Cycle Phase (what kind of work?)
 
-Each mode affects:
-- **Orchestrator dispatch**: which agents get tasks, how many per cycle
-- **Agent heartbeat behavior**: what they do when they wake up
-- **Backend routing**: LocalAI vs Claude vs both
-- **Task filtering**: what types of tasks are eligible for dispatch
+| Value | What It Means |
+|-------|---------------|
+| **Execution** | Normal work. Agents implement, build, test. Default. |
+| **Planning** | Sprint planning, backlog grooming, task breakdown. PM drives. |
+| **Analysis** | Architecture review, complexity assessment. Architect + PM active. |
+| **Investigation** | Spikes, research, exploration tasks only. |
+| **Review** | Clear the review queue. fleet-ops processes pending approvals. |
+| **Crisis Management** | Security incidents, hotfixes. fleet-ops + devsecops only. |
 
-### 2. Event Stream (Real-Time Dashboard)
+### Axis 3 — Backend Mode (which AI?)
 
-The user needs to SEE what's happening:
-
-```
-[20:15:32] 📋 orchestrator: dispatched "Assess AICP codebase" → architect
-[20:15:33] 📡 chain: task_dispatch → INTERNAL ✓, CHANNEL ✓, PLANE ✓
-[20:16:01] ✅ architect: accepted task, plan shared
-[20:18:45] 💾 architect: committed 3 files (aicp/core/assessment.md)
-[20:19:02] 🔀 architect: task complete, PR #47 created
-[20:19:03] 📡 chain: task_complete → INTERNAL ✓, PUBLIC ✓, CHANNEL ✓, PLANE ✓, NOTIFY ✓
-[20:19:05] 👀 fleet-ops: review task queued
-[20:25:12] ✅ fleet-ops: approved (confidence: 92%)
-[20:25:13] 📡 chain: task_approved → INTERNAL ✓, CHANNEL ✓, PLANE ✓
-[20:25:14] 🏁 task done: "Assess AICP codebase"
-```
-
-This is already in the event store (.fleet-events.jsonl) — needs a viewer:
-- **CLI**: `fleet watch` — tail events in terminal with colors
-- **IRC**: events already post to #fleet
-- **OCMC board memory**: decisions and completions recorded
-- **Web dashboard**: if we build one (future)
-
-### 3. Directives (User → Fleet Communication)
-
-The user needs to give orders:
-- "PM, start working on AICP Stage 1"
-- "fleet-ops, review all pending approvals now"
-- "All agents, stop and report status"
-- "Architect, investigate the chain runner coverage gaps"
-
-These should be:
-- Written to board memory with special tags (`directive`, `urgent`)
-- Picked up by the orchestrator or specific agent on next heartbeat
-- Create tasks if needed (PM breaks down directives into tasks)
-
-### 4. Mode Switching
-
-How the user switches modes:
-
-**Option A: Board Memory Commands**
-```
-/mode full-autonomous
-/mode planning
-/mode crisis-management
-/mode local-only
-/mode finish-current
-```
-
-**Option B: Fleet CLI**
-```
-fleet mode full
-fleet mode planning
-fleet mode crisis
-fleet mode local-only
-fleet mode finish
-```
-
-**Option C: OCMC Board Config**
-Custom field on the board itself — `fleet_mode: planning`
-
-**Option D: Config File**
-`config/fleet.yaml` → `orchestrator.mode: planning`
-
-All four should work. The source of truth is the board memory / config.
-The CLI writes to it. The orchestrator reads it.
-
-### 5. Cycle Forcing
-
-> "I can even chose a cycle and force being in planning or analysis"
-
-The user can force the fleet into a specific work cycle:
-- **Sprint Planning**: PM creates tasks, estimates, assigns
-- **Sprint Execution**: agents work on assigned tasks
-- **Sprint Review**: fleet-ops reviews all completed work
-- **Sprint Retrospective**: PM generates report, lessons learned
-- **Investigation**: only spike/research tasks dispatched
-- **Crisis**: only security/hotfix tasks, max priority
-
-This overrides the orchestrator's normal cycle detection.
+| Value | What It Means |
+|-------|---------------|
+| **Claude** | All inference through Claude. Current default. |
+| **LocalAI** | All inference through LocalAI. Zero Claude tokens. |
+| **Hybrid** | Router decides per operation by complexity. Stage 2+ target. |
 
 ---
 
-## Design: How Modes Affect the System
+## How Each Axis Affects the System
 
-### Orchestrator Changes
+### Work Mode Effects
 
-The orchestrator reads the current mode before each cycle:
+| Mode | Dispatch | PM Plane Pull | Plane Sync | Who Works |
+|------|----------|--------------|------------|-----------|
+| Full Autonomous | Max rate | Yes | Always | Everyone |
+| Project Management Work | PM + fleet-ops | Yes | Always | PM, fleet-ops |
+| Local Work Only | Conservative | No | Always | Everyone (OCMC tasks only) |
+| Finish Current Work | Zero new | No | Always | Those with active tasks |
+| Work Paused | Zero | No | Always | Nobody |
 
-```python
-async def run_orchestrator_cycle(mc, irc, board_id, config, ...):
-    mode = await read_fleet_mode(mc, board_id)  # From board memory or config
+### Cycle Phase Effects
 
-    if mode == "paused":
-        return  # Skip everything
+| Phase | Task Filter | Active Agents | Focus |
+|-------|------------|---------------|-------|
+| Execution | All types | Everyone | Normal work |
+| Planning | epic, story only | PM, architect | Sprint planning |
+| Analysis | assessment, spike | Architect, PM | Architecture review |
+| Investigation | spike, research | Assigned agents | Research only |
+| Review | review-tagged | fleet-ops | Clear approval queue |
+| Crisis Management | security, hotfix | fleet-ops, devsecops | Incident response |
 
-    if mode == "finish-current":
-        # Don't dispatch new tasks, but still process approvals/parents
-        skip_dispatch = True
+### Backend Mode Effects
 
-    if mode == "planning":
-        # Only dispatch to PM, only planning-type tasks
-        dispatch_filter = lambda t: t.custom_fields.task_type in ("epic", "story")
-        dispatch_agents = ["project-manager"]
+| Mode | Inference Route | Model Selection |
+|------|----------------|-----------------|
+| Claude | All through Claude API | opus/sonnet by complexity |
+| LocalAI | All through LocalAI | hermes-3b/hermes-7b by task |
+| Hybrid | Router decides per op | Mixed based on complexity |
 
-    if mode == "crisis":
-        # Only security/hotfix, fleet-ops + devsecops
-        dispatch_filter = lambda t: "security" in t.tags or "hotfix" in t.tags
-        dispatch_agents = ["fleet-ops", "devsecops-expert"]
+---
 
-    if mode == "local-only":
-        # Only tasks that can be routed to LocalAI
-        backend_override = "localai"
+## The UI — Injected Into the MC Header Bar
+
+### Where: `DashboardShell.tsx` — The Sticky Header
+
+The header bar (`DashboardShell.tsx`) is a sticky `<header>` at the top of
+every page. It currently has three sections:
+
+```
++------------------------------------------------------------------------+
+| [OC] OPENCLAW     | [Org Switcher ▾]              | User Name  [Avatar]|
+|  Mission Control  |                                | Operator           |
++------------------------------------------------------------------------+
 ```
 
-### Agent Heartbeat Changes
+The **center section** uses `flex-1` (takes all remaining space) but only
+contains the OrgSwitcher at 220px. The rest of the space is empty.
 
-Agents check the fleet mode in their heartbeat context:
+The fleet controls go IN that center section, right after the OrgSwitcher.
+
+### Header With Fleet Controls
 
 ```
-HEARTBEAT — architect
-Fleet Mode: PLANNING
-  → You are in planning mode. Only architectural assessment
-    and complexity evaluation tasks are active.
-  → Do NOT start implementation work.
-  → Focus: review task descriptions, assess complexity,
-    recommend story point estimates.
++--------------------------------------------------------------------------------------------+
+| [OC] OPENCLAW  | [Org ▾] [Local Work Only ▾] [Planning ▾] [Claude ▾] [8/10] | User [Avatar]|
+|  Mission Control|                                                             | Operator     |
++--------------------------------------------------------------------------------------------+
 ```
 
-### Backend Mode Changes
+Three compact `Select` dropdowns + an agent count badge. Always visible.
+On every page. No navigation needed. The user glances at the header and
+sees the fleet state. Clicks a dropdown and changes it instantly.
 
-The mode can override the inference router:
-- **LocalAI Only**: all agent sessions use LocalAI backend
-- **Claude Only**: all sessions use Claude (current default)
-- **Hybrid**: router decides per operation (Stage 2+ target)
+### Responsive Behavior
 
-### Event Stream Integration
+- **Desktop (md+):** All three dropdowns visible alongside OrgSwitcher
+- **Tablet (sm-md):** Dropdowns collapse to icons with tooltips, or a
+  single "Fleet" popover that expands to show all three
+- **Mobile:** Hidden (same as OrgSwitcher — `hidden md:flex`)
 
-Every mode change is an event:
+### Component Structure
+
+New component: `FleetControlBar.tsx`
+
+Injected into `DashboardShell.tsx` center section, after OrgSwitcher:
+
+```tsx
+{/* CENTER SECTION */}
+<SignedIn>
+  <div className="hidden md:flex flex-1 items-center gap-3">
+    <div className="max-w-[220px]">
+      <OrgSwitcher />
+    </div>
+    {/* Fleet controls — injected here */}
+    <FleetControlBar boardId={activeBoardId} />
+  </div>
+</SignedIn>
+```
+
+`FleetControlBar` renders:
+- Work Mode `Select` (compact, ~160px)
+- Cycle Phase `Select` (compact, ~130px)
+- Backend Mode `Select` (compact, ~110px)
+- Agent status badge (e.g., "8/10" with green/amber dot)
+
+### UI Components Used
+
+All from existing MC component library — no new dependencies:
+
+| Control | Component | Source |
+|---------|-----------|--------|
+| Work Mode dropdown | `Select` (Radix) | `components/ui/select.tsx` |
+| Cycle Phase dropdown | `Select` (Radix) | `components/ui/select.tsx` |
+| Backend Mode dropdown | `Select` (Radix) | `components/ui/select.tsx` |
+| Agent count badge | Custom span | Tailwind + StatusDot atom |
+
+### Dropdown Styling
+
+Compact header-friendly styling (smaller than board edit dropdowns):
+
+```tsx
+<Select value={workMode} onValueChange={handleWorkModeChange}>
+  <SelectTrigger className="h-8 w-[160px] rounded-md border-slate-200 bg-white
+    px-2 text-xs font-medium text-slate-700 shadow-none">
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="full-autonomous">Full Autonomous</SelectItem>
+    <SelectItem value="project-management-work">PM Work</SelectItem>
+    <SelectItem value="local-work-only">Local Work Only</SelectItem>
+    <SelectItem value="finish-current-work">Finish Current</SelectItem>
+    <SelectItem value="work-paused">Work Paused</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+Height `h-8` (32px) to fit the header. Text `text-xs` for compactness.
+Matching `border-slate-200` style of OrgSwitcher.
+
+### Real-Time State
+
+The `FleetControlBar` component:
+- Fetches current fleet_config from the board snapshot on mount
+- On dropdown change → PATCHes the board's `fleet_config` field
+- Subscribes to board memory SSE stream for external state changes
+  (e.g., if orchestrator or another tool changes the mode)
+- Updates local state when SSE delivers a mode change event
+
+### State Flow
+
+```
+User clicks "Planning" in Cycle Phase dropdown
+  → Component calls: PATCH /api/v1/boards/{boardId}
+    { "fleet_config": { ...current, "cycle_phase": "planning" } }
+  → Board updated in MC database
+  → SSE stream emits board update event
+  → FleetControlBar confirms new state
+  → Orchestrator reads fleet_config on next 30s cycle
+  → Orchestrator adjusts dispatch behavior
+  → Agent heartbeats include new phase context
+```
+
+---
+
+## Storage — Where Fleet Control State Lives
+
+**State** is stored in a `fleet_config` JSON field on the Board model.
+The header dropdowns read and write this field via the standard PATCH API.
+
+**Events** (mode changes, directives) are posted to board memory so
+agents see them in their context and the activity feed shows them.
+
+Clean separation: board config = current state, board memory = communication.
+
+---
+
+## Backend Changes (MC Vendor Patches)
+
+### Patch 0004: Fleet Config on Board Model
+
+**Files modified:**
+- `backend/app/models/boards.py` — add `fleet_config: JSON` column
+- `backend/app/schemas/boards.py` — add `fleet_config` to BoardRead/BoardUpdate
+- `backend/app/api/boards.py` — pass through on PATCH
+- Alembic migration — add column
+
+The `fleet_config` field is a JSON column with this schema:
+
 ```json
 {
-  "type": "fleet.system.mode_changed",
-  "data": {
-    "old_mode": "conservative",
-    "new_mode": "planning",
-    "set_by": "human",
-    "reason": "Sprint 1 kickoff"
-  }
+  "work_mode": "full-autonomous",
+  "cycle_phase": "execution",
+  "backend_mode": "claude",
+  "updated_at": "2026-03-30T20:15:32Z",
+  "updated_by": "human"
 }
 ```
 
-Agents see this in their event feed and adjust behavior.
+Default value: `{"work_mode": "full-autonomous", "cycle_phase": "execution", "backend_mode": "claude"}`
+
+The PATCH endpoint already handles partial updates. The UI sends:
+```
+PATCH /api/v1/boards/{boardId}
+{ "fleet_config": { "work_mode": "planning", ... } }
+```
+
+### Patch 0005: Fleet Events SSE Endpoint (optional, future)
+
+A dedicated SSE endpoint for fleet events (beyond task/memory/agent streams).
+Not required for v1 — the existing streams cover what's needed.
+
+---
+
+## Frontend Changes (MC Vendor)
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `src/components/fleet-control/FleetControlBar.tsx` | 3 dropdowns + agent badge, lives in header |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `src/components/templates/DashboardShell.tsx` | Import and render `FleetControlBar` in center section of header |
+
+### Header Injection
+
+In `DashboardShell.tsx`, the center section currently has only the OrgSwitcher.
+`FleetControlBar` is added right after it:
+
+```tsx
+<SignedIn>
+  <div className="hidden md:flex flex-1 items-center gap-3">
+    <div className="max-w-[220px]">
+      <OrgSwitcher />
+    </div>
+    <FleetControlBar boardId={activeBoardId} />
+  </div>
+</SignedIn>
+```
+
+---
+
+## Orchestrator Integration
+
+### How the Orchestrator Reads Fleet Control State
+
+The orchestrator already runs every 30s. Before each cycle, it reads
+the fleet control state from the board config:
+
+```python
+async def read_fleet_control(mc, board_id: str) -> FleetControlState:
+    """Read fleet control state from board config."""
+    board = await mc.get_board(board_id)
+    config = board.fleet_config or {}
+    return FleetControlState(
+        work_mode=config.get("work_mode", "full-autonomous"),
+        cycle_phase=config.get("cycle_phase", "execution"),
+        backend_mode=config.get("backend_mode", "claude"),
+    )
+```
+
+### How Each Axis Affects the Orchestrator Cycle
+
+```python
+async def run_orchestrator_cycle(mc, irc, board_id, config, ...):
+    state = await read_fleet_control(mc, board_id)
+
+    # ── Work Mode ────────────────────────────────────
+    if state.work_mode == "work-paused":
+        return  # Skip everything
+
+    if state.work_mode == "finish-current":
+        skip_dispatch = True  # Don't dispatch new tasks
+
+    if state.work_mode == "local-work-only":
+        pm_plane_pull = False  # PM doesn't pull from Plane
+
+    if state.work_mode == "project-management-work":
+        dispatch_agents = ["project-manager", "fleet-ops"]
+
+    # ── Cycle Phase ──────────────────────────────────
+    if state.cycle_phase == "planning":
+        dispatch_filter = lambda t: t.task_type in ("epic", "story")
+        active_agents = ["project-manager", "architect"]
+
+    if state.cycle_phase == "crisis-management":
+        dispatch_filter = lambda t: "security" in t.tags or "hotfix" in t.tags
+        active_agents = ["fleet-ops", "devsecops-expert"]
+
+    if state.cycle_phase == "review":
+        active_agents = ["fleet-ops"]
+        # Only process approvals, no new dispatch
+
+    # ── Backend Mode ─────────────────────────────────
+    if state.backend_mode == "localai":
+        backend_override = "localai"
+    elif state.backend_mode == "hybrid":
+        backend_override = "hybrid"
+    # else: claude (default, no override needed)
+```
+
+### Agent Heartbeat Context
+
+Agents see the current fleet control state in their heartbeat bundle:
+
+```
+HEARTBEAT — architect
+Fleet Control:
+  Work Mode: Local Work Only
+  Cycle Phase: Analysis
+  Backend: Claude
+  → Focus on architecture assessment. Do not start implementation.
+  → Work from OCMC tasks only. PM is not pulling new Plane work.
+```
+
+---
+
+## Directives
+
+The directive input lets the user send a message to a specific agent or
+the entire fleet:
+
+- User selects target: `PM`, `fleet-ops`, `all`, or any agent name
+- User types message: "Start working on AICP Stage 1"
+- UI posts to board memory with tags: `["directive", "to:{agent}", "from:human"]`
+- Orchestrator reads directives on next cycle
+- If directed to PM → creates a task for PM with the directive content
+- If directed to all → writes to board memory, all agents see it
+
+Directive posting uses the existing board memory API:
+
+```
+POST /api/v1/boards/{boardId}/memory
+{
+  "content": "PM: Start working on AICP Stage 1",
+  "tags": ["directive", "to:project-manager", "from:human", "urgent"],
+  "source": "human"
+}
+```
+
+No new backend endpoint needed. The orchestrator already reads board memory.
+
+---
+
+## Event Stream
+
+The event stream section shows real-time fleet activity. Sources:
+
+1. **Task stream** — dispatches, completions, status changes
+2. **Memory stream** — directives, alerts, mode changes
+3. **Agent stream** — online/offline, heartbeats
+
+Rendering follows the existing Activity page pattern:
+- SSE connection via `Response.body.getReader()`
+- Exponential backoff with jitter for reconnection
+- `usePageActive()` to pause when tab not visible
+- Staggered connections (120ms spacing)
+- Deduplication via seen-IDs ref
+- Auto-scroll with manual override
+
+Event format in the stream:
+
+```
+[20:15:32] dispatched "Assess AICP" → architect
+[20:16:01] architect accepted task, plan shared
+[20:18:45] architect committed 3 files
+[20:19:02] architect task complete, PR #47
+[20:19:05] fleet-ops review queued
+[20:25:12] fleet-ops approved (92%)
+[20:25:14] done: "Assess AICP codebase"
+[20:30:00] MODE CHANGED: Work Mode → Planning (by human)
+[20:30:01] DIRECTIVE: PM — start AICP Stage 1
+```
+
+Color-coded by type: dispatches (blue), completions (green), approvals
+(emerald), mode changes (amber), directives (purple), errors (red).
+
+---
+
+## Current State — What Already Exists
+
+### Already Built
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| Effort profiles | Built | `fleet/core/effort_profiles.py` |
+| Fleet pause/resume | Built | `fleet/cli/pause.py` |
+| Board memory read/write | Built | `fleet/infra/mc_client.py` |
+| Agent heartbeat context | Built | `fleet/core/heartbeat_context.py` |
+| Event store | Built | `fleet/core/events.py` |
+| Event router | Built | `fleet/core/event_router.py` |
+| Chain runner | Built | `fleet/core/chain_runner.py` |
+| SSE streams in MC | Built | MC vendor (tasks, memory, agents, approvals) |
+| Board config gates | Built | MC board model (approval toggles) |
+| Orchestrator daemon | Built | `fleet/cli/orchestrator.py` |
+
+### Not Built Yet
+
+| Component | What's Needed |
+|-----------|---------------|
+| Fleet control bar in header | FleetControlBar component in DashboardShell header |
+| Fleet config on board | Backend patch (JSON field + migration) |
+| Fleet mode reader | Python function in orchestrator |
+| Mode-aware dispatch | Orchestrator reads state, filters dispatch |
+| Mode-aware heartbeats | Include fleet state in heartbeat bundle |
+| Directive routing | Orchestrator reads directives from board memory |
+| Event stream viewer | Frontend component consuming SSE |
 
 ---
 
 ## Milestones
 
-### M-CS01: Fleet Mode System
+### M-CS01: Backend — Fleet Config on Board Model
+
+**Patch 0004** to MC vendor:
+- Add `fleet_config` JSON column to Board model
+- Add to BoardRead/BoardUpdate schemas
+- Alembic migration
+- Default: `{"work_mode": "full-autonomous", "cycle_phase": "execution", "backend_mode": "claude"}`
+- PATCH endpoint passes through
 
 **Files:**
-- `fleet/core/fleet_mode.py` (NEW) — mode definitions, read/write
-- Update `fleet/cli/orchestrator.py` — read mode before each cycle
-- Update `fleet/core/heartbeat_context.py` — include mode in bundle
+- `vendor/openclaw-mission-control/backend/app/models/boards.py`
+- `vendor/openclaw-mission-control/backend/app/schemas/boards.py`
+- `vendor/openclaw-mission-control/backend/alembic/versions/xxxx_add_fleet_config.py`
+- `patches/0004-fleet-config-board-model.patch`
 
-Modes: full-autonomous, project-management, local-only, paused,
-finish-current, planning, analysis, investigation, crisis, review-only
+### M-CS02: Frontend — FleetControlBar in Header
 
-### M-CS02: Mode CLI Commands
-
-**Files:**
-- `fleet/cli/mode.py` (NEW) — `fleet mode <name>` command
-- Update `fleet/__main__.py` — register mode command
-
-Commands: `fleet mode list`, `fleet mode set <name>`, `fleet mode get`
-
-### M-CS03: Event Stream Viewer
+Create `FleetControlBar` component and inject into `DashboardShell` header:
+- 3 compact Radix `Select` dropdowns (Work Mode, Cycle Phase, Backend)
+- Agent count badge with status dot
+- Fetches board fleet_config on mount
+- PATCHes board on dropdown change
+- Responsive: `hidden md:flex`, compact `h-8 text-xs` styling
 
 **Files:**
-- `fleet/cli/watch.py` (NEW) — `fleet watch` command
-- Real-time tail of event store with color formatting
-- Filter by agent, type, priority
-- Uses `fleet/core/event_display.py` for rendering
+- `vendor/openclaw-mission-control/frontend/src/components/fleet-control/FleetControlBar.tsx` (NEW)
+- `vendor/openclaw-mission-control/frontend/src/components/templates/DashboardShell.tsx` (MODIFY)
 
-### M-CS04: Directives System
+### M-CS06: Fleet — Fleet Control State Reader
 
-**Files:**
-- `fleet/core/directives.py` (NEW) — directive model and routing
-- Board memory integration for `/directive` commands
-- Orchestrator picks up directives and routes to agents
-
-### M-CS05: Orchestrator Mode Enforcement
+Python module for reading fleet control state:
+- `FleetControlState` dataclass (work_mode, cycle_phase, backend_mode)
+- `read_fleet_control(mc, board_id)` function
+- Parses board fleet_config JSON
 
 **Files:**
-- Update `fleet/cli/orchestrator.py` — mode-aware dispatch
-- Dispatch filters per mode
-- Agent allowlists per mode
-- Backend override per mode
+- `fleet/core/fleet_mode.py` (NEW)
 
-### M-CS06: Agent Mode Awareness
+### M-CS07: Fleet — Mode-Aware Orchestrator
 
-**Files:**
-- Update `fleet/core/heartbeat_context.py` — mode in bundle
-- Update agent HEARTBEAT.md templates — mode-specific instructions
-- Agents adjust behavior based on fleet mode
-
-### M-CS07: Backend Mode (LocalAI/Claude/Hybrid)
+Orchestrator reads fleet control state before each cycle:
+- Work mode → controls dispatch and PM Plane pull
+- Cycle phase → filters task types and active agents
+- Backend mode → overrides inference backend
+- Every mode change emits a CloudEvent
 
 **Files:**
-- Update `config/fleet.yaml` — backend_mode setting
-- Integration with AICP inference router (when built)
-- Gateway configuration for backend selection
+- `fleet/cli/orchestrator.py` (MODIFY)
 
-### M-CS08: Board Memory Mode Commands
+### M-CS08: Fleet — Mode-Aware Heartbeats
 
-**Files:**
-- Update orchestrator to read `/mode` commands from board memory
-- `/mode planning` in board memory → mode changes
-- `/directive PM: start AICP Stage 1` → PM gets directive
-
-### M-CS09: OCMC Dashboard Integration
+Include fleet control state in agent heartbeat context:
+- Agents see current mode, phase, backend
+- Mode-specific instructions per agent role
+- Agents adjust behavior accordingly
 
 **Files:**
-- Board custom field: `fleet_mode` on the board itself
-- Visible in MC UI
-- Editable by human → orchestrator reads and applies
+- `fleet/core/heartbeat_context.py` (MODIFY)
 
-### M-CS10: Cycle Forcing
+### M-CS09: Fleet — Directive Processing
+
+Orchestrator reads directives from board memory:
+- Scans for `directive` tagged entries since last cycle
+- Routes to target agent (creates task or posts to memory)
+- Marks directive as processed
 
 **Files:**
-- `fleet/core/cycle_mode.py` (NEW) — sprint phase enforcement
-- Phases: planning, execution, review, retrospective, investigation, crisis
-- Overrides normal orchestrator behavior
+- `fleet/core/directives.py` (NEW)
+- `fleet/cli/orchestrator.py` (MODIFY)
+
+### M-CS10: Fleet — Mode Change Events
+
+Every mode change emits a CloudEvent:
+- `fleet.system.mode_changed` with old/new values
+- Chain runner publishes to all surfaces
+- IRC notification
+- Board memory log entry
+
+**Files:**
+- `fleet/core/events.py` (MODIFY)
+- `fleet/core/chain_runner.py` (MODIFY)
 
 ---
 
 ## Priority Order
 
-1. **M-CS01** — Mode system (foundation for everything)
-2. **M-CS02** — CLI commands (user can set modes)
-3. **M-CS05** — Orchestrator enforcement (modes actually work)
-4. **M-CS03** — Event stream viewer (user sees what's happening)
-5. **M-CS06** — Agent awareness (agents adapt to mode)
-6. **M-CS04** — Directives (user gives orders)
-7. **M-CS08** — Board memory commands (natural language control)
-8. **M-CS09** — OCMC dashboard (visual control)
-9. **M-CS07** — Backend mode (LocalAI/Claude/Hybrid)
-10. **M-CS10** — Cycle forcing (sprint phases)
+1. **M-CS01** — Backend patch (foundation — header dropdowns need the field)
+2. **M-CS02** — FleetControlBar in header (user can see and set modes)
+3. **M-CS06** — State reader (orchestrator can consume modes)
+4. **M-CS07** — Mode-aware orchestrator (modes actually work)
+5. **M-CS08** — Mode-aware heartbeats (agents adapt to mode)
+6. **M-CS09** — Directive processing (orders get routed)
+7. **M-CS10** — Mode change events (full event chain)
 
 ---
 
 ## How It All Connects
 
 ```
-User sets mode (CLI / board memory / OCMC dashboard)
+User opens any OCMC page → header shows fleet controls
     ↓
-Fleet mode stored (board memory + config)
+User selects Work Mode: "Local Work Only" from dropdown
     ↓
-Orchestrator reads mode before each cycle
-    ├── Filters which tasks to dispatch
-    ├── Filters which agents are active
-    ├── Sets backend preference
-    └── Adjusts dispatch rate
+UI PATCHes board: fleet_config.work_mode = "local-work-only"
     ↓
-Agent heartbeat includes mode
-    ├── Agent adjusts behavior
-    ├── Agent knows what's expected
-    └── Agent responds appropriately
+Mode change event emitted → event stream shows it
     ↓
-Event stream shows impact
-    ├── Mode change event
-    ├── Dispatch events (filtered by mode)
-    ├── Agent responses
-    └── User sees the flow in real-time
+Orchestrator next cycle (30s) reads fleet_config
+    ├── PM: do NOT pull new work from Plane
+    ├── Dispatch: only OCMC board tasks
+    ├── Plane sync: still running (always)
+    └── Agents: informed via heartbeat context
+    ↓
+User sees the impact in the event stream:
+    "Mode changed: Local Work Only"
+    "PM: acknowledging local-only mode"
+    "architect: continuing task #38 (already in progress)"
+    ↓
+User types directive: "PM: prioritize the CI/CD tasks"
+    ↓
+UI posts to board memory: tags=["directive", "to:project-manager"]
+    ↓
+Orchestrator reads directive → creates task for PM
+    ↓
+PM heartbeat → sees directive → evaluates and acts
+    ↓
+Event stream shows the flow in real-time
 ```
 
-The user is ALWAYS in control. The mode system is the throttle and steering.
+The user is ALWAYS in control. The UI is the steering wheel.
 The orchestrator is the engine. The agents are the wheels.
-Fleet-ops and PM still do their jobs — but within the mode the user set.
+PM and fleet-ops still do their jobs — within the mode the user set.
+Plane sync always runs. Backend mode is independent of work mode.
 
 ---
 
-## Interaction Examples
+## Beyond the Control Surface — Three Systems UI
 
-### "Start working on AICP Stage 1"
+The control surface (fleet mode dropdowns in the header) is the first
+UI injection into the OCMC vendor frontend. After the three systems
+are built (immune system, teaching system, methodology system), the
+OCMC UI is extended further to surface their activities and reporting:
 
-```
-User: fleet mode set full-autonomous
-User: fleet directive "PM, break down AICP Stage 1 into tasks and start dispatching"
+- **Immune system activity** — doctor actions visible, agent health
+  indicators, intervention history
+- **Teaching system activity** — active lessons, comprehension status,
+  lesson effectiveness
+- **Methodology system** — task stages, protocol compliance, readiness
+  percentage editable by PO
+- **Reporting dashboard** — fleet health overview, disease trends,
+  methodology compliance rates
+- **Event stream** — immune/teaching/methodology events alongside
+  existing task/agent events, color-coded by system
 
-→ Directive written to board memory
-→ PM's next heartbeat includes the directive
-→ PM reads AICP Stage 1 epic details from Plane
-→ PM creates tasks via fleet_task_create
-→ Orchestrator dispatches tasks to agents
-→ Event stream shows the flow
-```
-
-### "Pause everything, let me think"
-
-```
-User: fleet mode set paused
-
-→ Mode change event emitted
-→ Orchestrator stops dispatching
-→ Agents on next heartbeat see "Fleet Mode: PAUSED"
-→ Agents respond HEARTBEAT_OK, do nothing
-→ Event stream: "[mode] Fleet paused by human"
-```
-
-### "We have a security issue"
-
-```
-User: fleet mode set crisis
-
-→ Only fleet-ops and devsecops-expert active
-→ Only security-tagged tasks dispatched
-→ Other agents idle
-→ Event stream: "[crisis] Security mode activated"
-→ devsecops runs security audit
-→ fleet-ops reviews findings
-```
-
-### "Just finish what you're doing"
-
-```
-User: fleet mode set finish-current
-
-→ No new tasks dispatched
-→ Agents with in-progress tasks continue
-→ Agents with no tasks idle
-→ Once all in-progress tasks complete → fleet effectively paused
-→ Event stream shows each task completing
-```
+These are the G milestones in the milestone plan
+(`milestone-plan-three-systems.md`). They extend the same approach —
+inject new components into the MC vendor Next.js app using the existing
+Radix UI + Tailwind component library and SSE streams.
