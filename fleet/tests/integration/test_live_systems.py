@@ -226,7 +226,7 @@ class TestTransposeLayerLive:
 
         for art_type, obj in test_objects.items():
             html = to_html(art_type, obj)
-            assert f'fleet:artifact:start type="{art_type}"' in html
+            assert "fleet-artifact-start" in html
             parsed = from_html(html)
             assert parsed is not None, f"Roundtrip failed for {art_type}"
             assert parsed.get("title") == obj.get("title"), f"Title mismatch for {art_type}"

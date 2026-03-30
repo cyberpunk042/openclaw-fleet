@@ -25,9 +25,9 @@ class TestToHtml:
             "open_questions": ["What about mobile?"],
         }
         html = to_html("analysis_document", obj)
-        assert "fleet:artifact:start" in html
-        assert "fleet:artifact:end" in html
-        assert "fleet:data:" in html
+        assert "fleet-artifact-start" in html
+        assert "fleet-artifact-end" in html
+        assert "fleet-data" in html
         assert "Header Structure" in html
         assert "DashboardShell.tsx" in html
         assert "<code>" in html

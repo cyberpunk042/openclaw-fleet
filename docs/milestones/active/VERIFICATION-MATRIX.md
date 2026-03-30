@@ -13,7 +13,7 @@
 | A01 | task_readiness on OCMC | Create task, verify field visible on card | ✅ | MC API: type=integer, visibility=always, description="Task readiness percentage (0-100)" |
 | A02 | task_readiness on Plane | Check Plane label readiness:50 exists | ✅ | Plane API: 12 readiness labels (0,5,10,20,30,50,70,80,90,95,99,100) + 5 stage labels on OF project |
 | A03 | requirement_verbatim on OCMC | Set verbatim on task, verify in API | ✅ | MC API: type=text_long, visibility=always, description="PO exact words" |
-| A04 | requirement_verbatim on Plane | Write verbatim, check Plane description | ⚠️ PARTIAL | Verbatim VISIBLE as blockquote in Plane BUT HTML comments stripped by Plane sanitizer — programmatic extraction fails. Need data-attribute or different marker approach. |
+| A04 | requirement_verbatim on Plane | Write verbatim, check Plane description | ✅ | BUG FOUND + FIXED: Plane strips HTML comments. Switched to span.fleet-verbatim with display:none. Roundtrip verified: inject→Plane→extract = "Execute one real task end-to-end..." |
 | A05 | task_stage on both | Set stage, verify on OCMC + Plane label | ✅ | MC API: type=text, visibility=always, description="Methodology stage" |
 | A06 | Sync new fields | Change readiness on Plane, verify OCMC updates | | |
 | A07 | Plane state metadata | Change Plane state, verify OCMC status | | |

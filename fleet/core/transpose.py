@@ -24,11 +24,12 @@ from typing import Any, Optional
 
 
 # ─── Markers ────────────────────────────────────────────────────────────
+# Plane strips HTML comments. Use span with class + display:none instead.
 
-ARTIFACT_START = '<!-- fleet:artifact:start type="{type}" -->'
-ARTIFACT_END = '<!-- fleet:artifact:end -->'
-FIELD_MARKER = '<!-- fleet:field:{name} -->'
-ARTIFACT_DATA = '<!-- fleet:data:{data} -->'
+ARTIFACT_START = '<span class="fleet-artifact-start" data-type="{type}" style="display:none">artifact:start</span>'
+ARTIFACT_END = '<span class="fleet-artifact-end" style="display:none">artifact:end</span>'
+FIELD_MARKER = ''  # Fields don't need markers — the data blob has everything
+ARTIFACT_DATA = '<span class="fleet-data" data-type="artifact" style="display:none">{data}</span>'
 
 # ─── Object → HTML Renderers ───────────────────────────────────────────
 
@@ -302,7 +303,7 @@ def to_html(artifact_type: str, obj: dict) -> str:
 def from_html(html_content: str) -> Optional[dict]:
     """Transpose rich HTML back to a structured object.
 
-    Extracts the embedded JSON data from fleet markers.
+    Extracts the embedded JSON data from fleet-data span.
 
     Args:
         html_content: Rich HTML from Plane issue description.
@@ -310,9 +311,9 @@ def from_html(html_content: str) -> Optional[dict]:
     Returns:
         The structured object dict, or None if no artifact found.
     """
-    # Look for the data marker
+    # Look for the data span
     pattern = re.compile(
-        r'<!-- fleet:data:(.*?) -->',
+        r'<span[^>]*class="fleet-data"[^>]*>(.*?)</span>',
         re.DOTALL,
     )
     match = pattern.search(html_content or "")
@@ -335,7 +336,7 @@ def get_artifact_type(html_content: str) -> Optional[str]:
     Returns:
         The artifact type string, or None if no artifact found.
     """
-    pattern = re.compile(r'<!-- fleet:artifact:start type="(\w+)" -->')
+    pattern = re.compile(r'<span[^>]*class="fleet-artifact-start"[^>]*data-type="(\w+)"')
     match = pattern.search(html_content or "")
     return match.group(1) if match else None
 
@@ -374,9 +375,11 @@ def update_artifact(
 
     # Replace the old artifact section
     pattern = re.compile(
-        re.escape(ARTIFACT_START.format(type=artifact_type))
+        r'<span[^>]*class="fleet-artifact-start"[^>]*data-type="'
+        + re.escape(artifact_type)
+        + r'"[^>]*>.*?</span>'
         + r'.*?'
-        + re.escape(ARTIFACT_END),
+        + r'<span[^>]*class="fleet-artifact-end"[^>]*>.*?</span>',
         re.DOTALL,
     )
 

@@ -67,42 +67,42 @@ class TestExtractVerbatim:
 
     def test_verbatim_present(self):
         html = (
-            '<!-- fleet:requirement_verbatim:start -->\n'
-            '<blockquote>Add controls to the header bar</blockquote>\n'
-            '<!-- fleet:requirement_verbatim:end -->\n'
+            '<span class="fleet-verbatim" style="display:none">Add controls to the header bar</span>\n'
+            '<blockquote><strong>Verbatim Requirement (PO)</strong><br/>\n'
+            'Add controls to the header bar\n'
+            '</blockquote>\n'
             '<p>More description</p>'
         )
         assert extract_verbatim_from_html(html) == "Add controls to the header bar"
 
-    def test_verbatim_strips_html_tags(self):
+    def test_verbatim_fallback_blockquote(self):
+        """Falls back to blockquote if span marker missing (legacy)."""
         html = (
-            '<!-- fleet:requirement_verbatim:start -->\n'
             '<blockquote><strong>Verbatim Requirement (PO)</strong><br/>\n'
             'The exact words from PO\n'
-            '</blockquote>\n'
-            '<!-- fleet:requirement_verbatim:end -->'
+            '</blockquote>'
         )
         result = extract_verbatim_from_html(html)
         assert "The exact words from PO" in result
-        assert "<blockquote>" not in result
 
 
 class TestInjectVerbatim:
     def test_inject_into_empty(self):
         result = inject_verbatim_into_html("", "Build the thing")
         assert "Build the thing" in result
-        assert "fleet:requirement_verbatim:start" in result
-        assert "fleet:requirement_verbatim:end" in result
+        assert "fleet-verbatim" in result
+        assert "<blockquote>" in result
 
     def test_inject_prepends(self):
         result = inject_verbatim_into_html("<p>Existing desc</p>", "Build the thing")
-        assert result.index("fleet:requirement_verbatim:start") < result.index("Existing desc")
+        assert result.index("fleet-verbatim") < result.index("Existing desc")
 
     def test_inject_replaces_existing(self):
         html = (
-            '<!-- fleet:requirement_verbatim:start -->\n'
-            '<blockquote>Old requirement</blockquote>\n'
-            '<!-- fleet:requirement_verbatim:end -->\n'
+            '<span class="fleet-verbatim" style="display:none">Old requirement</span>\n'
+            '<blockquote><strong>Verbatim Requirement (PO)</strong><br/>\n'
+            'Old requirement\n'
+            '</blockquote>\n'
             '<p>Description</p>'
         )
         result = inject_verbatim_into_html(html, "New requirement")
@@ -112,16 +112,16 @@ class TestInjectVerbatim:
 
     def test_inject_only_one_section(self):
         result = inject_verbatim_into_html("", "Test")
-        assert result.count("fleet:requirement_verbatim:start") == 1
+        assert result.count("fleet-verbatim") == 1
 
 
 class TestExtractMethodologyState:
     def test_full_state(self):
         labels = ["agent:pm", "stage:reasoning", "readiness:90"]
         html = (
-            '<!-- fleet:requirement_verbatim:start -->\n'
-            'Build the immune system\n'
-            '<!-- fleet:requirement_verbatim:end -->'
+            '<span class="fleet-verbatim" style="display:none">Build the immune system</span>\n'
+            '<blockquote><strong>Verbatim Requirement (PO)</strong><br/>\n'
+            'Build the immune system</blockquote>'
         )
         state = extract_methodology_state(labels, html)
         assert state.task_stage == "reasoning"

@@ -25,9 +25,9 @@ VALID_STAGES = ["conversation", "analysis", "investigation", "reasoning", "work"
 STAGE_PREFIX = "stage:"
 READINESS_PREFIX = "readiness:"
 
-# HTML markers for verbatim requirement in description
-VERBATIM_START = '<!-- fleet:requirement_verbatim:start -->'
-VERBATIM_END = '<!-- fleet:requirement_verbatim:end -->'
+# HTML markers for verbatim requirement in description.
+# Plane strips HTML comments, so we use span with class + display:none.
+VERBATIM_MARKER_CLASS = "fleet-verbatim"
 
 
 @dataclass
@@ -74,20 +74,32 @@ def extract_readiness_from_labels(label_names: list[str]) -> int:
 def extract_verbatim_from_html(description_html: str) -> Optional[str]:
     """Extract the verbatim requirement from issue description HTML.
 
-    Looks for content between the fleet:requirement_verbatim markers.
+    Looks for a span.fleet-verbatim with the verbatim text, or falls
+    back to blockquote with "Verbatim Requirement" header.
     Returns the text content or None if not found.
     """
     if not description_html:
         return None
+
+    # Primary: hidden span with fleet-verbatim class
     pattern = re.compile(
-        re.escape(VERBATIM_START) + r'\s*(.*?)\s*' + re.escape(VERBATIM_END),
+        r'<span[^>]*class="fleet-verbatim"[^>]*>(.*?)</span>',
         re.DOTALL,
     )
     match = pattern.search(description_html)
     if match:
-        # Strip HTML tags to get plain text
+        return match.group(1).strip() or None
+
+    # Fallback: blockquote containing "Verbatim Requirement"
+    bq_pattern = re.compile(
+        r'<blockquote>.*?Verbatim Requirement.*?<br/?>\s*(.*?)\s*</blockquote>',
+        re.DOTALL,
+    )
+    match = bq_pattern.search(description_html)
+    if match:
         text = re.sub(r'<[^>]+>', '', match.group(1)).strip()
         return text if text else None
+
     return None
 
 
@@ -97,27 +109,27 @@ def inject_verbatim_into_html(
 ) -> str:
     """Inject or update the verbatim requirement section in description HTML.
 
-    If the markers already exist, replaces the content between them.
-    If not, prepends the section to the description.
+    Uses span.fleet-verbatim (hidden) for machine extraction + visible
+    blockquote for PO. Plane-safe — no HTML comments.
     """
+    # Hidden data span + visible blockquote
     section = (
-        f'{VERBATIM_START}\n'
+        f'<span class="fleet-verbatim" style="display:none">{verbatim}</span>\n'
         f'<blockquote><strong>Verbatim Requirement (PO)</strong><br/>\n'
         f'{verbatim}\n'
-        f'</blockquote>\n'
-        f'{VERBATIM_END}'
+        f'</blockquote>'
     )
 
+    # Replace existing if present
     pattern = re.compile(
-        re.escape(VERBATIM_START) + r'.*?' + re.escape(VERBATIM_END),
+        r'<span[^>]*class="fleet-verbatim"[^>]*>.*?</span>\s*'
+        r'<blockquote>.*?Verbatim Requirement.*?</blockquote>',
         re.DOTALL,
     )
 
     if pattern.search(description_html or ''):
-        # Replace existing
         return pattern.sub(section, description_html)
     else:
-        # Prepend to description
         return section + '\n' + (description_html or '')
 
 

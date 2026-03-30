@@ -90,7 +90,7 @@ class TestA06_SyncNewFields:
         from fleet.core.plane_methodology import extract_methodology_state
         state = extract_methodology_state(
             ["stage:reasoning", "readiness:80"],
-            "<!-- fleet:requirement_verbatim:start -->\nBuild it\n<!-- fleet:requirement_verbatim:end -->"
+            '<span class="fleet-verbatim" style="display:none">Build it</span>'
         )
         assert state.task_stage == "reasoning"
         assert state.task_readiness == 80
@@ -477,8 +477,8 @@ class TestT04_PlaneIntegration:
     def test_html_markers(self):
         from fleet.core.transpose import to_html, ARTIFACT_START, ARTIFACT_END
         html = to_html("plan", {"title": "test"})
-        assert "fleet:artifact:start" in html
-        assert "fleet:artifact:end" in html
+        assert "fleet-artifact-start" in html
+        assert "fleet-artifact-end" in html
 
 
 class TestT05_StandardsValidation:
