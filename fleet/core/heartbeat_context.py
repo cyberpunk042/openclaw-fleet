@@ -58,6 +58,11 @@ class HeartbeatBundle:
     # Methodology stage instructions (full protocol text for current stage)
     stage_instructions: str = ""
 
+    # Fleet control state (from board fleet_config)
+    fleet_work_mode: str = ""
+    fleet_cycle_phase: str = ""
+    fleet_backend_mode: str = ""
+
     # Fleet health snapshot
     agents_online: int = 0
     agents_total: int = 0
@@ -167,6 +172,7 @@ def build_heartbeat_context(
     sprint_id: str = "",
     plane_data: dict = None,
     event_feed: list = None,
+    fleet_state: dict = None,
 ) -> HeartbeatBundle:
     """Build heartbeat context for an agent using direct data (no AI).
 
@@ -255,6 +261,12 @@ def build_heartbeat_context(
     bundle.agents_total = sum(1 for a in agents if "Gateway" not in a.name)
     bundle.tasks_blocked = sum(1 for t in tasks if t.is_blocked)
     bundle.pending_approvals = len(approvals) if approvals else 0
+
+    # Fleet control state — agents see the current work mode and phase
+    if fleet_state:
+        bundle.fleet_work_mode = fleet_state.get("work_mode", "")
+        bundle.fleet_cycle_phase = fleet_state.get("cycle_phase", "")
+        bundle.fleet_backend_mode = fleet_state.get("backend_mode", "")
 
     # Plane data (PM and fleet-ops only — pre-fetched by caller)
     if plane_data and agent_name in ("project-manager", "fleet-ops"):

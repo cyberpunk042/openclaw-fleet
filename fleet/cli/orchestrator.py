@@ -108,6 +108,36 @@ async def run_orchestrator_cycle(
     except Exception:
         fleet_state = FleetControlState()  # defaults if board read fails
 
+    # Detect mode changes and emit events
+    global _previous_fleet_state
+    if _previous_fleet_state is not None:
+        changes_detected = []
+        if fleet_state.work_mode != _previous_fleet_state.work_mode:
+            changes_detected.append(f"work_mode: {_previous_fleet_state.work_mode} → {fleet_state.work_mode}")
+        if fleet_state.cycle_phase != _previous_fleet_state.cycle_phase:
+            changes_detected.append(f"cycle_phase: {_previous_fleet_state.cycle_phase} → {fleet_state.cycle_phase}")
+        if fleet_state.backend_mode != _previous_fleet_state.backend_mode:
+            changes_detected.append(f"backend_mode: {_previous_fleet_state.backend_mode} → {fleet_state.backend_mode}")
+        if changes_detected:
+            state.notes.append(f"Fleet mode CHANGED: {'; '.join(changes_detected)}")
+            try:
+                from fleet.core.events import create_event, EventStore
+                store = EventStore()
+                store.append(create_event(
+                    event_type="fleet.system.mode_changed",
+                    source="fleet/cli/orchestrator",
+                    old_work_mode=_previous_fleet_state.work_mode,
+                    new_work_mode=fleet_state.work_mode,
+                    old_cycle_phase=_previous_fleet_state.cycle_phase,
+                    new_cycle_phase=fleet_state.cycle_phase,
+                    old_backend_mode=_previous_fleet_state.backend_mode,
+                    new_backend_mode=fleet_state.backend_mode,
+                    set_by=fleet_state.updated_by or "unknown",
+                ))
+            except Exception:
+                pass  # Event emission must not break orchestrator
+    _previous_fleet_state = fleet_state
+
     # Fleet mode gate — check if dispatch is allowed
     if not fleet_should_dispatch(fleet_state):
         state.notes.append(f"Fleet mode: {fleet_state.work_mode} — dispatch paused")
@@ -164,6 +194,9 @@ async def run_orchestrator_cycle(
 # Persistent health profiles — survive across orchestrator cycles
 _doctor_health_profiles: dict[str, AgentHealth] = {}
 _doctor_tool_calls: dict[str, list[str]] = {}  # agent_name → recent tool calls
+
+# Previous fleet control state — for detecting mode changes
+_previous_fleet_state: FleetControlState | None = None
 
 
 async def _run_doctor(
