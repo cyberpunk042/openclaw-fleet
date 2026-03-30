@@ -70,7 +70,7 @@ class PlaneIssue:
         self.project_id: str = str(data.get("project", ""))
         self.priority: str = data.get("priority", "none")  # urgent|high|medium|low|none
         self.assignees: list[str] = [str(a) for a in (data.get("assignees") or [])]
-        self.labels: list[str] = [str(lbl) for lbl in (data.get("label_ids") or [])]
+        self.labels: list[str] = [str(lbl) for lbl in (data.get("labels") or data.get("label_ids") or [])]
         self.estimate_point: Optional[int] = data.get("estimate_point")
         self.cycle_id: Optional[str] = str(data["cycle"]) if data.get("cycle") else None
         self.start_date: Optional[str] = data.get("start_date")
@@ -284,7 +284,7 @@ class PlaneClient:
         if assignees:
             payload["assignees"] = assignees
         if label_ids:
-            payload["label_ids"] = label_ids
+            payload["labels"] = label_ids
         if estimate_point is not None:
             payload["estimate_point"] = estimate_point
 
@@ -353,7 +353,7 @@ class PlaneClient:
         if assignees is not None:
             payload["assignees"] = assignees
         if label_ids is not None:
-            payload["label_ids"] = label_ids
+            payload["labels"] = label_ids
         if estimate_point is not None:
             payload["estimate_point"] = estimate_point
 

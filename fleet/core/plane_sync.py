@@ -405,17 +405,15 @@ class PlaneSyncer:
                 new_label_names = list(label_names)
                 new_description = issue.description_html
 
-                # Push stage to Plane if OCMC has it and Plane doesn't
-                if ocmc_stage and not plane_state.task_stage:
+                # Push stage and/or readiness to Plane if OCMC has data Plane doesn't
+                push_stage = ocmc_stage if (ocmc_stage and not plane_state.task_stage) else None
+                push_readiness = ocmc_readiness if (ocmc_readiness > 0 and plane_state.task_readiness == 0) else None
+
+                if push_stage or push_readiness:
                     new_label_names = build_label_updates(
-                        label_names, stage=ocmc_stage,
-                        readiness=ocmc_readiness if ocmc_readiness > 0 else None,
-                    )
-                    plane_needs_update = True
-                # Push readiness to Plane if OCMC has it and Plane doesn't
-                elif ocmc_readiness > 0 and plane_state.task_readiness == 0:
-                    new_label_names = build_label_updates(
-                        label_names, readiness=ocmc_readiness,
+                        label_names,
+                        stage=push_stage,
+                        readiness=push_readiness,
                     )
                     plane_needs_update = True
 

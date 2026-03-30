@@ -295,7 +295,7 @@ async def test_create_issue_full():
     assert payload["state"] == "s1"
     assert payload["priority"] == "high"
     assert payload["assignees"] == ["u1"]
-    assert payload["label_ids"] == ["lbl1"]
+    assert payload["labels"] == ["lbl1"]
     assert payload["estimate_point"] == 5
     assert issue.estimate_point == 5
 
