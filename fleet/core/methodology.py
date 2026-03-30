@@ -387,3 +387,91 @@ def suggest_readiness_for_stage(stage: Stage) -> int:
 def snap_readiness(value: int) -> int:
     """Snap a readiness value to the nearest valid value."""
     return min(VALID_READINESS, key=lambda v: abs(v - value))
+
+
+# ─── Stage Transition Tracking (B07: Observability) ─────────────────────
+
+
+@dataclass
+class StageTransition:
+    """Record of a stage transition on a task."""
+    task_id: str
+    from_stage: str
+    to_stage: str
+    authorized_by: str  # "po", "pm", "agent:{name}", "system"
+    readiness_before: int = 0
+    readiness_after: int = 0
+    checks_passed: int = 0
+    checks_total: int = 0
+    timestamp: str = ""
+
+    def __post_init__(self):
+        if not self.timestamp:
+            from datetime import datetime
+            self.timestamp = datetime.now().isoformat()
+
+
+class MethodologyTracker:
+    """Tracks methodology stage transitions and compliance.
+
+    Records every stage change, who authorized it, what checks passed.
+    Feeds observability for the PO and the immune system.
+    """
+
+    def __init__(self) -> None:
+        self._transitions: list[StageTransition] = []
+
+    def record_transition(
+        self,
+        task_id: str,
+        from_stage: str,
+        to_stage: str,
+        authorized_by: str,
+        readiness_before: int = 0,
+        readiness_after: int = 0,
+        check_result: Optional[StageCheckResult] = None,
+    ) -> StageTransition:
+        """Record a stage transition."""
+        transition = StageTransition(
+            task_id=task_id,
+            from_stage=from_stage,
+            to_stage=to_stage,
+            authorized_by=authorized_by,
+            readiness_before=readiness_before,
+            readiness_after=readiness_after,
+            checks_passed=check_result.passed_count if check_result else 0,
+            checks_total=check_result.total_count if check_result else 0,
+        )
+        self._transitions.append(transition)
+        self._emit_event(transition)
+        return transition
+
+    def get_task_history(self, task_id: str) -> list[StageTransition]:
+        """Get all stage transitions for a task."""
+        return [t for t in self._transitions if t.task_id == task_id]
+
+    def get_recent_transitions(self, limit: int = 20) -> list[StageTransition]:
+        """Get most recent transitions across all tasks."""
+        return self._transitions[-limit:]
+
+    @property
+    def total_transitions(self) -> int:
+        return len(self._transitions)
+
+    def _emit_event(self, transition: StageTransition) -> None:
+        """Emit a methodology event for the transition."""
+        try:
+            from fleet.core.events import create_event, EventStore
+            store = EventStore()
+            event = create_event(
+                event_type="fleet.methodology.stage_changed",
+                source="fleet/core/methodology",
+                subject=transition.task_id,
+                from_stage=transition.from_stage,
+                to_stage=transition.to_stage,
+                authorized_by=transition.authorized_by,
+                readiness=transition.readiness_after,
+            )
+            store.append(event)
+        except Exception:
+            pass  # Event emission must never break methodology

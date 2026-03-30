@@ -4,6 +4,7 @@ import pytest
 from fleet.core.methodology import (
     Stage,
     STAGE_ORDER,
+    MethodologyTracker,
     get_required_stages,
     get_next_stage,
     get_initial_stage,
@@ -248,3 +249,51 @@ class TestReadiness:
 
     def test_snap_high(self):
         assert snap_readiness(97) == 95
+
+
+class TestMethodologyTracker:
+    def test_record_transition(self):
+        tracker = MethodologyTracker()
+        t = tracker.record_transition(
+            "task-42", "conversation", "analysis",
+            authorized_by="po",
+            readiness_before=20, readiness_after=30,
+        )
+        assert t.from_stage == "conversation"
+        assert t.to_stage == "analysis"
+        assert t.authorized_by == "po"
+        assert tracker.total_transitions == 1
+
+    def test_task_history(self):
+        tracker = MethodologyTracker()
+        tracker.record_transition("t1", "conversation", "analysis", "po")
+        tracker.record_transition("t2", "reasoning", "work", "po")
+        tracker.record_transition("t1", "analysis", "reasoning", "po")
+
+        history = tracker.get_task_history("t1")
+        assert len(history) == 2
+        assert history[0].to_stage == "analysis"
+        assert history[1].to_stage == "reasoning"
+
+    def test_recent_transitions(self):
+        tracker = MethodologyTracker()
+        for i in range(5):
+            tracker.record_transition(f"t{i}", "conversation", "analysis", "po")
+
+        recent = tracker.get_recent_transitions(limit=3)
+        assert len(recent) == 3
+
+    def test_with_check_result(self):
+        tracker = MethodologyTracker()
+        check = check_conversation_stage(
+            has_verbatim_requirement=True,
+            has_po_response=True,
+            open_questions=0,
+        )
+        t = tracker.record_transition(
+            "task-1", "conversation", "analysis",
+            authorized_by="po",
+            check_result=check,
+        )
+        assert t.checks_passed == 3
+        assert t.checks_total == 3
