@@ -55,6 +55,9 @@ class HeartbeatBundle:
     # Sprint progress (if agent is in a sprint)
     sprint_summary: str = ""
 
+    # Methodology stage instructions (full protocol text for current stage)
+    stage_instructions: str = ""
+
     # Fleet health snapshot
     agents_online: int = 0
     agents_total: int = 0
@@ -192,8 +195,20 @@ def build_heartbeat_context(
             # Verbatim requirement — ALWAYS present, NEVER compacted
             if t.custom_fields.requirement_verbatim:
                 task_info["requirement_verbatim"] = t.custom_fields.requirement_verbatim
+            # Stage-specific protocol instructions
+            stage = t.custom_fields.task_stage
+            if stage:
+                from fleet.core.stage_context import get_stage_summary
+                task_info["stage_instruction"] = get_stage_summary(stage)
             bundle.assigned_tasks.append(task_info)
     bundle.has_work = len(bundle.assigned_tasks) > 0
+
+    # Set full stage instructions from the primary assigned task
+    if bundle.assigned_tasks:
+        primary_stage = bundle.assigned_tasks[0].get("stage", "")
+        if primary_stage and primary_stage != "unknown":
+            from fleet.core.stage_context import get_stage_instructions
+            bundle.stage_instructions = get_stage_instructions(primary_stage)
 
     # Chat messages mentioning this agent
     if board_memory:
