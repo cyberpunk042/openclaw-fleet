@@ -47,7 +47,7 @@ class ConfigSync:
             result["error"] = "DSPD directory not found"
             return result
 
-        export_script = self._dspd_dir / "scripts" / "plane-export-state.sh"
+        export_script = self._dspd_dir / "scripts" / "plane_export.py"
         if not export_script.exists():
             result["error"] = "plane-export-state.sh not found"
             return result
@@ -65,8 +65,9 @@ class ConfigSync:
                             key, val = line.split("=", 1)
                             env[key] = val
 
+            export_py = self._dspd_dir / "scripts" / "plane_export.py"
             proc = subprocess.run(
-                ["bash", str(export_script)],
+                ["python3", str(export_py)],
                 cwd=str(self._dspd_dir),
                 capture_output=True,
                 text=True,
