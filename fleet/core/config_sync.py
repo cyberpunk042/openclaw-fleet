@@ -55,6 +55,7 @@ class ConfigSync:
         # Run export
         try:
             env = os.environ.copy()
+            env["PROJECT_DIR"] = str(self._dspd_dir)
             # Source .plane-config
             plane_config = self._dspd_dir / ".plane-config"
             if plane_config.exists():
