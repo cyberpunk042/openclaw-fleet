@@ -97,7 +97,7 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
             if cached is not None:
                 return cached
 
-        params: dict = {"limit": limit}
+        params: dict = {}
         if status:
             params["status"] = status
 

@@ -15,7 +15,7 @@
 | A03 | requirement_verbatim on OCMC | Set verbatim on task, verify in API | ✅ | MC API: type=text_long, visibility=always, description="PO exact words" |
 | A04 | requirement_verbatim on Plane | Write verbatim, check Plane description | ✅ | BUG FOUND + FIXED: Plane strips HTML comments. Switched to span.fleet-verbatim with display:none. Roundtrip verified: inject→Plane→extract = "Execute one real task end-to-end..." |
 | A05 | task_stage on both | Set stage, verify on OCMC + Plane label | ✅ | MC API: type=text, visibility=always, description="Methodology stage" |
-| A06 | Sync new fields | Change readiness on Plane, verify OCMC updates | | |
+| A06 | Sync new fields | Change readiness on Plane, verify OCMC updates | ⚠️ PARTIAL | Verbatim syncs OCMC→Plane ✅. Labels (stage/readiness) NOT applied to Plane issue — label name→ID resolution needs fix. Also fixed: MC rejects unknown custom field keys — added plane_issue_id/project_id/workspace to configure-board.sh. Also fixed: list_tasks limit param caused 422. |
 | A07 | Plane state metadata | Change Plane state, verify OCMC status | | |
 | A08 | Conflict resolution | Change same field on both, verify winner | | |
 

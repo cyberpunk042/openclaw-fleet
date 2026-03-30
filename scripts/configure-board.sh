@@ -81,6 +81,12 @@ FIELDS = [
      "ui_visibility": "always", "description": "PO exact words. The anchor for all work. Cannot be modified by agents."},
     {"field_key": "task_stage", "label": "Stage", "field_type": "text",
      "ui_visibility": "always", "description": "Methodology stage: conversation/analysis/investigation/reasoning/work"},
+    {"field_key": "plane_issue_id", "label": "Plane Issue", "field_type": "text",
+     "ui_visibility": "hidden", "description": "Plane issue UUID (sync mapping)"},
+    {"field_key": "plane_project_id", "label": "Plane Project", "field_type": "text",
+     "ui_visibility": "hidden", "description": "Plane project UUID (sync mapping)"},
+    {"field_key": "plane_workspace", "label": "Plane Workspace", "field_type": "text",
+     "ui_visibility": "hidden", "description": "Plane workspace slug (sync mapping)"},
 ]
 
 print("=== Configuring Board Custom Fields ===")
