@@ -11,7 +11,7 @@
 **Document:** `milestone-plan-three-systems.md`
 **Milestones:** 44 (A01-A08, B01-B09, C01-C06, D01-D10, E01-E06, G01-G05)
 **Estimated effort:** 2000+ hours
-**Status:** Design complete, ready for Plane seeding
+**Status:** 37/44 implemented — Methodology COMPLETE, Teaching COMPLETE, Immune COMPLETE
 
 These are PREREQUISITES for autonomous fleet operation. Must be
 designed and built before agents run unsupervised.
@@ -122,12 +122,12 @@ everything works end-to-end.
 
 | Set | Count | Status |
 |-----|-------|--------|
-| Three Systems (A-G) | 44 | Designed |
-| Control Surface (M-CS) | 7 | Designed |
+| Three Systems (A-G) | 44 | **37 done**, 7 remaining (A08, E05, G01-G05) |
+| Control Surface (M-CS) | 7 | Designed, not implemented |
 | Event Bus (M-EB) | 20 | 17 done, 3 remaining |
-| Fleet Autonomy | ~15 (5 phases) | Designed |
+| Fleet Autonomy | ~15 (5 phases) | Designed, not implemented |
 | Operational Readiness | 5 | Pending |
-| **Total** | **~91** | |
+| **Total** | **~91** | **~54 implemented** |
 
 ---
 
