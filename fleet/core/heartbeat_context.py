@@ -181,12 +181,18 @@ def build_heartbeat_context(
     # Assigned tasks for this agent
     for t in tasks:
         if t.custom_fields.agent_name == agent_name and t.status in (TaskStatus.INBOX, TaskStatus.IN_PROGRESS):
-            bundle.assigned_tasks.append({
+            task_info = {
                 "id": t.id[:8],
                 "title": t.title[:60],
                 "status": t.status.value,
                 "priority": t.priority,
-            })
+                "readiness": t.custom_fields.task_readiness,
+                "stage": t.custom_fields.task_stage or "unknown",
+            }
+            # Verbatim requirement — ALWAYS present, NEVER compacted
+            if t.custom_fields.requirement_verbatim:
+                task_info["requirement_verbatim"] = t.custom_fields.requirement_verbatim
+            bundle.assigned_tasks.append(task_info)
     bundle.has_work = len(bundle.assigned_tasks) > 0
 
     # Chat messages mentioning this agent

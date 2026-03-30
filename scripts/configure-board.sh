@@ -75,6 +75,12 @@ FIELDS = [
      "ui_visibility": "if_set", "description": "Review gate status per reviewer [{agent, type, status, reason}]"},
     {"field_key": "security_hold", "label": "Security Hold", "field_type": "text",
      "ui_visibility": "if_set", "description": "Set by behavioral security — blocks approval processing"},
+    {"field_key": "task_readiness", "label": "Readiness %", "field_type": "integer",
+     "ui_visibility": "always", "description": "Task readiness percentage (0-100). Work protocol at 99-100%.", "default_value": 0},
+    {"field_key": "requirement_verbatim", "label": "Verbatim Requirement", "field_type": "text_long",
+     "ui_visibility": "always", "description": "PO exact words. The anchor for all work. Cannot be modified by agents."},
+    {"field_key": "task_stage", "label": "Stage", "field_type": "text",
+     "ui_visibility": "always", "description": "Methodology stage: conversation/analysis/investigation/reasoning/work"},
 ]
 
 print("=== Configuring Board Custom Fields ===")

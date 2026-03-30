@@ -116,6 +116,10 @@ class TaskCustomFields:
     plane_issue_id: Optional[str] = None
     plane_project_id: Optional[str] = None
     plane_workspace: Optional[str] = None
+    # Methodology system fields
+    task_readiness: int = 0  # 0-100 percentage. Work protocol at 99-100%.
+    requirement_verbatim: Optional[str] = None  # PO's exact words. The anchor.
+    task_stage: Optional[str] = None  # conversation/analysis/investigation/reasoning/work
 
 
 @dataclass

@@ -469,6 +469,7 @@ async def _dispatch_ready_tasks(
         if t.status == TaskStatus.INBOX
         and t.assigned_agent_id
         and not t.is_blocked
+        and t.custom_fields.task_readiness >= 99  # Methodology gate: work at 99-100%
     ]
 
     # Smart scoring — considers priority, dependency chain, wait time, task type
