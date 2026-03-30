@@ -35,6 +35,7 @@ _notification_router = NotificationRouter(cooldown_seconds=300)
 _change_detector = ChangeDetector()
 
 from fleet.core.budget_monitor import BudgetMonitor
+from fleet.core.doctor import DoctorReport, AgentHealth, run_doctor_cycle
 _budget_monitor = BudgetMonitor()
 
 
@@ -114,19 +115,24 @@ async def run_orchestrator_cycle(
     # Step 1: Security scan — check new/changed tasks for suspicious content
     await _security_scan(mc, irc, board_id, tasks, changes, state, dry_run)
 
-    # Step 2: Ensure review tasks have approvals (so fleet-ops can review them)
+    # Step 2: Doctor — immune system observation, detection, response
+    doctor_report = await _run_doctor(tasks, agents, state, config, dry_run)
+
+    # Step 3: Ensure review tasks have approvals (so fleet-ops can review them)
     await _ensure_review_approvals(mc, board_id, tasks, state, dry_run)
 
-    # Step 3: Wake fleet-ops urgently if there are pending approvals to process
+    # Step 4: Wake fleet-ops urgently if there are pending approvals to process
     await _wake_lead_for_reviews(mc, irc, board_id, tasks, agent_name_map, state, dry_run)
 
-    # Step 4: Dispatch unblocked inbox tasks to assigned agents
-    await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run, config)
+    # Step 5: Dispatch unblocked inbox tasks to assigned agents
+    # (respects doctor report — skips agents flagged by immune system)
+    await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run, config,
+                                doctor_report=doctor_report)
 
-    # Step 5: Evaluate parent task completion (all children done → parent to review)
+    # Step 6: Evaluate parent task completion (all children done → parent to review)
     await _evaluate_parents(mc, irc, board_id, tasks, state, dry_run)
 
-    # Step 6: Health check — detect stuck tasks, offline agents, stale deps
+    # Step 7: Health check — detect stuck tasks, offline agents, stale deps
     await _health_check(mc, irc, board_id, tasks, agents, state, dry_run)
 
     # NOTE: Heartbeats are managed by the GATEWAY, not the orchestrator.
@@ -136,6 +142,61 @@ async def run_orchestrator_cycle(
     # The orchestrator only: dispatch tasks, evaluate parents, check health.
 
     return state
+
+
+# ─── Step 2: Doctor — Immune System ─────────────────────────────────────
+
+# Persistent health profiles — survive across orchestrator cycles
+_doctor_health_profiles: dict[str, AgentHealth] = {}
+_doctor_tool_calls: dict[str, list[str]] = {}  # agent_name → recent tool calls
+
+
+async def _run_doctor(
+    tasks: list[Task],
+    agents: list,
+    state: OrchestratorState,
+    config: dict,
+    dry_run: bool,
+) -> DoctorReport:
+    """Run the doctor's observation cycle.
+
+    Hidden from agents. Produces a report the orchestrator uses to
+    adjust dispatch and trigger responses.
+    """
+    try:
+        report = await run_doctor_cycle(
+            tasks=tasks,
+            agents=agents,
+            tool_call_history=_doctor_tool_calls,
+            health_profiles=_doctor_health_profiles,
+            config=config.get("doctor", {}),
+        )
+
+        if report.has_findings:
+            for detection in report.detections:
+                state.notes.append(
+                    f"Doctor: {detection.disease.value} detected on "
+                    f"{detection.agent_name} ({detection.signal})"
+                )
+
+        if report.has_interventions:
+            for intervention in report.interventions:
+                if dry_run:
+                    state.notes.append(
+                        f"Doctor [dry_run]: WOULD {intervention.action.value} "
+                        f"{intervention.agent_name} ({intervention.reason})"
+                    )
+                else:
+                    state.notes.append(
+                        f"Doctor: {intervention.action.value} "
+                        f"{intervention.agent_name} ({intervention.reason})"
+                    )
+
+        return report
+
+    except Exception as exc:
+        state.errors.append(f"Doctor error: {exc}")
+        return DoctorReport()
 
 
 # ─── Step 1: Security Scan ──────────────────────────────────────────────
@@ -422,6 +483,7 @@ async def _dispatch_ready_tasks(
     state: OrchestratorState,
     dry_run: bool,
     config: dict | None = None,
+    doctor_report: DoctorReport | None = None,
 ) -> None:
     """Find unblocked inbox tasks with assigned agents and dispatch them."""
     from fleet.cli.dispatch import _run_dispatch
@@ -500,6 +562,15 @@ async def _dispatch_ready_tasks(
         for t in tasks
         if t.status == TaskStatus.IN_PROGRESS and t.assigned_agent_id
     }
+
+    # Doctor's skip list — agents flagged by immune system
+    if doctor_report:
+        doctor_skip_agents = set()
+        for skip_name in doctor_report.agents_to_skip:
+            for aid, agent in agent_map.items():
+                if agent.name == skip_name:
+                    doctor_skip_agents.add(aid)
+        busy_agent_ids |= doctor_skip_agents
 
     # SAFETY: Max 2 dispatches per cycle to prevent session storms
     max_dispatch = (config or {}).get("max_dispatch_per_cycle", 2)

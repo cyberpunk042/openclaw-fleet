@@ -86,6 +86,27 @@ EVENT_TYPES = {
     "fleet.system.health": "Health check result",
     "fleet.system.config_changed": "Configuration changed",
     "fleet.system.gateway_restart": "Gateway restarted",
+
+    # Immune system
+    "fleet.immune.disease_detected": "Doctor detected disease in agent",
+    "fleet.immune.agent_pruned": "Doctor pruned agent session",
+    "fleet.immune.context_compacted": "Doctor forced context compaction",
+    "fleet.immune.teaching_triggered": "Doctor triggered teaching system",
+    "fleet.immune.escalated_to_po": "Doctor escalated to PO — needs human attention",
+
+    # Teaching system
+    "fleet.teaching.lesson_started": "Teaching system started lesson for agent",
+    "fleet.teaching.practice_attempted": "Agent attempted practice exercise",
+    "fleet.teaching.comprehension_verified": "Agent demonstrated comprehension",
+    "fleet.teaching.comprehension_failed": "Agent failed to demonstrate comprehension",
+    "fleet.teaching.escalated_to_prune": "Teaching exhausted — escalated to prune",
+
+    # Methodology system
+    "fleet.methodology.stage_changed": "Task methodology stage changed",
+    "fleet.methodology.readiness_changed": "Task readiness percentage changed",
+    "fleet.methodology.check_passed": "Methodology stage check passed",
+    "fleet.methodology.check_failed": "Methodology stage check failed",
+    "fleet.methodology.protocol_violation": "Agent violated methodology protocol",
 }
 
 
