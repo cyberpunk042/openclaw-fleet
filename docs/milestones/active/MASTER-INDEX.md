@@ -124,10 +124,10 @@ everything works end-to-end.
 |-----|-------|--------|
 | Three Systems (A-G) | 44 | **37 done**, 7 remaining (A08, E05, G01-G05) |
 | Control Surface (M-CS) | 7 | **7 done — COMPLETE** |
-| Event Bus (M-EB) | 20 | 17 done, 3 remaining |
+| Event Bus (M-EB) | 20 | **20 done — COMPLETE** |
 | Fleet Autonomy | ~15 (5 phases) | **All 5 phases COMPLETE** (model, tools, orchestrator, heartbeats, sprint) |
 | Operational Readiness | 5 | Pending |
-| **Total** | **~91** | **~76 implemented** |
+| **Total** | **~91** | **~83 implemented** |
 
 ---
 
