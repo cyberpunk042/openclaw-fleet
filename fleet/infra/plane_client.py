@@ -73,6 +73,8 @@ class PlaneIssue:
         self.labels: list[str] = [str(lbl) for lbl in (data.get("label_ids") or [])]
         self.estimate_point: Optional[int] = data.get("estimate_point")
         self.cycle_id: Optional[str] = str(data["cycle"]) if data.get("cycle") else None
+        self.start_date: Optional[str] = data.get("start_date")
+        self.target_date: Optional[str] = data.get("target_date")
         self.created_at: Optional[str] = data.get("created_at")
         self.updated_at: Optional[str] = data.get("updated_at")
 

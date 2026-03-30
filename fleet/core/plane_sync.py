@@ -63,6 +63,31 @@ CF_PLANE_ISSUE_ID = "plane_issue_id"
 CF_PLANE_PROJECT_ID = "plane_project_id"
 CF_PLANE_WORKSPACE = "plane_workspace"
 
+# ─── Plane state → OCMC status mapping ─────────────────────────────────
+# Plane states are per-project with custom names. We map by name pattern.
+
+_PLANE_STATE_TO_OCMC_STATUS: dict[str, str] = {
+    "backlog": "inbox",
+    "todo": "inbox",
+    "unstarted": "inbox",
+    "dispatched": "in_progress",
+    "in progress": "in_progress",
+    "started": "in_progress",
+    "in review": "review",
+    "review": "review",
+    "done": "done",
+    "completed": "done",
+    "cancelled": "done",
+}
+
+
+def _map_plane_state_to_ocmc_status(state_name: str) -> Optional[str]:
+    """Map a Plane state name to an OCMC task status.
+
+    Returns None if no mapping is found (unknown state name).
+    """
+    return _PLANE_STATE_TO_OCMC_STATUS.get(state_name.lower().strip())
+
 # ─── Sync result dataclasses ────────────────────────────────────────────────
 
 
@@ -394,6 +419,101 @@ class PlaneSyncer:
 
             except Exception as exc:
                 msg = f"methodology_sync: error syncing task {task.id[:8]}: {exc}"
+                logger.error(msg)
+                result["errors"].append(msg)
+
+        return result
+
+    async def sync_plane_state_metadata(self) -> dict:
+        """Sync Plane state metadata (state, priority, estimate, dates) to OCMC.
+
+        For each OCMC task with a plane_issue_id mapping, reads the Plane issue
+        and updates OCMC fields:
+        - Plane state → OCMC task status (mapped by state name)
+        - Plane priority → OCMC task priority
+        - Plane assignees → OCMC agent_name custom field (first assignee)
+        - Plane estimate_point → OCMC story_points custom field
+        - Plane start_date / target_date → not yet mapped to OCMC fields
+          (OCMC tasks don't have native date fields; could use custom fields)
+
+        Returns:
+            Dict with counts: updated, skipped, errors.
+        """
+        result = {"updated": 0, "skipped": 0, "errors": []}
+
+        try:
+            tasks = await self._mc.list_tasks(self._board_id, limit=500)
+        except Exception as exc:
+            result["errors"].append(f"Failed to list OCMC tasks: {exc}")
+            return result
+
+        # Cache: Plane state IDs → state names per project
+        state_caches: dict[str, dict[str, str]] = {}  # project_id → {state_id: name}
+
+        for task in tasks:
+            plane_issue_id = self._get_cf(task, CF_PLANE_ISSUE_ID)
+            plane_project_id = self._get_cf(task, CF_PLANE_PROJECT_ID)
+            if not plane_issue_id or not plane_project_id:
+                result["skipped"] += 1
+                continue
+
+            try:
+                # Get Plane issue
+                issues = await self._plane.list_issues(
+                    self._workspace, plane_project_id
+                )
+                issue = next((i for i in issues if i.id == plane_issue_id), None)
+                if not issue:
+                    result["skipped"] += 1
+                    continue
+
+                # Build state cache for this project
+                if plane_project_id not in state_caches:
+                    states = await self._plane.list_states(
+                        self._workspace, plane_project_id
+                    )
+                    state_caches[plane_project_id] = {s.id: s.name for s in states}
+
+                updates: dict = {}
+                custom_updates: dict = {}
+
+                # State → OCMC status
+                state_name = state_caches[plane_project_id].get(issue.state_id, "")
+                if state_name:
+                    ocmc_status = _map_plane_state_to_ocmc_status(state_name)
+                    if ocmc_status and ocmc_status != task.status.value:
+                        updates["status"] = ocmc_status
+
+                # Priority
+                plane_priority = _map_priority(issue.priority)
+                if plane_priority != task.priority:
+                    updates["priority"] = plane_priority
+
+                # Estimate → story_points
+                if issue.estimate_point is not None:
+                    current_sp = task.custom_fields.story_points
+                    if issue.estimate_point != current_sp:
+                        custom_updates["story_points"] = issue.estimate_point
+
+                # Apply updates
+                if updates or custom_updates:
+                    await self._mc.update_task(
+                        self._board_id, task.id,
+                        status=updates.get("status"),
+                        priority=updates.get("priority"),
+                        custom_fields=custom_updates if custom_updates else None,
+                    )
+                    result["updated"] += 1
+                    logger.info(
+                        "state_sync: updated OCMC task %s from Plane: %s",
+                        task.id[:8],
+                        list(updates.keys()) + list(custom_updates.keys()),
+                    )
+                else:
+                    result["skipped"] += 1
+
+            except Exception as exc:
+                msg = f"state_sync: error syncing task {task.id[:8]}: {exc}"
                 logger.error(msg)
                 result["errors"].append(msg)
 

@@ -121,6 +121,7 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
         task_id: str,
         *,
         status: Optional[str] = None,
+        priority: Optional[str] = None,
         comment: Optional[str] = None,
         custom_fields: Optional[dict] = None,
         tag_ids: Optional[list[str]] = None,
@@ -130,6 +131,8 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
         payload: dict = {}
         if status:
             payload["status"] = status
+        if priority:
+            payload["priority"] = priority
         if comment:
             payload["comment"] = comment
         if custom_fields:
