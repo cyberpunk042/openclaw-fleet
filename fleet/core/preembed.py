@@ -16,6 +16,35 @@ from __future__ import annotations
 from fleet.core.models import Task, TaskStatus
 
 
+def format_events_compact(events: list[dict], limit: int = 5) -> str:
+    """Format events into a compact summary for pre-embed.
+
+    Takes event dicts (from event store or heartbeat context) and
+    produces a compact multi-line summary.
+
+    Args:
+        events: List of event dicts with type, agent, summary.
+        limit: Max events to include.
+
+    Returns:
+        Compact text summary.
+    """
+    if not events:
+        return ""
+
+    lines = []
+    for event in events[:limit]:
+        etype = event.get("type", "").split(".")[-1]
+        agent = event.get("agent", "system")
+        summary = event.get("summary", "")[:60]
+        lines.append(f"  {etype}: {agent} — {summary}")
+
+    if len(events) > limit:
+        lines.append(f"  ... +{len(events) - limit} more")
+
+    return "\n".join(lines)
+
+
 def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
     """Build compact task pre-embed for dispatch injection.
 

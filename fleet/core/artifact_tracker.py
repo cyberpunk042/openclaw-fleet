@@ -127,6 +127,39 @@ def _has_value(val) -> bool:
     return True
 
 
+def check_subtask_coverage(
+    parent_obj: dict,
+    subtask_objs: list[dict],
+) -> dict:
+    """Check how subtasks cover the parent artifact's scope.
+
+    When an epic or story is broken into subtasks, each subtask
+    contributes to the parent's completeness. This tracks which
+    parts of the parent are covered by child work.
+
+    Args:
+        parent_obj: The parent artifact object.
+        subtask_objs: List of child artifact objects.
+
+    Returns:
+        Dict with coverage info: total children, completed, coverage_pct.
+    """
+    total = len(subtask_objs)
+    completed = sum(
+        1 for obj in subtask_objs
+        if check_artifact_completeness(
+            obj.get("type", "task"), obj
+        ).is_complete
+    )
+
+    return {
+        "total_subtasks": total,
+        "completed_subtasks": completed,
+        "coverage_pct": int(completed / total * 100) if total > 0 else 0,
+        "all_complete": completed == total and total > 0,
+    }
+
+
 def format_completeness_summary(completeness: ArtifactCompleteness) -> str:
     """Format completeness as a short summary for task comments."""
     status = "COMPLETE" if completeness.is_complete else "IN PROGRESS"
