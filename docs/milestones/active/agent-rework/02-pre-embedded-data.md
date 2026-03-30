@@ -1,7 +1,7 @@
-# Pre-Embedded Data — Full Context, Not Compressed
+# Pre-Embedded Data — Full Context Per Role
 
 **Date:** 2026-03-30
-**Status:** Design
+**Status:** Design — what each agent gets before they start thinking
 **Part of:** Agent Rework (document 2 of 13)
 
 ---
@@ -18,92 +18,222 @@
 
 ---
 
-## The Problem
+## Principle: FULL, Not Compressed
 
-The current preembed.py produces 300-char compressed summaries. That's
-the compression disease injected into the code. The agent gets a tiny
-summary and needs to make MCP calls to get the full data.
+The pre-embedded data is the FULL data the agent needs. Not a summary.
+Not a 300-char teaser. The COMPLETE data set for this agent's role.
 
-This is wrong. The pre-embedded data IS the full data. The agent gets
-everything it needs before it starts thinking. MCP calls are for
-aggregating ADDITIONAL data — not for getting what should already be
-there.
+MCP group calls (fleet_task_context, fleet_heartbeat_context) are for
+aggregating ADDITIONAL data — pulling in a different task's context,
+getting a cross-task view, fetching data that isn't part of the
+standard pre-embed for this role. NOT for getting what should already
+be there.
 
----
-
-## What Gets Pre-Embedded (FULL, not compressed)
-
-### For Heartbeat
-
-The agent wakes up with FULL data already in its context:
-
-- **All assigned tasks** — not just IDs, but title, description,
-  stage, readiness, verbatim requirement, story points, priority
-- **All messages** — full content, not truncated
-- **All pending directives** — full directive text
-- **Events since last heartbeat** — full event detail
-- **Role-specific data** — fleet-ops gets the full approval queue
-  with task details, PM gets the full unassigned list with descriptions
-- **Fleet state** — mode, phase, backend, agents online
-- **Plane data** — if connected, sprint state, recent issues
-
-### For Task Work
-
-When dispatched to work on a task, the agent has:
-
-- **Full task data** — all fields, description, custom fields
-- **Full verbatim requirement** — never truncated
-- **Full artifact object** — the structured data from transpose layer
-- **Full comment history** — progressive work trail
-- **Stage instructions** — full protocol text
-- **Completeness status** — what's done, what's missing
-- **Related tasks** — parent, children, dependencies
-
-### What MCP Calls Are For
-
-MCP calls (`fleet_task_context`, `fleet_heartbeat_context`) are for
-getting ADDITIONAL aggregated data that isn't standard pre-embed:
-
-- Pulling in related task artifacts across multiple tasks
-- Getting a cross-task view of sprint progress
-- Fetching Plane data on demand when not pre-embedded
-- Getting deeper comment/activity history
-
-NOT for getting what should already be there.
+The current preembed.py builds compressed summaries. This is the
+compression disease injected into the code. It needs complete rewrite.
 
 ---
 
-## What Needs to Change
+## What Each Role Gets Pre-Embedded
 
-### preembed.py
+### Project Manager — Full Board View
 
-Currently builds 300-char summaries. Needs complete rewrite to deliver
-full data. The size limit is the gateway's context/ file limit (1000
-chars per file). If the data exceeds that — use multiple context files
-or inject via chat.send which has no practical limit.
+The PM gets EVERYTHING about the board:
 
-### context_writer.py
+```
+ALL inbox tasks (each with):
+  - id, title, description (full, not truncated)
+  - assigned agent (or "UNASSIGNED")
+  - task_type, task_stage, task_readiness
+  - requirement_verbatim (full text)
+  - story_points, priority, complexity
+  - is_blocked, blocked_by
+  - plane_issue_id (if linked)
+  - last comment (most recent, who said what)
+  - artifact completeness (if artifact exists)
 
-Currently writes one small file. May need to write multiple files or
-use a different injection mechanism for larger data.
+Sprint metrics:
+  - Tasks by status: inbox / in_progress / review / done (counts + lists)
+  - Story points: completed / remaining
+  - Blocked tasks list
+  - Velocity (points per cycle period)
 
-### HeartbeatBundle
+Agent status:
+  - Each agent: name, status (online/offline), current task (if any),
+    idle time, last heartbeat
 
-Currently renders a compact text. Needs to render the full role-specific
-data in a format the agent can read and act on.
+Plane data (if connected):
+  - Current sprint/cycle: name, dates, status
+  - Sprint issues with priorities
+  - New issues not yet on OCMC
+  - Module progress
 
-### Gateway Integration
+PO directives: full content of each directive
+Messages: full content of each @pm or @all message
+Events: significant events since last heartbeat
+```
 
-The gateway reads context/ files at execution time. Need to verify
-there's no hard limit that forces compression. If there is, use
-chat.send injection instead.
+### Fleet-Ops — Full Quality View
+
+```
+Approval queue (each with):
+  - approval_id, task_id, task_title
+  - verbatim requirement (full text)
+  - acceptance criteria (full list)
+  - completion summary
+  - PR URL, diff summary
+  - agent who did the work
+  - story_points, time to complete
+  - methodology stage history (did it go through right stages?)
+  - artifact completeness at completion
+
+Review queue:
+  - Tasks in review status with time in review
+
+Health indicators:
+  - Doctor findings: diseases detected, actions taken
+  - Agent health profiles: who's been pruned, who's in lessons
+  - Stale tasks (in any status too long)
+  - Offline agents with assigned work
+
+Budget:
+  - Token usage current period
+  - Budget alerts if any
+  - Usage trend (increasing/stable/decreasing)
+
+Board state:
+  - Tasks by status with counts
+  - Blocker count and list
+
+Messages: @lead mentions, escalations
+Events: completions, rejections, mode changes, prunes
+```
+
+### Architect — Full Design View
+
+```
+Assigned tasks (each with):
+  - Full task context
+  - Current artifact state (what was done, what's missing, completeness)
+  - Verbatim requirement
+  - Stage and stage instructions
+
+Tasks needing architecture review:
+  - Tasks with architecture implications (tagged or high complexity)
+  - Design questions from other agents (from comments or messages)
+
+Recent design decisions:
+  - Board memory entries tagged [architecture, decision]
+  - Architect's own previous findings/plans
+
+Messages: design questions from engineers and PM
+```
+
+### DevSecOps — Full Security View
+
+```
+Assigned security tasks with full context
+PRs needing security review:
+  - PR URL, diff summary, what was changed, by whom
+  - Task linked to PR
+Security alerts:
+  - Behavioral security findings
+  - Dependency vulnerability flags
+Infrastructure health indicators
+Messages: security mentions
+Events: security-tagged events
+```
+
+### Workers (engineer, devops, qa, writer, ux, accountability)
+
+```
+Assigned tasks (each with):
+  - Full task context: title, description, verbatim requirement
+  - Current stage and stage instructions (full protocol text)
+  - Readiness percentage
+  - Artifact state: structured object, what's done, what's missing,
+    completeness percentage, suggested readiness
+  - Comments on this task (progressive work trail from all participants)
+  - Related tasks: parent, children, dependencies
+  - Plane issue data (if linked)
+
+Messages: @mentions for this agent
+Directives: PO orders targeting this agent
+Fleet state: mode, phase (in case it affects behavior)
+```
+
+---
+
+## Delivery Mechanism
+
+### Current: context/ files (limited)
+
+The gateway reads files from `agents/{name}/context/` and includes
+them in the agent's system prompt. Max ~1000 chars per file.
+
+This is too small for full pre-embedded data. The PM needs the entire
+board state — that's potentially 10KB+ of data.
+
+### Option A: Multiple context files
+
+Split the data across multiple files:
+- `context/01-tasks.md` — task list
+- `context/02-sprint.md` — sprint metrics
+- `context/03-agents.md` — agent status
+- `context/04-messages.md` — messages and directives
+- `context/05-plane.md` — Plane data
+
+Each file ~1000 chars. 5 files = 5000 chars. May be enough for
+compact representation.
+
+### Option B: Gateway chat.send injection
+
+Use the gateway's `chat.send` to inject data as a message into the
+agent's session before the heartbeat executes. No size limit.
+
+### Option C: System prompt extension
+
+Modify the gateway to accept larger system prompt data. The gateway
+builds the system prompt from agent.yaml + CLAUDE.md + context/ files.
+Could add a larger data section.
+
+### Which to use?
+
+Needs investigation:
+- Does the gateway have a hard limit on total system prompt size?
+- Does chat.send data persist across turns within a session?
+- Can multiple context files be read simultaneously?
+
+The answer determines the implementation approach.
+
+---
+
+## What preembed.py Becomes
+
+The current preembed.py builds 300-char summaries. It needs to become:
+
+```python
+def build_full_heartbeat_data(agent_name, role, ...) -> str:
+    """Build FULL pre-embedded data for this agent's role.
+
+    Not compressed. Not summarized. The complete data set.
+    Format: structured markdown that the AI reads naturally.
+    """
+    # Uses context_assembly but renders to full markdown
+    # NOT truncated, NOT summarized
+```
+
+The format should be structured markdown — headers, lists, details —
+that the AI reads as part of its context and naturally acts on.
 
 ---
 
 ## Open Questions
 
-- What is the actual size limit for gateway context injection?
-- Should pre-embed be a single large context file or multiple files?
-- Should the format be structured (JSON) or narrative (markdown)?
-- How does pre-embed interact with HEARTBEAT.md? Does HEARTBEAT.md
-  reference the pre-embedded data by section?
+- What's the actual gateway limit for system prompt / context data?
+- Should the format be markdown or JSON? Markdown is natural for AI
+  but JSON is precise for structured data.
+- How often does pre-embed data refresh? Every heartbeat? Only when
+  orchestrator wakes the agent?
+- Should HEARTBEAT.md reference the pre-embedded data by section?
+  "Read your TASK LIST section for unassigned tasks."
