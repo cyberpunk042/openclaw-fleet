@@ -1,0 +1,25 @@
+diff --git a/frontend/src/components/templates/DashboardShell.tsx b/frontend/src/components/templates/DashboardShell.tsx
+index f88cd60..9afb4d6 100644
+--- a/frontend/src/components/templates/DashboardShell.tsx
++++ b/frontend/src/components/templates/DashboardShell.tsx
+@@ -13,6 +13,7 @@ import {
+   useGetMeApiV1UsersMeGet,
+ } from "@/api/generated/users/users";
+ import { BrandMark } from "@/components/atoms/BrandMark";
++import { FleetControlBar } from "@/components/fleet-control/FleetControlBar";
+ import { OrgSwitcher } from "@/components/organisms/OrgSwitcher";
+ import { UserMenu } from "@/components/organisms/UserMenu";
+ import { isOnboardingComplete } from "@/lib/onboarding";
+@@ -110,10 +111,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
+             <BrandMark />
+           </div>
+           <SignedIn>
+-            <div className="hidden md:flex flex-1 items-center">
++            <div className="hidden md:flex flex-1 items-center gap-3">
+               <div className="max-w-[220px]">
+                 <OrgSwitcher />
+               </div>
++              <FleetControlBar boardId={pathname.startsWith("/boards/") ? pathname.split("/")[2] : undefined} />
+             </div>
+           </SignedIn>
+           <SignedIn>
