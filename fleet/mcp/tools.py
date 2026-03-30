@@ -123,6 +123,54 @@ def _emit_event(
         pass  # Event emission must never break tool execution
 
 
+# ─── Methodology Stage Enforcement ─────────────────────────────────────
+
+# Tools restricted to specific methodology stages.
+# Tools not listed here are allowed in ALL stages.
+WORK_ONLY_TOOLS = {"fleet_commit", "fleet_task_complete"}
+REASONING_AND_WORK_TOOLS = {"fleet_task_accept"}  # plan submission
+
+# Stages where work tools are allowed
+WORK_STAGES = {"work", "reasoning"}  # reasoning allows plan submission
+
+
+def _check_stage_allowed(tool_name: str) -> dict | None:
+    """Check if the current methodology stage allows this tool.
+
+    Returns None if allowed, or an error dict if blocked.
+    """
+    ctx = _get_ctx()
+    task_id = ctx.task_id
+    if not task_id:
+        return None  # no task context — can't check stage
+
+    # Read task stage from context (set during fleet_read_context)
+    stage = getattr(ctx, '_task_stage', None)
+    if not stage:
+        return None  # no stage set — allow (backward compatible)
+
+    if tool_name in WORK_ONLY_TOOLS and stage != "work":
+        _emit_event(
+            "fleet.methodology.protocol_violation",
+            subject=task_id,
+            tool=tool_name,
+            stage=stage,
+            violation=f"{tool_name} called during {stage} stage",
+        )
+        return {
+            "ok": False,
+            "error": (
+                f"Methodology violation: {tool_name} is only allowed during "
+                f"work stage. Your task is in '{stage}' stage. "
+                f"Complete the {stage} protocol first."
+            ),
+            "stage": stage,
+            "allowed_stages": ["work"],
+        }
+
+    return None
+
+
 def register_tools(server: FastMCP) -> None:
     """Register all fleet tools on the MCP server."""
 
@@ -166,6 +214,14 @@ def register_tools(server: FastMCP) -> None:
                     ctx.agent_name = task.custom_fields.agent_name
                 if task.custom_fields.worktree:
                     ctx.worktree = task.custom_fields.worktree
+                # Store methodology fields for stage enforcement
+                ctx._task_stage = task.custom_fields.task_stage
+                ctx._task_readiness = task.custom_fields.task_readiness
+                # Include methodology info in response
+                result["task"]["readiness"] = task.custom_fields.task_readiness
+                result["task"]["stage"] = task.custom_fields.task_stage or "unknown"
+                if task.custom_fields.requirement_verbatim:
+                    result["task"]["requirement_verbatim"] = task.custom_fields.requirement_verbatim
             except Exception as e:
                 result["task"] = {"id": ctx.task_id, "error": str(e)}
 
@@ -444,6 +500,11 @@ def register_tools(server: FastMCP) -> None:
             message: Commit message in conventional format (e.g., "feat(core): add type hints").
                      Task reference is added automatically.
         """
+        # Methodology gate: only allowed during work stage
+        blocked = _check_stage_allowed("fleet_commit")
+        if blocked:
+            return blocked
+
         ctx = _get_ctx()
         task_ref = f" [task:{ctx.task_id[:8]}]" if ctx.task_id else ""
         full_msg = f"{message}{task_ref}"
@@ -476,6 +537,11 @@ def register_tools(server: FastMCP) -> None:
         Args:
             summary: What you did and why (2-3 sentences).
         """
+        # Methodology gate: only allowed during work stage
+        blocked = _check_stage_allowed("fleet_task_complete")
+        if blocked:
+            return blocked
+
         ctx = _get_ctx()
         if not ctx.task_id:
             return {"ok": False, "error": "No task_id. Call fleet_read_context first."}
