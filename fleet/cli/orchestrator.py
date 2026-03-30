@@ -51,6 +51,7 @@ class OrchestratorState:
     parents_evaluated: int = 0
     drivers_woken: int = 0
     errors: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     @property
     def total_actions(self) -> int:
@@ -464,13 +465,30 @@ async def _dispatch_ready_tasks(
                 event_type="escalation",
             )
 
-    inbox_tasks = [
+    # Methodology gate: separate work-ready tasks from earlier-stage tasks
+    all_inbox = [
         t for t in tasks
         if t.status == TaskStatus.INBOX
         and t.assigned_agent_id
         and not t.is_blocked
-        and t.custom_fields.task_readiness >= 99  # Methodology gate: work at 99-100%
     ]
+
+    # Work-ready tasks (readiness >= 99) — dispatched for execution
+    inbox_tasks = [t for t in all_inbox if t.custom_fields.task_readiness >= 99]
+
+    # Earlier-stage tasks — not dispatched for work, but tracked
+    methodology_pending = [t for t in all_inbox if t.custom_fields.task_readiness < 99]
+    if methodology_pending:
+        stages = {}
+        for t in methodology_pending:
+            stage = t.custom_fields.task_stage or "no-stage"
+            stages.setdefault(stage, 0)
+            stages[stage] += 1
+        stage_summary = ", ".join(f"{s}:{n}" for s, n in sorted(stages.items()))
+        state.notes.append(
+            f"Methodology: {len(methodology_pending)} tasks below readiness 99% "
+            f"({stage_summary})"
+        )
 
     # Smart scoring — considers priority, dependency chain, wait time, task type
     scored = rank_tasks(inbox_tasks, tasks)
