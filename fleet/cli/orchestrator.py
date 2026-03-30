@@ -35,7 +35,8 @@ _notification_router = NotificationRouter(cooldown_seconds=300)
 _change_detector = ChangeDetector()
 
 from fleet.core.budget_monitor import BudgetMonitor
-from fleet.core.doctor import DoctorReport, AgentHealth, run_doctor_cycle
+from fleet.core.doctor import DoctorReport, AgentHealth, ResponseAction, run_doctor_cycle
+from fleet.core.teaching import adapt_lesson, format_lesson_for_injection, DiseaseCategory
 _budget_monitor = BudgetMonitor()
 
 
@@ -186,17 +187,90 @@ async def _run_doctor(
                         f"Doctor [dry_run]: WOULD {intervention.action.value} "
                         f"{intervention.agent_name} ({intervention.reason})"
                     )
-                else:
-                    state.notes.append(
-                        f"Doctor: {intervention.action.value} "
-                        f"{intervention.agent_name} ({intervention.reason})"
-                    )
+                    continue
+
+                state.notes.append(
+                    f"Doctor: {intervention.action.value} "
+                    f"{intervention.agent_name} ({intervention.reason})"
+                )
+
+                # Execute the response
+                await _execute_doctor_intervention(intervention, agents, state)
 
         return report
 
     except Exception as exc:
         state.errors.append(f"Doctor error: {exc}")
         return DoctorReport()
+
+
+async def _execute_doctor_intervention(
+    intervention,
+    agents: list,
+    state: OrchestratorState,
+) -> None:
+    """Execute a doctor intervention — prune, compact, or teach.
+
+    This is where the immune system's decisions become real actions
+    through the gateway.
+    """
+    from fleet.infra.gateway_client import (
+        prune_agent,
+        force_compact,
+        inject_content,
+    )
+
+    # Find the agent's session key
+    agent = next(
+        (a for a in agents if a.name == intervention.agent_name and a.session_key),
+        None,
+    )
+    if not agent:
+        state.errors.append(
+            f"Doctor: can't find session for {intervention.agent_name}"
+        )
+        return
+
+    try:
+        if intervention.action == ResponseAction.PRUNE:
+            ok = await prune_agent(agent.session_key)
+            if ok:
+                state.notes.append(
+                    f"Doctor: PRUNED {intervention.agent_name} — "
+                    f"session killed, will regrow fresh"
+                )
+
+        elif intervention.action == ResponseAction.FORCE_COMPACT:
+            ok = await force_compact(agent.session_key)
+            if ok:
+                state.notes.append(
+                    f"Doctor: COMPACTED {intervention.agent_name} — "
+                    f"context reduced"
+                )
+
+        elif intervention.action == ResponseAction.TRIGGER_TEACHING:
+            # Create adapted lesson from the intervention context
+            disease = intervention.disease or DiseaseCategory.DEVIATION
+            context = intervention.lesson_context or {}
+            lesson = adapt_lesson(
+                disease=disease,
+                agent_name=intervention.agent_name,
+                task_id=intervention.task_id,
+                context=context,
+            )
+            # Format and inject into agent session
+            lesson_text = format_lesson_for_injection(lesson)
+            ok = await inject_content(agent.session_key, lesson_text)
+            if ok:
+                state.notes.append(
+                    f"Doctor: TEACHING {intervention.agent_name} — "
+                    f"lesson injected ({disease.value})"
+                )
+
+    except Exception as exc:
+        state.errors.append(
+            f"Doctor intervention failed for {intervention.agent_name}: {exc}"
+        )
 
 
 # ─── Step 1: Security Scan ──────────────────────────────────────────────
