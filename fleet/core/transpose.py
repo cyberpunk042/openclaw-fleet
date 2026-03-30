@@ -25,17 +25,23 @@ from typing import Any, Optional
 
 # ─── Markers ────────────────────────────────────────────────────────────
 # Plane strips HTML comments. Use span with class + display:none instead.
+#
+# The data blob (fleet-data span) is the source of truth for the object.
+# The visual HTML between start/end markers is a RENDERING of that data.
+# On update: read data blob → modify object → re-render visual HTML.
+# Content OUTSIDE the artifact markers is NEVER touched — the PO can
+# add manual notes above, below, or between artifact sections.
+# Multiple artifact sections can coexist — each identified by data-type.
 
 ARTIFACT_START = '<span class="fleet-artifact-start" data-type="{type}" style="display:none">artifact:start</span>'
 ARTIFACT_END = '<span class="fleet-artifact-end" style="display:none">artifact:end</span>'
-FIELD_MARKER = ''  # Fields don't need markers — the data blob has everything
-ARTIFACT_DATA = '<span class="fleet-data" data-type="artifact" style="display:none">{data}</span>'
+ARTIFACT_DATA = '<span class="fleet-data" data-type="{type}" style="display:none">{data}</span>'
 
 # ─── Object → HTML Renderers ───────────────────────────────────────────
 
 
 def _render_field(name: str, content_html: str) -> str:
-    return f'{FIELD_MARKER.format(name=name)}\n{content_html}'
+    return content_html
 
 
 def _escape(text: str) -> str:
@@ -287,9 +293,11 @@ def to_html(artifact_type: str, obj: dict) -> str:
             f"<pre><code>{_escape(json.dumps(obj, indent=2))}</code></pre>"
         )
 
-    # Embed the object data as a hidden JSON blob for reverse transposition
+    # Embed the object data as a hidden JSON blob for reverse transposition.
+    # The data-type attribute identifies which artifact this data belongs to,
+    # allowing multiple artifacts to coexist in the same description.
     data_json = json.dumps(obj, separators=(",", ":"))
-    data_marker = ARTIFACT_DATA.format(data=_escape(data_json))
+    data_marker = ARTIFACT_DATA.format(type=artifact_type, data=_escape(data_json))
 
     body = renderer(obj)
     return (
@@ -311,7 +319,7 @@ def from_html(html_content: str) -> Optional[dict]:
     Returns:
         The structured object dict, or None if no artifact found.
     """
-    # Look for the data span
+    # Look for the data span (data-type can be "artifact" or a specific type)
     pattern = re.compile(
         r'<span[^>]*class="fleet-data"[^>]*>(.*?)</span>',
         re.DOTALL,
