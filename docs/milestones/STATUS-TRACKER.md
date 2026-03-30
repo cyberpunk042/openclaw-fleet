@@ -171,14 +171,15 @@
 10. ✅ ~~Connect fleet to Plane~~ — credentials in fleet .env, CLI works
 11. ✅ ~~Plane platform config~~ — agents, types, views, links, leads, relations
 12. ✅ ~~Milestone docs~~ — 47 milestones across 6 Plane documents
-13. **Build Plane MCP tools (M-SC04)** — PM needs Plane access from sessions
-14. **Build chain runner (M-SC02)** — MCP tools need to emit event chains
-15. **Execute one real task end-to-end** — dispatch, work, PR, review, done
-16. **PM first heartbeat with Plane** — reads sprint, creates OCMC tasks
-17. **AICP Stage 1 complete** — cluster verification, full benchmarks
-18. **Build sync worker (M-SW01-08)** — real-time cross-platform bridge
-19. **Fleet 24h observation** — stable daemons, no OOM, agents responsive
-20. **Resume autonomous flow** — PM drives sprints from Plane, agents execute
+13. ✅ ~~Build Plane MCP tools (M-SC04)~~ — 7 tools, PM has Plane access
+14. ✅ ~~Build chain runner (M-SC02)~~ — 6 surfaces, cross-refs, event emission
+15. ✅ ~~Build event bus (M-EB01-20)~~ — 20/20 milestones, 7 event sources
+16. ✅ ~~Plane sync to git~~ — pages, issues, stickies, comments auto-committed
+17. **Execute one real task end-to-end** — dispatch, work, PR, review, done
+18. **PM first heartbeat with Plane** — reads sprint, creates OCMC tasks
+19. **AICP Stage 1 complete** — cluster verification, full benchmarks
+20. **Fleet 24h observation** — stable daemons, no OOM, agents responsive
+21. **Resume autonomous flow** — PM drives sprints from Plane, agents execute
 
 ---
 
