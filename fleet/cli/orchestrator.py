@@ -1197,35 +1197,34 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             except Exception:
                 pass
 
-            # Ensure gateway is running. Uses a lock file to prevent
-            # the monitor daemon from racing with us.
+            # Ensure gateway is running. Non-blocking start with lock file.
             try:
                 import subprocess as _sp
-                lock_path = os.path.join(os.path.dirname(os.path.dirname(
-                    os.path.dirname(os.path.abspath(__file__)))), ".gateway-starting")
+                fleet_dir = os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))))
+                lock_path = os.path.join(fleet_dir, ".gateway-starting")
+
+                # Check if gateway is alive (pgrep OR lock file exists)
                 _gw = _sp.run(["pgrep", "-x", "openclaw-gateway"],
                               capture_output=True, timeout=5)
-                if _gw.returncode != 0 and not os.path.exists(lock_path):
-                    # Gateway is down, nobody else is starting it
-                    try:
-                        with open(lock_path, "w") as _lf:
-                            _lf.write(str(os.getpid()))
-                        fleet_dir = os.path.dirname(os.path.dirname(
-                            os.path.dirname(os.path.abspath(__file__))))
-                        start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
-                        if os.path.exists(start_script):
-                            result = _sp.run(["bash", start_script],
-                                             capture_output=True, text=True, timeout=120)
-                            ts = datetime.now().strftime("%H:%M:%S")
-                            if result.returncode == 0:
-                                print(f"[{ts}] [orchestrator] Gateway started")
-                            else:
-                                print(f"[{ts}] [orchestrator] Gateway FAILED: {result.stderr[:200]}")
-                    finally:
-                        try:
-                            os.remove(lock_path)
-                        except Exception:
-                            pass
+                gateway_alive = _gw.returncode == 0
+
+                if not gateway_alive and not os.path.exists(lock_path):
+                    # Gateway is down and nobody is starting it.
+                    # Write lock, start in background, don't block.
+                    with open(lock_path, "w") as _lf:
+                        _lf.write(str(os.getpid()))
+                    start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                    if os.path.exists(start_script):
+                        _sp.Popen(["bash", start_script],
+                                  stdout=open(os.path.join(fleet_dir, ".gateway-start.log"), "w"),
+                                  stderr=_sp.STDOUT)
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"[{ts}] [orchestrator] Starting gateway...")
+
+                elif gateway_alive and os.path.exists(lock_path):
+                    # Gateway is up, remove stale lock
+                    os.remove(lock_path)
             except Exception:
                 pass
 
