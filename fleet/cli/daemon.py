@@ -222,7 +222,6 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
 async def _run_auth_daemon(interval: int = 120) -> None:
     """Auto-refresh auth token and restart gateway if needed."""
     from fleet.core.auth import refresh_token, token_needs_refresh
-    from fleet.infra.gh_client import GHClient
 
     print(f"[auth] Daemon started (interval={interval}s)")
     while True:
@@ -246,12 +245,19 @@ async def _run_auth_daemon(interval: int = 120) -> None:
                         mc_up = False
 
                     if mc_up:
-                        gh = GHClient()
-                        await gh._run(["pkill", "-f", "openclaw-gateway"])
+                        import subprocess as _sp
+                        _sp.run(["pkill", "-f", "openclaw-gateway"],
+                                capture_output=True, timeout=5)
                         await asyncio.sleep(3)
-                        await gh._run(["openclaw", "gateway", "run", "--port", "18789"])
+                        fleet_dir = os.environ.get(
+                            "FLEET_DIR",
+                            str(Path(__file__).resolve().parent.parent.parent))
+                        start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                        if os.path.exists(start_script):
+                            _sp.Popen(["bash", start_script],
+                                      stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
                         await asyncio.sleep(5)
-                        print(f"[{ts}] [auth] Gateway restarted with new token (MC is UP)")
+                        print(f"[{ts}] [auth] Gateway restarted with new token via start-fleet.sh")
                     else:
                         print(f"[{ts}] [auth] Token refreshed but MC is DOWN — NOT restarting gateway")
         except Exception as e:
@@ -297,17 +303,6 @@ async def _run_plane_watcher_daemon(interval: int = 120) -> None:
         await asyncio.sleep(interval)
 
 
-async def _check_mc_alive() -> bool:
-    """Check if MC is reachable. If not, fleet is OFF."""
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.get("http://localhost:8000/healthz")
-            return resp.status_code == 200
-    except Exception:
-        return False
-
-
 async def _run_all(
     sync_interval: int = 60,
     monitor_interval: int = 300,
@@ -315,58 +310,22 @@ async def _run_all(
 ) -> None:
     """Run all daemons concurrently.
 
-    If the orchestrator exits (MC down → fleet OFF), ALL daemons stop.
-    When any task in the gather completes, we cancel the rest and
-    kill the gateway. ZERO consumption when fleet is OFF.
+    The orchestrator handles MC up/down:
+    - MC down → kills gateway, disables cron, keeps watching
+    - MC back → restarts gateway, re-enables cron, resumes
+    All automatic. No manual intervention.
     """
     print(
         f"Fleet daemons starting (sync={sync_interval}s, monitor={monitor_interval}s, "
         f"auth=120s, orchestrator={orchestrator_interval}s, plane-watcher=120s)"
     )
-
-    # Verify MC is alive before starting anything
-    if not await _check_mc_alive():
-        print("[daemon] MC is DOWN. Cannot start fleet. Start Docker first.")
-        return
-
-    tasks = [
-        asyncio.create_task(_run_sync_daemon(sync_interval), name="sync"),
-        asyncio.create_task(_run_auth_daemon(120), name="auth"),
-        asyncio.create_task(_run_monitor_daemon(monitor_interval), name="monitor"),
-        asyncio.create_task(run_orchestrator_daemon(orchestrator_interval), name="orchestrator"),
-        asyncio.create_task(_run_plane_watcher_daemon(120), name="plane-watcher"),
-    ]
-
-    # Wait for ANY task to complete (the orchestrator exits when MC goes down)
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-
-    # One daemon exited — fleet is OFF. Cancel everything else.
-    for task in done:
-        ts = datetime.now().strftime("%H:%M:%S")
-        print(f"[{ts}] [daemon] {task.get_name()} exited")
-
-    for task in pending:
-        task.cancel()
-        ts = datetime.now().strftime("%H:%M:%S")
-        print(f"[{ts}] [daemon] Cancelling {task.get_name()}")
-
-    # Kill gateway — no daemon = no fleet = no Claude calls
-    import subprocess
-    try:
-        subprocess.run(["pkill", "-f", "openclaw-gateway"], capture_output=True, timeout=5)
-        subprocess.run(["pkill", "-f", "openclaw$"], capture_output=True, timeout=5)
-        print(f"[daemon] Gateway killed. Fleet is OFF. ZERO consumption.")
-    except Exception:
-        pass
-
-    # Disable cron jobs — safety net
-    try:
-        from fleet.infra.gateway_client import disable_gateway_cron_jobs
-        disable_gateway_cron_jobs()
-    except Exception:
-        pass
-
-    print("[daemon] All daemons stopped. Start Docker, then: make daemons-start")
+    await asyncio.gather(
+        _run_sync_daemon(sync_interval),
+        _run_auth_daemon(120),
+        _run_monitor_daemon(monitor_interval),
+        run_orchestrator_daemon(orchestrator_interval),
+        _run_plane_watcher_daemon(120),
+    )
 
 
 def run_daemon(args: list[str] | None = None) -> int:
@@ -409,20 +368,23 @@ def run_daemon(args: list[str] | None = None) -> int:
         f.write(str(os.getpid()))
 
     def cleanup(*_):
-        # Disable gateway cron jobs on shutdown — fleet is going OFF.
-        # This prevents the gateway from firing Claude heartbeats
-        # after the daemon stops.
+        # Fleet is going OFF. Kill gateway. Disable cron. Zero consumption.
+        import subprocess as _sp
+        try:
+            _sp.run(["pkill", "-f", "openclaw-gateway"], capture_output=True, timeout=5)
+            _sp.run(["pkill", "-f", "openclaw$"], capture_output=True, timeout=5)
+        except Exception:
+            pass
         try:
             from fleet.infra.gateway_client import disable_gateway_cron_jobs
-            disabled = disable_gateway_cron_jobs()
-            if disabled:
-                print(f"[daemon] Shutdown: disabled {disabled} gateway cron jobs")
+            disable_gateway_cron_jobs()
         except Exception:
             pass
         try:
             os.remove(pid_file)
         except Exception:
             pass
+        print("[daemon] Shutdown complete. Gateway killed. Cron disabled. Zero consumption.")
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, cleanup)

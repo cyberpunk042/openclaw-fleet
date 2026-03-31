@@ -1183,28 +1183,49 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             await asyncio.sleep(interval)
             continue
 
-        # Circuit breaker: disable cron jobs with too many consecutive errors.
-        # Runs every cycle to catch runaway jobs quickly.
-        try:
-            from fleet.infra.gateway_client import check_cron_circuit_breaker
-            tripped = check_cron_circuit_breaker(max_consecutive_errors=3)
-            if tripped:
-                ts = datetime.now().strftime("%H:%M:%S")
-                print(f"[{ts}] [orchestrator] Circuit breaker: disabled {tripped} failing cron job(s)")
-        except Exception:
-            pass
-
         try:
             mc = MCClient(token=token)
             irc = IRCClient(gateway_token=gateway_token)
             board_id = await mc.get_board_id()
             _outage.record_success("mc_api")
 
-            # MC is reachable — ensure gateway cron jobs are enabled.
-            # They may have been disabled by a previous MC-down event.
+            # MC is reachable — ensure gateway and cron jobs are alive.
+            # They may have been killed/disabled by a previous MC-down event.
+            import subprocess as _sp
+
+            # Re-enable cron jobs
             try:
                 from fleet.infra.gateway_client import enable_gateway_cron_jobs
                 enable_gateway_cron_jobs()
+            except Exception:
+                pass
+
+            # Restart gateway if not running
+            try:
+                _gw_check = _sp.run(["pgrep", "-f", "openclaw-gateway"],
+                                    capture_output=True, timeout=5)
+                if _gw_check.returncode != 0:
+                    # Gateway is dead — restart it
+                    fleet_dir = os.path.dirname(os.path.dirname(
+                        os.path.dirname(os.path.abspath(__file__))))
+                    start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                    if os.path.exists(start_script):
+                        _sp.Popen(["bash", start_script],
+                                  stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"[{ts}] [orchestrator] MC is BACK — restarting gateway")
+            except Exception:
+                pass
+
+            # Circuit breaker: disable cron jobs with too many consecutive
+            # errors DURING NORMAL OPERATION (MC is up). Only runs after
+            # enable_gateway_cron_jobs which resets stale error counts.
+            try:
+                from fleet.infra.gateway_client import check_cron_circuit_breaker
+                tripped = check_cron_circuit_breaker(max_consecutive_errors=3)
+                if tripped:
+                    ts = datetime.now().strftime("%H:%M:%S")
+                    print(f"[{ts}] [orchestrator] Circuit breaker: disabled {tripped} failing cron job(s)")
             except Exception:
                 pass
 
@@ -1233,8 +1254,10 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [orchestrator] MC UNREACHABLE: {e}")
 
-            # MC is DOWN. Fleet is OFF. Kill EVERYTHING.
+            # MC is DOWN. Fleet is OFF. Kill the gateway.
             # No gateway = no sessions = no heartbeats = no Claude calls = ZERO.
+            # But keep the orchestrator ALIVE — when MC comes back, bring
+            # everything back up automatically.
             import subprocess as _sp
 
             # Kill gateway process
@@ -1252,7 +1275,4 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             except Exception:
                 pass
 
-            # Stop orchestrator. Nothing to orchestrate. ZERO consumption.
-            print(f"[{ts}] [orchestrator] STOPPING — MC is DOWN. Fleet is OFF.")
-            print(f"[{ts}] [orchestrator] Start Docker, then: make daemons-start")
-            return  # EXIT the daemon loop — orchestrator is DEAD
+            print(f"[{ts}] [orchestrator] Fleet is OFF. Watching for MC to come back...")

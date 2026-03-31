@@ -60,15 +60,7 @@ if [[ "$RESTART_GATEWAY" == "true" ]]; then
     elif ! curl -sf http://localhost:8000/healthz > /dev/null 2>&1; then
         echo "MC is DOWN — NOT restarting gateway"
     else
-        echo "Restarting gateway..."
-        pkill -f "openclaw-gateway" 2>/dev/null || true
-        sleep 3
-        cd "$FLEET_DIR" && openclaw gateway run --port 18789 &
-        sleep 5
-        if curl -sf http://localhost:18789 > /dev/null 2>&1; then
-            echo "Gateway restarted with new token"
-        else
-            echo "WARN: Gateway may not have started" >&2
-        fi
+        echo "Restarting gateway via start-fleet.sh..."
+        bash "$FLEET_DIR/scripts/start-fleet.sh"
     fi
 fi

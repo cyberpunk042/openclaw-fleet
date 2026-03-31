@@ -249,37 +249,54 @@ def enable_gateway_cron_jobs() -> int:
     try:
         with open(cron_path) as f:
             data = _json.load(f)
-        enabled = 0
+        changed = 0
         for job in data.get("jobs", []):
+            # Always reset error counts — MC is back, clean slate.
+            # Always ensure enabled. Don't leave stale errors that
+            # would trip the circuit breaker on the next cycle.
+            needs_write = False
             if not job.get("enabled"):
                 job["enabled"] = True
-                enabled += 1
-                # Try CLI too
+                needs_write = True
+            if "state" in job and job["state"].get("consecutiveErrors", 0) > 0:
+                job["state"]["consecutiveErrors"] = 0
+                job["state"]["lastRunStatus"] = "ok"
+                job["state"]["lastStatus"] = "ok"
+                needs_write = True
+            if needs_write:
+                changed += 1
                 try:
                     _sp.run(["openclaw", "cron", "enable", job.get("id", "")],
                             capture_output=True, timeout=5)
                 except Exception:
                     pass
-        if enabled > 0:
+        if changed > 0:
             with open(cron_path, "w") as f:
                 _json.dump(data, f, indent=2)
-            logger.info("Enabled %d gateway cron jobs", enabled)
-        return enabled
+            logger.info("Enabled/reset %d gateway cron jobs", changed)
+        return changed
     except Exception as e:
         logger.error("Failed to enable cron jobs: %s", e)
         return 0
 
 
-def check_cron_circuit_breaker(max_consecutive_errors: int = 3) -> int:
-    """Disable cron jobs that have too many consecutive errors.
+def check_cron_circuit_breaker(max_consecutive_errors: int = 5) -> int:
+    """Disable cron jobs with auth/connection errors (not operational errors).
 
-    Circuit breaker: if a cron job fails N times in a row, disable it.
-    Prevents burning tokens on auth failures, IRC errors, etc.
+    Only trips on errors that indicate the fleet shouldn't be running:
+    - Auth failures (401, token expired)
+    - Connection refused (MC/gateway down)
+
+    Does NOT trip on operational errors like IRC formatting issues.
 
     Returns number of jobs disabled by circuit breaker.
     """
     import json as _json
     from pathlib import Path as _Path
+
+    # Errors that indicate the fleet should stop
+    FATAL_ERROR_PATTERNS = ["401", "auth", "token", "expired", "connection refused",
+                            "rate limit", "quota"]
 
     cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
     if not cron_path.exists():
@@ -292,11 +309,15 @@ def check_cron_circuit_breaker(max_consecutive_errors: int = 3) -> int:
             if not job.get("enabled"):
                 continue
             errors = job.get("state", {}).get("consecutiveErrors", 0)
-            if errors >= max_consecutive_errors:
+            last_error = job.get("state", {}).get("lastError", "").lower()
+            # Only trip on fatal errors (auth, connection, rate limit)
+            # NOT on operational errors (IRC formatting, etc.)
+            is_fatal = any(p in last_error for p in FATAL_ERROR_PATTERNS)
+            if errors >= max_consecutive_errors and is_fatal:
                 job["enabled"] = False
                 tripped += 1
                 logger.warning(
-                    "Circuit breaker: disabled cron job %s (%d consecutive errors: %s)",
+                    "Circuit breaker: disabled cron job %s (%d errors: %s)",
                     job.get("name", "?"), errors,
                     job.get("state", {}).get("lastError", "?")[:80],
                 )
