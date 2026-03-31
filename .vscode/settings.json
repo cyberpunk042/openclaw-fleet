@@ -16,7 +16,6 @@
     "__pycache__": true,
     "*.pyc": true,
     ".venv": true,
-    "vendor": true,
     ".aicp": true
   },
   "search.exclude": {
