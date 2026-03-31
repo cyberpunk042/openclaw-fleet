@@ -186,40 +186,66 @@ async def inject_content(session_key: str, content: str) -> bool:
 def disable_gateway_cron_jobs() -> int:
     """Disable ALL gateway cron jobs. Prevents Claude calls when fleet is OFF.
 
+    Uses two methods:
+    1. openclaw cron disable (talks to running gateway — proper way)
+    2. Direct JSON edit (works when gateway is dead — safety net)
+
     Called when: MC is down, fleet is paused, daemon shuts down.
     """
     import json as _json
+    import subprocess as _sp
     from pathlib import Path as _Path
 
+    disabled = 0
+
+    # Method 1: use OC CLI to disable via running gateway
     cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
-    if not cron_path.exists():
-        return 0
-    try:
-        with open(cron_path) as f:
-            data = _json.load(f)
-        disabled = 0
-        for job in data.get("jobs", []):
-            if job.get("enabled"):
-                job["enabled"] = False
-                disabled += 1
-        if disabled > 0:
-            with open(cron_path, "w") as f:
-                _json.dump(data, f, indent=2)
-            logger.info("Disabled %d gateway cron jobs", disabled)
-        return disabled
-    except Exception as e:
-        logger.error("Failed to disable cron jobs: %s", e)
-        return 0
+    if cron_path.exists():
+        try:
+            with open(cron_path) as f:
+                data = _json.load(f)
+            for job in data.get("jobs", []):
+                if job.get("enabled"):
+                    job_id = job.get("id", "")
+                    # Try CLI first (talks to running gateway)
+                    try:
+                        _sp.run(["openclaw", "cron", "disable", job_id],
+                                capture_output=True, timeout=5)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # Method 2: direct JSON edit (safety net — works even if gateway is dead)
+    if cron_path.exists():
+        try:
+            with open(cron_path) as f:
+                data = _json.load(f)
+            for job in data.get("jobs", []):
+                if job.get("enabled"):
+                    job["enabled"] = False
+                    disabled += 1
+            if disabled > 0:
+                with open(cron_path, "w") as f:
+                    _json.dump(data, f, indent=2)
+                logger.info("Disabled %d gateway cron jobs", disabled)
+        except Exception as e:
+            logger.error("Failed to disable cron jobs: %s", e)
+
+    return disabled
 
 
 def enable_gateway_cron_jobs() -> int:
     """Re-enable ALL gateway cron jobs. Called when fleet starts and MC is UP."""
     import json as _json
+    import subprocess as _sp
     from pathlib import Path as _Path
 
+    disabled = 0
     cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
     if not cron_path.exists():
         return 0
+
     try:
         with open(cron_path) as f:
             data = _json.load(f)
@@ -228,6 +254,12 @@ def enable_gateway_cron_jobs() -> int:
             if not job.get("enabled"):
                 job["enabled"] = True
                 enabled += 1
+                # Try CLI too
+                try:
+                    _sp.run(["openclaw", "cron", "enable", job.get("id", "")],
+                            capture_output=True, timeout=5)
+                except Exception:
+                    pass
         if enabled > 0:
             with open(cron_path, "w") as f:
                 _json.dump(data, f, indent=2)
