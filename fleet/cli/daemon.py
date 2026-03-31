@@ -199,20 +199,23 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
                         resp = await _hc.get("http://localhost:18789/")
                         # Gateway is alive
                 except Exception:
-                    ts = datetime.now().strftime("%H:%M:%S")
-                    print(f"[{ts}] [monitor] Gateway DOWN (MC is UP) — restarting...")
+                    # Only restart if orchestrator isn't already doing it
                     fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
-                    start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
-                    if os.path.exists(start_script):
-                        result = subprocess.run(
-                            ["bash", start_script],
-                            capture_output=True, text=True, timeout=120,
-                        )
+                    lock_path = os.path.join(fleet_dir, ".gateway-starting")
+                    if not os.path.exists(lock_path):
                         ts = datetime.now().strftime("%H:%M:%S")
-                        if result.returncode == 0:
-                            print(f"[{ts}] [monitor] Gateway restarted successfully")
-                        else:
-                            print(f"[{ts}] [monitor] Gateway restart FAILED: {result.stderr[:200]}")
+                        print(f"[{ts}] [monitor] Gateway DOWN (MC is UP) — restarting...")
+                        start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                        if os.path.exists(start_script):
+                            result = subprocess.run(
+                                ["bash", start_script],
+                                capture_output=True, text=True, timeout=120,
+                            )
+                            ts = datetime.now().strftime("%H:%M:%S")
+                            if result.returncode == 0:
+                                print(f"[{ts}] [monitor] Gateway restarted successfully")
+                            else:
+                                print(f"[{ts}] [monitor] Gateway restart FAILED: {result.stderr[:200]}")
         except Exception:
             pass
 

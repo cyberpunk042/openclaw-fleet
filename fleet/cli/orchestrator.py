@@ -1173,8 +1173,7 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
 
     from fleet.core.outage_detector import OutageDetector
     _outage = OutageDetector()
-    _agents_provisioned = False  # one-time flag
-    _gateway_down_cycles = 0     # count consecutive cycles with gateway down
+    _agents_provisioned = False
 
     while True:
         # Check if we should run this cycle (outage/backoff)
@@ -1198,16 +1197,19 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             except Exception:
                 pass
 
-            # Ensure gateway is running. Check every cycle. Only restart
-            # after 2 consecutive cycles of gateway down (debounce to
-            # prevent process storm). Uses pgrep -x for exact match.
+            # Ensure gateway is running. Uses a lock file to prevent
+            # the monitor daemon from racing with us.
             try:
                 import subprocess as _sp
+                lock_path = os.path.join(os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__)))), ".gateway-starting")
                 _gw = _sp.run(["pgrep", "-x", "openclaw-gateway"],
                               capture_output=True, timeout=5)
-                if _gw.returncode != 0:
-                    _gateway_down_cycles += 1
-                    if _gateway_down_cycles >= 2:
+                if _gw.returncode != 0 and not os.path.exists(lock_path):
+                    # Gateway is down, nobody else is starting it
+                    try:
+                        with open(lock_path, "w") as _lf:
+                            _lf.write(str(os.getpid()))
                         fleet_dir = os.path.dirname(os.path.dirname(
                             os.path.dirname(os.path.abspath(__file__))))
                         start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
@@ -1219,9 +1221,11 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
                                 print(f"[{ts}] [orchestrator] Gateway started")
                             else:
                                 print(f"[{ts}] [orchestrator] Gateway FAILED: {result.stderr[:200]}")
-                        _gateway_down_cycles = 0
-                else:
-                    _gateway_down_cycles = 0
+                    finally:
+                        try:
+                            os.remove(lock_path)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
