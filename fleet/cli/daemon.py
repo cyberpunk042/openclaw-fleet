@@ -171,28 +171,50 @@ async def _run_monitor_daemon(interval: int = 300) -> None:
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [monitor] Error: {e}")
 
-        # Self-healing: check gateway health and restart if crashed
+        # Self-healing: check gateway health — but ONLY restart if MC is up.
+        # If MC is down, the fleet is OFF. Do NOT restart the gateway.
+        # Restarting the gateway when MC is down causes the gateway's cron
+        # jobs to fire Claude heartbeats with no MC to talk to, burning
+        # tokens for nothing.
         try:
             import subprocess
             import httpx as _httpx
-            async with _httpx.AsyncClient(timeout=5) as _hc:
-                resp = await _hc.get("http://localhost:18789/")
-                # Gateway is alive
-        except Exception:
-            ts = datetime.now().strftime("%H:%M:%S")
-            print(f"[{ts}] [monitor] Gateway DOWN — restarting...")
-            fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
-            start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
-            if os.path.exists(start_script):
-                result = subprocess.run(
-                    ["bash", start_script],
-                    capture_output=True, text=True, timeout=120,
-                )
+
+            # First: is MC reachable? If not, fleet is OFF — do nothing.
+            mc_up = False
+            try:
+                async with _httpx.AsyncClient(timeout=3) as _mc_check:
+                    mc_resp = await _mc_check.get("http://localhost:8000/healthz")
+                    mc_up = mc_resp.status_code == 200
+            except Exception:
+                mc_up = False
+
+            if not mc_up:
                 ts = datetime.now().strftime("%H:%M:%S")
-                if result.returncode == 0:
-                    print(f"[{ts}] [monitor] Gateway restarted successfully")
-                else:
-                    print(f"[{ts}] [monitor] Gateway restart FAILED: {result.stderr[:200]}")
+                print(f"[{ts}] [monitor] MC is DOWN — fleet is OFF. NOT restarting gateway.")
+            else:
+                # MC is up — check if gateway needs restart
+                try:
+                    async with _httpx.AsyncClient(timeout=5) as _hc:
+                        resp = await _hc.get("http://localhost:18789/")
+                        # Gateway is alive
+                except Exception:
+                    ts = datetime.now().strftime("%H:%M:%S")
+                    print(f"[{ts}] [monitor] Gateway DOWN (MC is UP) — restarting...")
+                    fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
+                    start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                    if os.path.exists(start_script):
+                        result = subprocess.run(
+                            ["bash", start_script],
+                            capture_output=True, text=True, timeout=120,
+                        )
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        if result.returncode == 0:
+                            print(f"[{ts}] [monitor] Gateway restarted successfully")
+                        else:
+                            print(f"[{ts}] [monitor] Gateway restart FAILED: {result.stderr[:200]}")
+        except Exception:
+            pass
 
         await asyncio.sleep(interval)
 
@@ -210,13 +232,28 @@ async def _run_auth_daemon(interval: int = 120) -> None:
                 if updated:
                     ts = datetime.now().strftime("%H:%M:%S")
                     print(f"[{ts}] [auth] Token rotated — refreshed in ~/.openclaw/.env")
-                    # Restart gateway to pick up new token
-                    gh = GHClient()
-                    await gh._run(["pkill", "-f", "openclaw-gateway"])
-                    await asyncio.sleep(3)
-                    await gh._run(["openclaw", "gateway", "run", "--port", "18789"])
-                    await asyncio.sleep(5)
-                    print(f"[{ts}] [auth] Gateway restarted with new token")
+
+                    # Only restart gateway if MC is UP.
+                    # If MC is down, fleet is OFF — don't restart gateway
+                    # because the cron jobs would fire Claude calls for nothing.
+                    mc_up = False
+                    try:
+                        import httpx as _httpx
+                        async with _httpx.AsyncClient(timeout=3) as _mc_check:
+                            mc_resp = await _mc_check.get("http://localhost:8000/healthz")
+                            mc_up = mc_resp.status_code == 200
+                    except Exception:
+                        mc_up = False
+
+                    if mc_up:
+                        gh = GHClient()
+                        await gh._run(["pkill", "-f", "openclaw-gateway"])
+                        await asyncio.sleep(3)
+                        await gh._run(["openclaw", "gateway", "run", "--port", "18789"])
+                        await asyncio.sleep(5)
+                        print(f"[{ts}] [auth] Gateway restarted with new token (MC is UP)")
+                    else:
+                        print(f"[{ts}] [auth] Token refreshed but MC is DOWN — NOT restarting gateway")
         except Exception as e:
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [auth] Error: {e}")
@@ -310,6 +347,16 @@ def run_daemon(args: list[str] | None = None) -> int:
         f.write(str(os.getpid()))
 
     def cleanup(*_):
+        # Disable gateway cron jobs on shutdown — fleet is going OFF.
+        # This prevents the gateway from firing Claude heartbeats
+        # after the daemon stops.
+        try:
+            from fleet.infra.gateway_client import disable_gateway_cron_jobs
+            disabled = disable_gateway_cron_jobs()
+            if disabled:
+                print(f"[daemon] Shutdown: disabled {disabled} gateway cron jobs")
+        except Exception:
+            pass
         try:
             os.remove(pid_file)
         except Exception:

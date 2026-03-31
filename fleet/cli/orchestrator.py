@@ -1183,11 +1183,30 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             await asyncio.sleep(interval)
             continue
 
+        # Circuit breaker: disable cron jobs with too many consecutive errors.
+        # Runs every cycle to catch runaway jobs quickly.
+        try:
+            from fleet.infra.gateway_client import check_cron_circuit_breaker
+            tripped = check_cron_circuit_breaker(max_consecutive_errors=3)
+            if tripped:
+                ts = datetime.now().strftime("%H:%M:%S")
+                print(f"[{ts}] [orchestrator] Circuit breaker: disabled {tripped} failing cron job(s)")
+        except Exception:
+            pass
+
         try:
             mc = MCClient(token=token)
             irc = IRCClient(gateway_token=gateway_token)
             board_id = await mc.get_board_id()
             _outage.record_success("mc_api")
+
+            # MC is reachable — ensure gateway cron jobs are enabled.
+            # They may have been disabled by a previous MC-down event.
+            try:
+                from fleet.infra.gateway_client import enable_gateway_cron_jobs
+                enable_gateway_cron_jobs()
+            except Exception:
+                pass
 
             if board_id:
                 state = await run_orchestrator_cycle(
@@ -1213,6 +1232,18 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             _outage.record_failure("mc_api", str(e))
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] [orchestrator] Error: {e}")
+
+            # MC is unreachable — fleet is effectively OFF.
+            # Disable gateway cron jobs to prevent Claude calls with
+            # no MC to serve. This is the critical budget protection.
+            try:
+                from fleet.infra.gateway_client import disable_gateway_cron_jobs
+                disabled = disable_gateway_cron_jobs()
+                if disabled:
+                    print(f"[{ts}] [orchestrator] MC DOWN — disabled {disabled} gateway cron jobs")
+            except Exception:
+                pass
+
             # Alert on repeated failures
             alerts = _outage.get_alerts()
             if alerts:

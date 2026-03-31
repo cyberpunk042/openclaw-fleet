@@ -183,6 +183,100 @@ async def inject_content(session_key: str, content: str) -> bool:
     return ok
 
 
+def disable_gateway_cron_jobs() -> int:
+    """Disable ALL gateway cron jobs. Prevents Claude calls when fleet is OFF.
+
+    Called when: MC is down, fleet is paused, daemon shuts down.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    if not cron_path.exists():
+        return 0
+    try:
+        with open(cron_path) as f:
+            data = _json.load(f)
+        disabled = 0
+        for job in data.get("jobs", []):
+            if job.get("enabled"):
+                job["enabled"] = False
+                disabled += 1
+        if disabled > 0:
+            with open(cron_path, "w") as f:
+                _json.dump(data, f, indent=2)
+            logger.info("Disabled %d gateway cron jobs", disabled)
+        return disabled
+    except Exception as e:
+        logger.error("Failed to disable cron jobs: %s", e)
+        return 0
+
+
+def enable_gateway_cron_jobs() -> int:
+    """Re-enable ALL gateway cron jobs. Called when fleet starts and MC is UP."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    if not cron_path.exists():
+        return 0
+    try:
+        with open(cron_path) as f:
+            data = _json.load(f)
+        enabled = 0
+        for job in data.get("jobs", []):
+            if not job.get("enabled"):
+                job["enabled"] = True
+                enabled += 1
+        if enabled > 0:
+            with open(cron_path, "w") as f:
+                _json.dump(data, f, indent=2)
+            logger.info("Enabled %d gateway cron jobs", enabled)
+        return enabled
+    except Exception as e:
+        logger.error("Failed to enable cron jobs: %s", e)
+        return 0
+
+
+def check_cron_circuit_breaker(max_consecutive_errors: int = 3) -> int:
+    """Disable cron jobs that have too many consecutive errors.
+
+    Circuit breaker: if a cron job fails N times in a row, disable it.
+    Prevents burning tokens on auth failures, IRC errors, etc.
+
+    Returns number of jobs disabled by circuit breaker.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    if not cron_path.exists():
+        return 0
+    try:
+        with open(cron_path) as f:
+            data = _json.load(f)
+        tripped = 0
+        for job in data.get("jobs", []):
+            if not job.get("enabled"):
+                continue
+            errors = job.get("state", {}).get("consecutiveErrors", 0)
+            if errors >= max_consecutive_errors:
+                job["enabled"] = False
+                tripped += 1
+                logger.warning(
+                    "Circuit breaker: disabled cron job %s (%d consecutive errors: %s)",
+                    job.get("name", "?"), errors,
+                    job.get("state", {}).get("lastError", "?")[:80],
+                )
+        if tripped > 0:
+            with open(cron_path, "w") as f:
+                _json.dump(data, f, indent=2)
+        return tripped
+    except Exception as e:
+        logger.error("Circuit breaker check failed: %s", e)
+        return 0
+
+
 async def create_fresh_session(session_key: str, label: str = "") -> bool:
     """Create a fresh session for an agent — regrowth after pruning.
 
