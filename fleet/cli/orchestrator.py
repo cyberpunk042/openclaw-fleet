@@ -1173,6 +1173,7 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
 
     from fleet.core.outage_detector import OutageDetector
     _outage = OutageDetector()
+    _agents_provisioned = False  # one-time flag: provision agents on first MC success
 
     while True:
         # Check if we should run this cycle (outage/backoff)
@@ -1190,15 +1191,29 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             _outage.record_success("mc_api")
 
             # MC is reachable — re-enable cron jobs if they were disabled.
-            # Gateway restart is handled by the MONITOR daemon (every 5min)
-            # which properly checks if gateway is already running.
-            # The orchestrator must NOT start the gateway — it runs every
-            # 30s and would spawn duplicate processes.
             try:
                 from fleet.infra.gateway_client import enable_gateway_cron_jobs
                 enable_gateway_cron_jobs()
             except Exception:
                 pass
+
+            # One-time: ensure agents are provisioned after a restart.
+            # Template sync creates sessions and cron jobs for all agents.
+            # Only runs once per daemon lifetime (not every 30s cycle).
+            if not _agents_provisioned:
+                try:
+                    import subprocess as _sp
+                    fleet_dir = os.path.dirname(os.path.dirname(
+                        os.path.dirname(os.path.abspath(__file__))))
+                    prov_script = os.path.join(fleet_dir, "scripts", "provision-agents.sh")
+                    if os.path.exists(prov_script):
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"[{ts}] [orchestrator] Provisioning agents (one-time)...")
+                        _sp.Popen(["bash", prov_script],
+                                  stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+                    _agents_provisioned = True
+                except Exception:
+                    pass
 
             # Circuit breaker: disable cron jobs with too many consecutive
             # errors DURING NORMAL OPERATION (MC is up). Only runs after
