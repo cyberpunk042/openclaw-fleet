@@ -86,11 +86,31 @@ async def _run_dispatch(
     except Exception:
         pass
 
-    # Select model and effort based on task complexity
+    # Select model and effort based on task complexity, constrained by budget mode
     from fleet.core.model_selection import select_model_for_task
-    model_config = select_model_for_task(task, agent_name)
+    from fleet.core.budget_modes import get_active_mode_name
+    from fleet.core.labor_stamp import DispatchRecord
+
+    active_budget_mode = get_active_mode_name(fleet_dir)
+    model_config = select_model_for_task(task, agent_name, budget_mode=active_budget_mode)
     print(f"Model:    {model_config.model} (effort={model_config.effort})")
+    print(f"Budget:   {active_budget_mode}")
     print(f"          {model_config.reason}")
+
+    # Record dispatch intent — the provenance chain starts here
+    dispatch_record = DispatchRecord(
+        task_id=task_id,
+        agent_name=agent_name,
+        backend="claude-code",  # Current dispatch is always via Claude Code gateway
+        model=model_config.model,
+        effort=model_config.effort,
+        selection_reason=model_config.reason,
+        budget_mode=active_budget_mode,
+        skills=[],  # Populated when skill system is integrated
+    )
+
+    # Persist dispatch record for fleet_task_complete to read later
+    _save_dispatch_record(fleet_dir, task_id, dispatch_record)
 
     # Update .mcp.json with task context
     _update_mcp_json(fleet_dir, agent, task_id, project_name, work_dir)
@@ -165,6 +185,36 @@ def _refresh_auth(loader: ConfigLoader) -> None:
             oc_env_path.write_text("\n".join(lines) + "\n")
     except Exception:
         pass
+
+
+def _save_dispatch_record(
+    fleet_dir: str, task_id: str, record: "DispatchRecord",
+) -> None:
+    """Persist dispatch record so fleet_task_complete can read it later.
+
+    Saved as JSON in fleet_dir/state/dispatch_records/<task_short>.json.
+    The stamp assembly step reads this at completion time.
+    """
+    state_dir = os.path.join(fleet_dir, "state", "dispatch_records")
+    os.makedirs(state_dir, exist_ok=True)
+    record_path = os.path.join(state_dir, f"{task_id[:8]}.json")
+    try:
+        with open(record_path, "w") as f:
+            json.dump(record.to_dict(), f, indent=2)
+    except Exception as e:
+        print(f"WARNING: Could not save dispatch record: {e}")
+
+
+def _load_dispatch_record(fleet_dir: str, task_id: str) -> dict | None:
+    """Load a previously saved dispatch record."""
+    record_path = os.path.join(
+        fleet_dir, "state", "dispatch_records", f"{task_id[:8]}.json",
+    )
+    try:
+        with open(record_path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
 
 async def _setup_worktree(

@@ -44,6 +44,15 @@ const BACKEND_MODES = [
   { value: "hybrid", label: "Hybrid" },
 ];
 
+const BUDGET_MODES = [
+  { value: "blitz", label: "Blitz", desc: "No cost limits" },
+  { value: "standard", label: "Standard", desc: "Normal ops" },
+  { value: "economic", label: "Economic", desc: "Cost-aware" },
+  { value: "frugal", label: "Frugal", desc: "Local-first" },
+  { value: "survival", label: "Survival", desc: "Free only" },
+  { value: "blackout", label: "Blackout", desc: "No AI spend" },
+];
+
 interface FleetControlBarProps {
   boardId?: string;
 }
@@ -53,6 +62,8 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
   const [workMode, setWorkMode] = useState("full-autonomous");
   const [cyclePhase, setCyclePhase] = useState("execution");
   const [backendMode, setBackendMode] = useState("claude");
+  const [budgetMode, setBudgetMode] = useState("standard");
+  const [costUsedPct, setCostUsedPct] = useState(0);
   const [loading, setLoading] = useState(false);
 
   // Fetch current fleet_config from board
@@ -68,6 +79,8 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
           setWorkMode(config.work_mode || "full-autonomous");
           setCyclePhase(config.cycle_phase || "execution");
           setBackendMode(config.backend_mode || "claude");
+          setBudgetMode(config.budget_mode || "standard");
+          setCostUsedPct(config.cost_used_pct || 0);
         }
       } catch {
         // Silent fail — keep defaults
@@ -88,6 +101,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
           work_mode: workMode,
           cycle_phase: cyclePhase,
           backend_mode: backendMode,
+          budget_mode: budgetMode,
           updated_at: new Date().toISOString(),
           updated_by: "human",
         };
@@ -105,7 +119,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
         setLoading(false);
       }
     },
-    [boardId, workMode, cyclePhase, backendMode, loading],
+    [boardId, workMode, cyclePhase, backendMode, budgetMode, loading],
   );
 
   const handleWorkModeChange = (value: string) => {
@@ -122,6 +136,16 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     setBackendMode(value);
     updateConfig({ backend_mode: value });
   };
+
+  const handleBudgetModeChange = (value: string) => {
+    setBudgetMode(value);
+    updateConfig({ budget_mode: value });
+  };
+
+  const costBarColor =
+    costUsedPct >= 90 ? "bg-red-500" :
+    costUsedPct >= 70 ? "bg-amber-500" :
+    "bg-emerald-500";
 
   if (!boardId) return null;
 
@@ -174,6 +198,34 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
           ))}
         </SelectContent>
       </Select>
+
+      <Select value={budgetMode} onValueChange={handleBudgetModeChange}>
+        <SelectTrigger
+          className="h-8 w-[120px] rounded-md border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none"
+          disabled={loading}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {BUDGET_MODES.map((mode) => (
+            <SelectItem key={mode.value} value={mode.value}>
+              <span>{mode.label}</span>
+              <span className="ml-1 text-slate-400">{mode.desc}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Cost envelope progress bar */}
+      <div className="flex items-center gap-1.5" title={`Cost: ${costUsedPct}%`}>
+        <div className="h-2 w-16 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${costBarColor}`}
+            style={{ width: `${Math.min(costUsedPct, 100)}%` }}
+          />
+        </div>
+        <span className="text-[10px] font-mono text-slate-500">{costUsedPct}%</span>
+      </div>
     </div>
   );
 }

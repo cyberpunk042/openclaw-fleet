@@ -128,6 +128,24 @@ class TaskCustomFields:
     contribution_target: Optional[str] = None  # Target task ID this contribution is for
     # Cowork fields — multiple agents on one task
     coworkers: Optional[list] = None  # List of agent names actively co-working this task
+    # Labor attribution fields — set on task completion by fleet_task_complete
+    labor_backend: Optional[str] = None       # Backend that produced the work (claude-code, localai, openrouter, direct)
+    labor_model: Optional[str] = None         # Model that produced the work (opus-4-6, hermes-3b, etc.)
+    labor_effort: Optional[str] = None        # Effort level used (low, medium, high, max)
+    labor_confidence: Optional[str] = None    # Confidence tier (expert, standard, trainee, community, hybrid)
+    labor_skills: Optional[list] = None       # Skills used during the work
+    labor_cost_usd: Optional[float] = None    # Estimated cost in USD
+    labor_duration_s: Optional[int] = None    # Duration in seconds
+    labor_iteration: int = 1                  # Attempt number (increments on rejection + rework)
+    # Budget mode fields — set by dispatch, constrain model selection
+    budget_mode: Optional[str] = None         # blitz, standard, economic, frugal, survival, blackout
+    # Challenge loop fields (M-IV01) — iterative validation
+    challenge_round: int = 0                  # Current challenge round (0 = not started)
+    challenge_max_rounds: int = 3             # Max rounds before human escalation
+    challenge_status: Optional[str] = None    # pending, in_progress, passed, failed, waived, deferred
+    challenge_findings: Optional[list] = None # Findings from each round [{round, type, finding, status}]
+    challenge_challenger: Optional[str] = None  # Who/what is challenging (agent name or model ID)
+    challenge_type: Optional[str] = None      # automated, agent, cross-model, scenario
 
 
 @dataclass

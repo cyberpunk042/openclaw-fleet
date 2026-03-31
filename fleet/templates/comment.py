@@ -2,19 +2,27 @@
 
 Produces structured markdown for MC task comments:
 accept, progress, complete, blocker.
+
+Labor attribution: completion comments include a provenance table
+showing what backend, model, effort level, and confidence tier
+produced the work. This is infrastructure-populated — agents
+don't decide their own labels.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from fleet.core.urls import ResolvedUrls
+
+if TYPE_CHECKING:
+    from fleet.core.labor_stamp import LaborStamp
 
 
 def format_accept(plan: str, agent_name: str) -> str:
     """Format task acceptance comment."""
     return (
-        f"## ▶️ Accepted\n\n"
+        f"## \u25b6\ufe0f Accepted\n\n"
         f"**Plan:** {plan}\n\n"
         f"---\n<sub>{agent_name}</sub>"
     )
@@ -25,7 +33,7 @@ def format_progress(
 ) -> str:
     """Format progress update comment."""
     return (
-        f"## 🔄 Progress Update\n\n"
+        f"## \U0001f504 Progress Update\n\n"
         f"**Done:** {done}\n"
         f"**Next:** {next_step}\n"
         f"**Blockers:** {blockers}\n\n"
@@ -42,9 +50,10 @@ def format_complete(
     commit_count: int = 0,
     files: list[str] = None,
     agent_name: str = "",
+    labor_stamp: Optional["LaborStamp"] = None,
 ) -> str:
-    """Format task completion comment with references."""
-    lines = ["## ✅ Completed\n"]
+    """Format task completion comment with references and labor attribution."""
+    lines = ["\u2705 Completed\n"]
 
     if pr_url:
         lines.append(f"**PR:** [{pr_url}]({pr_url})")
@@ -59,7 +68,13 @@ def format_complete(
         lines.append(f"**Files:** {file_list}{more}")
 
     lines.append(f"\n### Summary\n{summary}")
-    lines.append(f"\n---\n<sub>{agent_name}</sub>")
+
+    # Labor attribution — provenance of the work
+    if labor_stamp:
+        lines.append(_format_labor_table(labor_stamp))
+
+    stamp_label = labor_stamp.short_label if labor_stamp else "unknown"
+    lines.append(f"\n---\n<sub>{agent_name} \u00b7 {stamp_label}</sub>")
 
     return "\n".join(lines)
 
@@ -67,7 +82,7 @@ def format_complete(
 def format_complete_no_changes(summary: str, agent_name: str = "") -> str:
     """Format completion when no code changes were needed."""
     return (
-        f"## ✅ Completed (no code changes)\n\n"
+        f"## \u2705 Completed (no code changes)\n\n"
         f"### Summary\n{summary}\n\n"
         f"---\n<sub>{agent_name}</sub>"
     )
@@ -78,8 +93,57 @@ def format_blocker(
 ) -> str:
     """Format blocker comment."""
     return (
-        f"## 🚫 Blocked\n\n"
+        f"## \U0001f6ab Blocked\n\n"
         f"**Reason:** {reason}\n"
         f"**Needed:** {needed}\n\n"
         f"---\n<sub>{agent_name}</sub>"
     )
+
+
+# ─── Labor Attribution Table ──────────────────────────────────────────
+
+
+def _format_labor_table(stamp: "LaborStamp") -> str:
+    """Format a labor attribution table for completion comments.
+
+    Shows what produced this work: backend, model, effort, confidence
+    tier, cost, and duration. Infrastructure-populated, not self-reported.
+    """
+    tier_emoji = {
+        "expert": "\U0001f7e2",
+        "standard": "\U0001f535",
+        "trainee": "\U0001f7e1",
+        "community": "\U0001f7e0",
+        "hybrid": "\U0001f534",
+    }
+    emoji = tier_emoji.get(stamp.confidence_tier, "\u26aa")
+
+    duration_str = ""
+    if stamp.duration_seconds:
+        mins = stamp.duration_seconds // 60
+        secs = stamp.duration_seconds % 60
+        duration_str = f"{mins}m {secs}s" if mins else f"{secs}s"
+
+    cost_str = f"${stamp.estimated_cost_usd:.4f}" if stamp.estimated_cost_usd else "\u2014"
+
+    lines = [
+        "\n### Labor Attribution\n",
+        "| | |",
+        "|---|---|",
+        f"| **Backend** | `{stamp.backend}` |",
+        f"| **Model** | `{stamp.model}` |",
+        f"| **Effort** | {stamp.effort} |",
+        f"| **Confidence** | {emoji} {stamp.confidence_tier} |",
+        f"| **Budget Mode** | {stamp.budget_mode} |",
+    ]
+    if duration_str:
+        lines.append(f"| **Duration** | {duration_str} |")
+    if stamp.estimated_cost_usd:
+        lines.append(f"| **Est. Cost** | {cost_str} |")
+    if stamp.skills_used:
+        skills = ", ".join(f"`{s}`" for s in stamp.skills_used)
+        lines.append(f"| **Skills** | {skills} |")
+    if stamp.iteration > 1:
+        lines.append(f"| **Iteration** | {stamp.iteration} |")
+
+    return "\n".join(lines)

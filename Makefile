@@ -6,7 +6,8 @@ FLEET = .venv/bin/python -m fleet
        monitor-start monitor-stop digest quality board-setup \
        agents agents-register skills-list skills-install skills-sync \
        mc-up mc-down mc-logs irc-up irc-down irc-connect lounge-up lounge-down \
-       gateway gateway-stop gateway-restart refresh-auth logs changelog integrate
+       gateway gateway-stop gateway-restart refresh-auth logs changelog integrate \
+       codex-setup
 
 # ─── Setup & Provision ──────────────────────────────────────────────────────
 
@@ -172,6 +173,9 @@ logs:
 
 fleet-setup:
 	python3 -m gateway.setup
+
+codex-setup:
+	bash scripts/install-codex-plugin.sh
 
 # ─── Testing & Cleanup ──────────────────────────────────────────────────────
 

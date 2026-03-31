@@ -39,7 +39,10 @@ from fleet.core.doctor import DoctorReport, AgentHealth, ResponseAction, run_doc
 from fleet.core.directives import parse_directives, format_directive_for_agent
 from fleet.core.fleet_mode import FleetControlState, read_fleet_control, should_dispatch as fleet_should_dispatch, get_active_agents_for_phase
 from fleet.core.teaching import adapt_lesson, format_lesson_for_injection, DiseaseCategory
+from fleet.core.storm_monitor import StormMonitor, StormSeverity, severity_index
+from fleet.core.gateway_guard import check_gateway_duplication
 _budget_monitor = BudgetMonitor()
+_storm_monitor = StormMonitor()
 
 
 # ─── Cycle State ─────────────────────────────────────────────────────────
@@ -102,6 +105,51 @@ async def run_orchestrator_cycle(
             config.get("max_dispatch_per_cycle", 2),
             profile.max_dispatch_per_cycle,
         )
+
+    # ─── Storm Monitor: Evaluate and apply graduated response ───
+    # Budget mode and fleet dir for storm diagnostics
+    active_budget_mode = config.get("budget_mode", "standard")
+    fleet_dir = config.get("fleet_dir", ".")
+
+    storm_severity = _storm_monitor.evaluate()
+
+    # Gateway duplication check (the #1 root cause of the March catastrophe)
+    try:
+        gw_check = check_gateway_duplication()
+        if not gw_check.ok:
+            _storm_monitor.report_indicator("gateway_duplication", gw_check.message)
+            state.errors.append(f"STORM: {gw_check.message}")
+            await _notify(irc, "#alerts", f"[storm] {gw_check.message}")
+    except Exception:
+        pass  # Gateway check must not break orchestrator
+
+    # Storm-based dispatch limiting
+    if storm_severity == StormSeverity.CRITICAL:
+        state.notes.append("STORM CRITICAL: fleet frozen — no dispatch")
+        await _notify(irc, "#alerts",
+            f"[storm] CRITICAL: {_storm_monitor.format_status()}")
+        return state  # Full stop
+    elif storm_severity == StormSeverity.STORM:
+        config["max_dispatch_per_cycle"] = 0
+        state.notes.append("STORM: dispatch paused, monitoring only")
+        await _notify(irc, "#alerts",
+            f"[storm] STORM: {_storm_monitor.format_status()}")
+    elif storm_severity == StormSeverity.WARNING:
+        config["max_dispatch_per_cycle"] = min(
+            config.get("max_dispatch_per_cycle", 2), 1,
+        )
+        state.notes.append(f"STORM WARNING: dispatch limited to 1")
+    elif storm_severity == StormSeverity.WATCH:
+        state.notes.append(f"STORM WATCH: {_storm_monitor.format_status()}")
+
+    # ─── Diagnostic snapshot on WARNING+ (M-SP03) ──────────────
+    if severity_index(storm_severity) >= severity_index(StormSeverity.WARNING):
+        try:
+            diag = _storm_monitor.capture_diagnostic(budget_mode=active_budget_mode)
+            _persist_diagnostic(diag, fleet_dir)
+            state.notes.append(f"diagnostic snapshot captured: {diag.severity}")
+        except Exception:
+            pass  # Diagnostic capture must not break orchestrator
 
     tasks = await mc.list_tasks(board_id)
     agents = await mc.list_agents()
@@ -895,6 +943,17 @@ async def _dispatch_ready_tasks(
                 event_type="escalation",
             )
 
+    # Feed budget readings into storm monitor for cross-indicator detection
+    try:
+        reading = _budget_monitor._last_reading
+        if reading:
+            if hasattr(reading, 'weekly_all_pct') and reading.weekly_all_pct and reading.weekly_all_pct >= 80:
+                _storm_monitor.report_indicator(
+                    "fast_climb", f"weekly={reading.weekly_all_pct:.0f}%",
+                )
+    except Exception:
+        pass
+
     # Methodology gate: separate work-ready tasks from earlier-stage tasks
     all_inbox = [
         t for t in tasks
@@ -1130,6 +1189,30 @@ async def _notify_human(
 
 
 # ─── Daemon Loop ─────────────────────────────────────────────────────────
+
+
+def _persist_diagnostic(diag, fleet_dir: str) -> None:
+    """Write a storm diagnostic snapshot to disk for post-incident analysis."""
+    import json
+    import os
+
+    diag_dir = os.path.join(fleet_dir, "state", "diagnostics")
+    os.makedirs(diag_dir, exist_ok=True)
+
+    filename = f"diag-{diag.timestamp.replace(':', '-').replace(' ', '_')}.json"
+    filepath = os.path.join(diag_dir, filename)
+
+    with open(filepath, "w") as f:
+        json.dump(diag.to_dict(), f, indent=2, default=str)
+
+    # Keep only last 50 diagnostics to avoid disk bloat
+    existing = sorted(os.listdir(diag_dir))
+    if len(existing) > 50:
+        for old in existing[:-50]:
+            try:
+                os.remove(os.path.join(diag_dir, old))
+            except OSError:
+                pass
 
 
 def _load_orchestrator_config(loader: ConfigLoader) -> dict:

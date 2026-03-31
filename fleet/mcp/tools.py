@@ -661,7 +661,47 @@ def register_tools(server: FastMCP) -> None:
 
         agent_name = ctx.agent_name or "agent"
 
-        # Build PR body using template
+        # ─── Labor Attribution: Assemble stamp from dispatch record ───
+        labor_stamp = None
+        try:
+            from fleet.core.labor_stamp import DispatchRecord as _DispatchRecord, assemble_stamp as _assemble_stamp
+            import os as _la_os
+            import json as _la_json
+
+            _la_fleet_dir = _la_os.environ.get("FLEET_DIR", ".")
+            _la_record_path = _la_os.path.join(
+                _la_fleet_dir, "state", "dispatch_records", f"{ctx.task_id[:8]}.json",
+            )
+            _la_dispatch_data = None
+            if _la_os.path.exists(_la_record_path):
+                with open(_la_record_path) as _la_f:
+                    _la_dispatch_data = _la_json.load(_la_f)
+
+            if _la_dispatch_data:
+                _la_dispatch = _DispatchRecord(**{
+                    k: v for k, v in _la_dispatch_data.items()
+                    if k in _DispatchRecord.__dataclass_fields__
+                })
+                try:
+                    from datetime import datetime as _la_dt
+                    _la_dispatched = _la_dt.fromisoformat(_la_dispatch.dispatched_at)
+                    _la_duration = int((_la_dt.now() - _la_dispatched).total_seconds())
+                except Exception:
+                    _la_duration = 0
+
+                labor_stamp = _assemble_stamp(
+                    dispatch=_la_dispatch,
+                    duration_seconds=_la_duration,
+                    estimated_tokens=0,  # Session metrics not yet available (M-LA03)
+                    tools_called=["fleet_read_context", "fleet_commit", "fleet_task_complete"],
+                    session_type="fresh",
+                    iteration=1,
+                    agent_role="worker",
+                )
+        except Exception:
+            pass  # Labor stamp assembly must never break task completion
+
+        # Build PR body using template — with labor attribution
         pr_body = pr_tmpl.format_pr_body(
             summary=summary,
             commits=parsed_commits,
@@ -670,6 +710,7 @@ def register_tools(server: FastMCP) -> None:
             task_id=ctx.task_id,
             task_title=task_title,
             agent_name=agent_name,
+            labor_stamp=labor_stamp,
         )
 
         # Create PR
@@ -696,6 +737,18 @@ def register_tools(server: FastMCP) -> None:
         if review_gates:
             custom_update["review_gates"] = review_gates
 
+        # Write labor stamp fields onto task custom fields
+        if labor_stamp:
+            custom_update["labor_backend"] = labor_stamp.backend
+            custom_update["labor_model"] = labor_stamp.model
+            custom_update["labor_effort"] = labor_stamp.effort
+            custom_update["labor_confidence"] = labor_stamp.confidence_tier
+            custom_update["labor_skills"] = labor_stamp.skills_used
+            custom_update["labor_cost_usd"] = labor_stamp.estimated_cost_usd
+            custom_update["labor_duration_s"] = labor_stamp.duration_seconds
+            custom_update["labor_iteration"] = labor_stamp.iteration
+            custom_update["budget_mode"] = labor_stamp.budget_mode
+
         try:
             await ctx.mc.update_task(
                 board_id, ctx.task_id,
@@ -704,7 +757,7 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
-        # Completion comment using template
+        # Completion comment using template — with labor attribution
         comment = comment_tmpl.format_complete(
             summary=summary,
             pr_url=pr.url,
@@ -713,6 +766,7 @@ def register_tools(server: FastMCP) -> None:
             commit_count=len(commits),
             files=[f["path"] for f in diff_stat],
             agent_name=agent_name,
+            labor_stamp=labor_stamp,
         )
         try:
             await ctx.mc.update_task(

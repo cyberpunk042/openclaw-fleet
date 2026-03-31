@@ -265,6 +265,13 @@ echo "=== Pushing Agent Framework ==="
 bash scripts/push-agent-framework.sh
 echo ""
 
+# Step 13b: Install Codex plugin config (adversarial reviews)
+echo "=== Codex Plugin Setup ==="
+bash scripts/install-codex-plugin.sh || {
+    echo "  WARN: Codex plugin setup failed (non-critical, can retry with: make codex-setup)"
+}
+echo ""
+
 # Step 14: Configure board custom fields and tags
 echo "=== Configuring Board ==="
 bash scripts/configure-board.sh

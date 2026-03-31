@@ -3,12 +3,17 @@
 Selects the right model (opus/sonnet) and effort level (low/medium/high/max)
 based on task complexity, type, story points, and agent role.
 
+Budget mode constrains the result: if the fleet is in economic mode,
+opus is blocked regardless of story points. If in survival mode,
+no Claude models are allowed at all.
+
 Principles:
 - Complex work deserves deep reasoning (opus, high effort)
 - Routine work is efficient with standard reasoning (sonnet, medium)
 - The model should adapt to the TASK, not be fixed per agent
 - PM can override via the model custom field
 - Story points are the primary complexity signal
+- Budget mode is the FINAL gate — overrides everything
 
 Used by dispatch to set ANTHROPIC_MODEL and CLAUDE_CODE_EFFORT_LEVEL
 environment variables for agent sessions.
@@ -43,8 +48,9 @@ class ModelConfig:
 def select_model_for_task(
     task: Task,
     agent_name: str = "",
+    budget_mode: str = "",
 ) -> ModelConfig:
-    """Select model and effort based on task + agent.
+    """Select model and effort based on task + agent, constrained by budget mode.
 
     Priority:
     1. Explicit model override in task custom field
@@ -53,9 +59,28 @@ def select_model_for_task(
     4. Agent role (deep reasoning agents get opus on medium+ tasks)
     5. Default: sonnet with medium effort
 
+    Final gate: budget mode constrains the result. If economic mode
+    selected opus, it gets downgraded to sonnet. If survival mode,
+    no Claude models are allowed (caller must route to LocalAI/free).
+
     Returns:
         ModelConfig with model, effort, and reason for the selection.
     """
+    config = _select_unconstrained(task, agent_name)
+
+    # Budget mode is the FINAL gate — overrides everything including explicit overrides
+    if budget_mode:
+        from fleet.core.budget_modes import constrain_model_by_budget
+        model, effort, reason = constrain_model_by_budget(
+            config.model, config.effort, config.reason, budget_mode,
+        )
+        config = ModelConfig(model=model, effort=effort, reason=reason)
+
+    return config
+
+
+def _select_unconstrained(task: Task, agent_name: str) -> ModelConfig:
+    """Select model without budget constraints (internal)."""
     # 1. Explicit override
     if task.custom_fields.model:
         model = task.custom_fields.model

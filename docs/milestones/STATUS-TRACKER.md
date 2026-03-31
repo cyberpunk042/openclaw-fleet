@@ -1,6 +1,6 @@
 # Fleet Status Tracker — Where We Actually Are
 
-## Last Updated: 2026-03-29
+## Last Updated: 2026-03-31
 
 ---
 
@@ -180,6 +180,24 @@
 19. **AICP Stage 1 complete** — cluster verification, full benchmarks
 20. **Fleet 24h observation** — stable daemons, no OOM, agents responsive
 21. **Resume autonomous flow** — PM drives sprints from Plane, agents execute
+
+---
+
+## NEW STRATEGIC MILESTONES (2026-03-31)
+
+| Set | Document | Milestones | Status |
+|-----|----------|-----------|--------|
+| Storm Prevention | `storm-prevention-system.md` | M-SP01-09 (9) | DESIGN |
+| Budget Modes | `budget-mode-system.md` | M-BM01-06 (6) | DESIGN |
+| Multi-Backend Router | `multi-backend-routing-engine.md` | M-BR01-08 (8) | DESIGN |
+| Labor Attribution | `labor-attribution-and-provenance.md` | M-LA01-08 (8) | DESIGN |
+| Iterative Validation | `iterative-validation-and-challenge-loops.md` | M-IV01-08 (8) | DESIGN |
+| Model Upgrade Path | `model-upgrade-path.md` | M-MU01-08 (8) | DESIGN |
+| **Total new** | | **47** | **All DESIGN** |
+
+Driven by PO requirements for multi-model routing, budget control per order,
+labor attribution with trainee tagging, adversarial challenge loops, and lessons
+from the March 2026 catastrophic process storms. See MASTER-INDEX.md for details.
 
 ---
 

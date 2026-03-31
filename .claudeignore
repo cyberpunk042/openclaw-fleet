@@ -1,0 +1,21 @@
+# Node
+node_modules/
+
+# Python artifacts
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Build/temp
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Workspaces (large, transient)
+workspace-mc-*/
+
+# IDE
+.idea/
+.vscode/

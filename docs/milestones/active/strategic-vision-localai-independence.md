@@ -339,12 +339,20 @@ DSPD/Plane operational:
   ├── Bidirectional sync working
   └── PM uses Plane for sprint management
        ↓
+NEW STRATEGIC MILESTONES (2026-03-31):
+  ├── Storm Prevention (M-SP01-09) ← guard against cost storms
+  ├── Budget Mode System (M-BM01-06) ← spending strategy per order
+  ├── Multi-Backend Router (M-BR01-08) ← route to cheapest capable backend
+  ├── Labor Attribution (M-LA01-08) ← track what produced what
+  ├── Iterative Validation (M-IV01-08) ← adversarial challenge loops
+  └── Model Upgrade Path (M-MU01-08) ← better local models
+       ↓
 FIRST Plane epic — LocalAI Independence:
   ├── Stage 1: Make LocalAI functional
-  ├── Stage 2: Route simple operations
-  ├── Stage 3: Progressive offload
-  ├── Stage 4: Reliability and failover
-  └── Stage 5: Near-independent operation
+  ├── Stage 2: Route simple operations (M-BR feeds directly into this)
+  ├── Stage 3: Progressive offload (M-MU + M-BM drive this)
+  ├── Stage 4: Reliability and failover (M-SP protects this)
+  └── Stage 5: Near-independent operation (all milestones converge here)
        ↓
 Target state:
   ├── 2 LocalAI clusters peered
@@ -352,5 +360,75 @@ Target state:
   ├── 2-3 fleets collaborating
   ├── 80%+ work on LocalAI
   ├── Claude only for complex reasoning
+  ├── Every artifact traceable (labor stamps)
+  ├── Budget modes control spending strategy
   └── Economic, independent, strong fleet
 ```
+
+---
+
+## Part 9: New Strategic Milestones (2026-03-31)
+
+Six new milestone sets were created to bridge the gap between the current
+catastrophic-drain-fix work and the long-term LocalAI independence vision.
+These milestones were driven by the PO's expanded requirements for multi-model
+routing, free model integration, budget control, observability, and the
+lessons from the March 2026 process storms.
+
+### New Milestone Documents
+
+| Document | Milestones | Key Concept |
+|----------|-----------|-------------|
+| `labor-attribution-and-provenance.md` | M-LA01–08 | Every artifact stamped with model, effort, confidence tier |
+| `budget-mode-system.md` | M-BM01–06 | 6 graduated modes from blitz to blackout, per-order envelopes |
+| `multi-backend-routing-engine.md` | M-BR01–08 | Plugin backend registry, OpenRouter free, Codex adversarial |
+| `iterative-validation-and-challenge-loops.md` | M-IV01–08 | Multi-round adversarial challenges, 4 challenge types |
+| `model-upgrade-path.md` | M-MU01–08 | Qwen3-8B upgrade, 19GB dual-GPU plan, TurboQuant |
+| `storm-prevention-system.md` | M-SP01–09 | Automatic graduated response, circuit breakers |
+
+### How They Map to Stages
+
+| Stage | Supporting New Milestones |
+|-------|--------------------------|
+| Stage 1 (current) | M-MU01-02 (evaluate new models) |
+| Stage 2 | M-BR01-04 (backend router), M-BM01-02 (budget modes), M-LA01-05 (labor stamps) |
+| Stage 3 | M-MU03-04 (shadow route + promote), M-IV01-06 (validate offloaded work) |
+| Stage 4 | M-SP01-08 (storm prevention), M-BR03+05 (fallback + swap mgmt) |
+| Stage 5 | M-MU05-08 (dual GPU, cluster peer), M-BM03-06 (auto-transitions) |
+
+### PO Requirements Driving These Milestones (Verbatim)
+
+> "the agents are going to explain the source of their labor, the model,
+> the effort, the skills used, etc.. (include the training notion based on
+> the source and parameters) we need to evolve and make things observable
+> and clean and scalable."
+
+> "I am wondering if there is a new budgetMode (e.g. aggressive... whatever
+> A, B... economic..) to inject into ocmc order to fine-tune the spending as
+> speed / frequency of tasks / s and whatnot."
+
+> "Just like we want to use methodologies and skills — Not an always in,
+> more like a use case strategy logic decision."
+
+> "the LocalAI work will also need to be flagged as trainee's work like any
+> other variant in what was used to generates the artifacts. making sure that
+> when the agents leave their marks we know what produced it."
+
+> "in situation like we just experience we really have to be ready to do
+> multiple agent iteration where the validation and testing had to be
+> challenged and challenged in order to really fix the bugs and meet the
+> requirements."
+
+### Research Context (2026-03-31)
+
+| Topic | Finding | Impact |
+|-------|---------|--------|
+| OpenAI Codex CLI | Open-source but NOT free (needs API credits), NOT a Claude plugin | Use as adversarial review tool, not primary backend |
+| MiMo-V2-Pro | API-only, closed-source, $1-3/M tokens | Not usable locally; concept is right (use best model per task) |
+| OpenRouter | 29 free models, auto-routing, OpenAI-compatible API | Free fallback backend for frugal/survival modes |
+| Google TurboQuant | 6x KV cache compression, zero accuracy loss (March 2026) | Longer contexts on same VRAM, monitor for GGUF support |
+| Microsoft BitNet | 1-bit quantization, 0.4GB for 2B model | Watch ecosystem; can't convert existing models yet |
+| Qwen3-8B | 8B params, fits 8GB VRAM, massive upgrade over hermes-3b | Primary LocalAI upgrade candidate |
+| Qwen3-30B-A3B | MoE, 30B/3B active, fits 19GB VRAM | Game-changer for dual-GPU setup |
+| Phi-4 | 14B, beats GPT-4o-mini on math/code | Specialist for 19GB GPU 2 slot |
+| LiteLLM | Open-source proxy/gateway with budget + fallback | Potential unified gateway (Stage 3-4) |
