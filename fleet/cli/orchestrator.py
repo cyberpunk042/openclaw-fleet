@@ -1173,8 +1173,8 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
 
     from fleet.core.outage_detector import OutageDetector
     _outage = OutageDetector()
-    _agents_provisioned = False  # one-time flag: provision agents on first MC success
-    _gateway_started = False     # one-time flag: start gateway on first MC success
+    _agents_provisioned = False  # one-time flag
+    _gateway_down_cycles = 0     # count consecutive cycles with gateway down
 
     while True:
         # Check if we should run this cycle (outage/backoff)
@@ -1198,14 +1198,16 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             except Exception:
                 pass
 
-            # Ensure gateway is running. Only try ONCE per MC recovery
-            # to avoid process storm (the old bug that spawned dozens).
-            if not _gateway_started:
-                try:
-                    import subprocess as _sp
-                    _gw = _sp.run(["pgrep", "-f", "openclaw-gateway"],
-                                  capture_output=True, timeout=5)
-                    if _gw.returncode != 0:
+            # Ensure gateway is running. Check every cycle. Only restart
+            # after 2 consecutive cycles of gateway down (debounce to
+            # prevent process storm). Uses pgrep -x for exact match.
+            try:
+                import subprocess as _sp
+                _gw = _sp.run(["pgrep", "-x", "openclaw-gateway"],
+                              capture_output=True, timeout=5)
+                if _gw.returncode != 0:
+                    _gateway_down_cycles += 1
+                    if _gateway_down_cycles >= 2:
                         fleet_dir = os.path.dirname(os.path.dirname(
                             os.path.dirname(os.path.abspath(__file__))))
                         start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
@@ -1216,10 +1218,12 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
                             if result.returncode == 0:
                                 print(f"[{ts}] [orchestrator] Gateway started")
                             else:
-                                print(f"[{ts}] [orchestrator] Gateway start FAILED: {result.stderr[:200]}")
-                    _gateway_started = True
-                except Exception:
-                    _gateway_started = True  # don't retry
+                                print(f"[{ts}] [orchestrator] Gateway FAILED: {result.stderr[:200]}")
+                        _gateway_down_cycles = 0
+                else:
+                    _gateway_down_cycles = 0
+            except Exception:
+                pass
 
             _agents_provisioned = True
 
@@ -1275,6 +1279,6 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
             except Exception:
                 pass
 
-            # Reset flags so gateway restarts on next MC recovery
-            _gateway_started = False
+            # Reset so gateway restarts on next MC recovery
+            _gateway_down_cycles = 0
             _agents_provisioned = False
