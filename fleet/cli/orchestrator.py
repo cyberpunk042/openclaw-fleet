@@ -1210,10 +1210,13 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
                             os.path.dirname(os.path.abspath(__file__))))
                         start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
                         if os.path.exists(start_script):
-                            _sp.run(["bash", start_script],
-                                    capture_output=True, timeout=120)
+                            result = _sp.run(["bash", start_script],
+                                             capture_output=True, text=True, timeout=120)
                             ts = datetime.now().strftime("%H:%M:%S")
-                            print(f"[{ts}] [orchestrator] Gateway started")
+                            if result.returncode == 0:
+                                print(f"[{ts}] [orchestrator] Gateway started")
+                            else:
+                                print(f"[{ts}] [orchestrator] Gateway start FAILED: {result.stderr[:200]}")
                     _gateway_started = True
                 except Exception:
                     _gateway_started = True  # don't retry
