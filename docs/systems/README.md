@@ -30,4 +30,5 @@ systems, what's implemented, and what's needed.
 | 18 | [Notifications](18-notifications.md) | Routing, cross-refs, IRC | 3 modules | 🔨 Code exists |
 | 19 | [Session & Context](19-session.md) | Telemetry, assembly, preembed | 5 modules | 🔨 Code exists |
 | 20 | [Infrastructure](20-infrastructure.md) | Gateway, MC, Plane clients + ecosystem gap | 8 modules | 🔨 Code exists |
-| 21 | [Agent Tooling](21-agent-tooling.md) | Per-role MCP/plugins/skills via IaC | 0 deployed | 📐 Spec only |
+| 21 | [Agent Tooling](21-agent-tooling.md) | Per-role MCP/plugins/skills + Claude Code anatomy | 0 deployed | 📐 Spec only |
+| 22 | [Agent Intelligence](22-agent-intelligence.md) | Autonomy, escalation, research, context awareness | 0 deployed | 📐 Spec only |

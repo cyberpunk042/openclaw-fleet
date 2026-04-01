@@ -360,6 +360,50 @@ could reduce fleet costs by **40-60%** without any code changes.
 
 ---
 
+## 7b. Model Evolution (Updated April 2026)
+
+Research findings change the model strategy:
+
+### Immediate: Add Qwen3.5 Models
+
+| Model | VRAM | Why |
+|-------|------|-----|
+| **Qwen3.5-4B** | ~2.5GB Q4_K_M | Replace hermes-3b as default. 15+ pts better reasoning. Tiny footprint. |
+| **Qwen3.5-9B** | ~5GB Q4_K_M | Primary workhorse. Best 9B available. MMLU-Pro 79.1%. Fits 8GB. |
+| Keep hermes (7B) | 4.4GB | Function calling specialist (Hermes 2 Pro trained for tool use) |
+
+**Action:** Download GGUF, create model YAML configs, run `make optimize-models`, benchmark.
+
+### Q3 2026: TurboQuant Integration
+
+When llama.cpp merges TurboQuant (Q3 2026 roadmap):
+
+```
+Current:  Qwen3.5-9B + Q4_0 KV → 16-24K context on 8GB
+With TQ4: Qwen3.5-9B + TQ4 KV  → 48-64K context on 8GB (3.8x)
+With TQ3: Qwen3.5-9B + TQ3 KV  → 64-96K context on 8GB (4.9x)
+```
+
+**Action:** Monitor llama.cpp TurboQuant PR. When merged, update model YAMLs (LocalAI passes through to llama.cpp backend). Test quality on fleet prompts.
+
+### NOT Viable for Local
+
+| Model | Why Not |
+|-------|---------|
+| Qwen3.5-Omni | **PROPRIETARY** — API only, not downloadable |
+| Qwen3-Omni-30B-A3B | 18.6GB Q4_K_M — doesn't fit 8GB |
+| Qwen3-Coder-480B-A35B | Way too large |
+
+### Claude Code Extension Points to Leverage
+
+6 core + 5 config layers documented in docs/systems/21-agent-tooling.md §8.
+Key new additions:
+- **Agent Teams** (Feb 2026): multi-agent collaboration
+- **/loop** command: scheduled tasks within Claude Code
+- **Plugin directory**: Anthropic official + community
+
+---
+
 ## 8. OCMC Skill Visibility
 
 The PO noted that OCMC already has features for skill management:
