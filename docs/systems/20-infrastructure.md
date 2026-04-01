@@ -223,12 +223,93 @@ Every system uses infrastructure clients:
 
 ---
 
-## 7. What's Needed
+---
 
+## 7. Ecosystem Gap — Researched vs Deployed
+
+We researched a massive ecosystem. We deployed almost none of it.
+
+### 7.1 What We Researched (March 2026)
+
+| Resource | Scale | What It Offers |
+|----------|-------|----------------|
+| **OpenClaw Skills Registry** | 5,400+ skills | Ready-made agent capabilities via ClawHub |
+| **Claude Code Plugins** | 9,000+ plugins | Packaged skills, agents, hooks, MCP servers, LSP |
+| **MCP Server Registry** | 1,000+ servers | GitHub, Slack, Postgres, Playwright, filesystem, Docker |
+| **Agent Teams (Swarm Mode)** | Built into SDK | Lead + teammates, mailbox messaging, shared task lists |
+| **Claude-Mem Plugin** | Cross-session | Semantic memory retrieval across sessions |
+| **Context7** | Documentation | Up-to-date library docs injected into context |
+| **Prompt Caching** | 90% savings | Cached input tokens at 10% cost |
+| **Batch API** | 50% savings | Async processing at half cost |
+| **LocalAI v4.0** | Built-in agents | Per-agent knowledge bases, MCP support, chromem/postgres |
+| **LocalAI RAG Stack** | CPU-only | Embeddings (nomic) + stores + reranker (bge) — zero GPU cost |
+| **AICP RAG Pipeline** | SQLite-backed | rag.py + kb.py + stores.py — persist through docker purge |
+
+### 7.2 What We Actually Deployed
+
+| Item | Status |
+|------|--------|
+| codex-plugin-cc | ✅ IaC: `make codex-setup` |
+| Anthropic skills pack | ✅ IaC: `make skills-sync` |
+| Statusline | ✅ IaC: `make install-statusline` |
+| KV cache + Flash Attention | ✅ IaC: `make optimize-models` |
+| .claudeignore (4 projects) | ✅ Applied |
+| Docker /data persistence | ✅ Applied |
+| Function calling grammar | ✅ Applied |
+
+### 7.3 What We Have NOT Deployed (But Researched)
+
+| Item | What It Would Enable | Effort |
+|------|---------------------|--------|
+| **MCP servers for agents** | Playwright (browser automation), filesystem, Docker, databases | Medium — configure in .mcp.json per agent |
+| **Claude-Mem plugin** | Semantic memory across agent sessions | Low — install plugin |
+| **Prompt caching** | 90% savings on repeated context | Low — API parameter |
+| **Batch API** | 50% savings on non-urgent work | Low — API parameter |
+| **OpenClaw skills (5400+)** | Agent capabilities without custom code | Medium — evaluate + install |
+| **Additional Claude plugins** | connect-apps (500+ SaaS), Local-Review, ship | Medium — evaluate + install |
+| **Agent Teams (swarm mode)** | Inter-agent mailbox messaging | Medium — evaluate architecture fit |
+| **LocalAI RAG (CPU)** | Knowledge base queries at zero GPU cost | Medium — wire AICP RAG to fleet |
+| **LocalAI v4.0 agents** | Per-agent knowledge bases | High — evaluate vs current architecture |
+| **OpenRouter free tier** | 29 free models for community-tier work | Medium — build client |
+| **AICP ↔ Fleet bridge** | Unified routing, shared RAG, shared skills | High — router_unification.py |
+
+### 7.4 What This Means
+
+The fleet operates with a FRACTION of the available tooling. The
+research proved these capabilities exist and are accessible. The
+deployment gap is not technical — it's prioritization. Each item
+above has a known path to deployment (IaC scripts, config files,
+plugin installs). The question is: which ones first?
+
+**Immediate wins (config/install only):**
+1. Prompt caching — 90% savings, API parameter change
+2. Claude-Mem plugin — cross-session memory, plugin install
+3. MCP servers — Playwright for browser automation, .mcp.json config
+
+**Medium-term (needs evaluation + integration):**
+4. OpenClaw skills — evaluate which 5400+ skills are relevant
+5. LocalAI RAG — wire AICP's existing rag.py/kb.py to fleet context
+6. Agent Teams — evaluate swarm mode vs current orchestrator model
+
+**Strategic (needs architecture decisions):**
+7. AICP ↔ Fleet bridge — unify routing across both systems
+8. LocalAI v4.0 agents — evaluate whether to use built-in agent system
+
+---
+
+## 8. What's Needed
+
+### Client Gaps
 - LocalAI client integration (AICP has `openai_client.py`, fleet uses separate pattern)
-- OpenRouter client (for free tier routing — not built)
+- OpenRouter client (for free tier routing — 29 free models)
 - Health checking via clients (ping endpoints, measure latency)
 - Connection pooling / retry hardening for production use
-- Client-level telemetry (track API call counts, latency per client)
 
-## 8. Test Coverage: **30+ tests** across client modules
+### Ecosystem Deployment
+- Evaluate and install top MCP servers per agent role
+- Enable prompt caching (immediate 90% savings)
+- Install Claude-Mem plugin (cross-session memory)
+- Evaluate OpenClaw skills registry for fleet-relevant capabilities
+- Wire AICP RAG pipeline into fleet agent context
+
+## 9. Test Coverage: **30+ tests** across client modules
