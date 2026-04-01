@@ -213,6 +213,24 @@ BLOCKER: Pre-embed not fully per-role
 
 First live test requires fixing blockers 1 + 3 minimum.
 
+BLOCKER: Ecosystem not deployed
+  → 0/10 agents have role-specific MCP servers
+  → 0/10 agents have specialized plugins
+  → Prompt caching not enabled (90% savings available)
+  → Blocks agent effectiveness and cost control
+
+---
+
+## 5b. New Documentation (2026-04-01)
+
+| Document | Lines | What It Covers |
+|----------|-------|---------------|
+| `docs/systems/01-21` | 9,491 | 21 per-system documentation files (code-verified, high standard) |
+| `docs/ARCHITECTURE.md` | 291 | Fleet-wide system map, interconnection matrix, data flows |
+| `docs/systems/21-agent-tooling.md` | 439 | Per-role MCP/plugins/skills via IaC specification |
+| `ecosystem-deployment-plan.md` | 454 | 15 items across 3 tiers: immediate/evaluation/strategic |
+| `fleet-vision-architecture.md` + part2 | 1,209 | Code-verified system map (94 modules, 25 MCP tools) |
+
 ---
 
 ## 6. Design Document References
