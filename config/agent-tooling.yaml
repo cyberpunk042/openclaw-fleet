@@ -48,8 +48,8 @@ agents:
       - context7
     skills:
       - feature-implement
-      - debug
       - refactor-extract
+      # note: /debug is Claude built-in, not a custom skill
 
   qa-engineer:
     mcp_servers:
