@@ -1,291 +1,239 @@
-# Master Milestone Index — All Fleet Work
+# Master Index — All Fleet Documents & Milestones
 
 **Date:** 2026-03-31
-**Status:** Active — living index of all milestone documents
+**Status:** ACTIVE — honest assessment of every document and milestone
+**Rule:** "Not live tested = not finished." Code existing ≠ done.
 
 ---
 
-## Milestone Sets
+## Status Legend
 
-### 1. Immune System, Teaching System, Methodology System
-**Document:** `milestone-plan-three-systems.md`
-**Milestones:** 44 (A01-A08, B01-B09, C01-C06, D01-D10, E01-E06, G01-G05)
-**Estimated effort:** 2000+ hours
-**Status:** 44/44 — ALL COMPLETE
-
-These are PREREQUISITES for autonomous fleet operation. Must be
-designed and built before agents run unsupervised.
-
-| Category | Count | Scope |
-|----------|-------|-------|
-| A. Foundation | 8 | Custom fields on OCMC + Plane, sync evolution |
-| B. Methodology | 9 | Stages, protocols, observability, standards |
-| C. Teaching | 6 | Lessons, injection, practice, tracking |
-| D. Immune | 10 | Doctor, detection, response |
-| E. Platform | 6 | Orchestrator, gateway, events, heartbeat, sync, MCP |
-| G. OCMC UI | 5 | Three systems visibility, dashboard, events |
-
-Design documents:
-- `immune-system/` — 7 documents
-- `teaching-system/` — 1 document
-- `methodology-system/` — 8 documents
-- `three-systems-runtime.md` — how the three systems interact
-
-### 2. Fleet Control Surface
-**Document:** `fleet-control-surface.md`
-**Milestones:** M-CS01 through M-CS10 (7 prioritized)
-**Status:** Design complete
-
-Three independent control axes in the OCMC header bar:
-- Work Mode (where new work comes from)
-- Cycle Phase (what kind of work)
-- Backend Mode (which AI)
-
-Implemented by injecting FleetControlBar component into DashboardShell.tsx
-header, after OrgSwitcher. Backend patch for fleet_config JSON field on
-Board model.
-
-### 3. Event Bus (The Nervous System)
-**Document:** `fleet-event-bus-architecture.md`
-**Milestones:** M-EB01 through M-EB20
-**Status:** 17/20 complete, 3 remaining
-
-Built: CloudEvents store, event router, chain runner, 6 surfaces,
-plane watcher, OCMC watcher, config watcher, config sync.
-
-Remaining:
-- M-EB02: CloudEvents SDK integration
-- M-EB03: Agent feed design doc
-- M-EB04: Sync map doc
-- M-EB05: Mention design doc
-
-### 4. Fleet Autonomy (Hierarchical Task Management)
-**Document:** Plan file (in .claude/plans/)
-**Phases:** 5 phases
-**Status:** Design complete, not implemented
-
-- Phase 1: Expand data model (fields, parsing, approvals)
-- Phase 2: Missing MCP tools (fleet_task_create, fleet_approve, fleet_agent_status)
-- Phase 3: Orchestrator daemon (the brain)
-- Phase 4: Agent heartbeats (make agents alive)
-- Phase 5: Sprint plan model
-
-### 5. Operational Readiness
-**Document:** `STATUS-TRACKER.md` (items 17-21)
-**Status:** Pending
-
-- #17: Execute one real task end-to-end
-- #18: PM first heartbeat with Plane
-- #19: AICP Stage 1 complete
-- #20: Fleet 24h observation
-- #21: Resume autonomous flow
+| Symbol | Meaning |
+|--------|---------|
+| ✅ | Live tested and verified |
+| 🔨 | Code exists, unit tested, NOT live tested |
+| 📐 | Design complete, code NOT written |
+| 📝 | Design document, planning/reference |
+| ⏳ | Future (depends on hardware/ecosystem) |
 
 ---
 
-## Dependency Map
+## 1. All Documents in This Directory (36 files + 4 subdirectories)
+
+### Foundation Systems (Live Verified ✅)
+
+| Document | Milestones | Status | Live Tested |
+|----------|-----------|--------|-------------|
+| `milestone-plan-three-systems.md` | 44 (A01-G05) | ✅ 44/44 VERIFIED | Yes — VERIFICATION-MATRIX.md |
+| `VERIFICATION-MATRIX.md` | — | ✅ 69/69 checks passed | Yes — 2026-03-30 |
+| `three-systems-runtime.md` | — | ✅ Runtime scenarios verified | Yes |
+| `fleet-event-bus-architecture.md` | M-EB01–20 | ✅ 17/20 done | Yes — events flowing |
+| `fleet-event-bus-audit.md` | — | ✅ Code audit complete | Yes |
+
+### Strategic Systems (Code Exists, NOT Live Tested 🔨)
+
+| Document | Milestones | Status | What's Missing |
+|----------|-----------|--------|----------------|
+| `labor-attribution-and-provenance.md` | M-LA01–08 | 🔨 744 unit tests | Live test with real agent producing stamps |
+| `budget-mode-system.md` | M-BM01–06 | 🔨 Unit + integration tests | Live test: budget mode constraining real dispatch |
+| `multi-backend-routing-engine.md` | M-BR01–08 | 🔨 Unit + integration tests | Live test: routing task to LocalAI vs Claude |
+| `iterative-validation-and-challenge-loops.md` | M-IV01–08 | 🔨 Unit tests | Live test: challenge validating real agent work |
+| `model-upgrade-path.md` | M-MU01–08 | 🔨 Unit tests, KV cache applied | Live test: shadow routing real inference |
+| `storm-prevention-system.md` | M-SP01–09 | 🔨 Unit + integration tests | Live test: storm detection triggering real response |
+| `integration-testing-plan.md` | W1–W8 | 🔨 23 integration tests pass | Cross-system wiring verified, not runtime |
+| `context-window-awareness-and-control.md` | — | 🔨 Statusline deployed | Agent compaction protocol not built |
+
+### Design Documents (Not Yet Implemented 📐)
+
+| Document | Milestones | Key PO Requirement |
+|----------|-----------|-------------------|
+| `agent-command-center.md` | — | *"agents need a command center that will guide them"* |
+| `agent-rework.md` | AR-01–20 | *"massive review and rework... make all agent start with the right data"* |
+| `context-bundles.md` | CB01–05 | *"pre-injected / pre-embedded data, like the current task"* |
+| `fleet-control-surface.md` | M-CS01–10 | *"I should be able to Pause and even Stop"* |
+| `transpose-layer.md` | T01–T07 | *"TRANSPOSE... DATA → RICH HTML... and in reverse"* |
+| `fleet-operations-protocol.md` | M61–80 | *"every manual step is a bug"* |
+| `phase-a-code-delivery.md` | M61–64 | Agent push + PR on completion |
+| `phase-f1-foundation-skills.md` | M81–86 | *"making it smart and tooling for the agent"* |
+| `phase-f2-agent-communication.md` | M87–91 | *"WE need order and logic for when to use what"* |
+| `phase-f3-irc-the-lounge.md` | M92–96 | *"setup this so I can talk with the AI messages"* |
+| `phase-f4-governance-agent.md` | M97–102 | *"one agent that will keep order in all this"* |
+| `skills-ecosystem.md` | M48–52 | Skills registry and per-agent assignment |
+| `standards-and-discipline.md` | M44–47 | Conventional commits, shared coding standards |
+| `navigability-and-traceability.md` | M57–60 | Commit ↔ task linking, trace tool |
+| `observability-and-channels.md` | M53–56 | WebSocket monitor, unified dashboard |
+
+### Planning & Vision Documents 📝
+
+| Document | Purpose |
+|----------|---------|
+| `fleet-vision-architecture.md` | Code-verified system map (731 lines) |
+| `fleet-vision-architecture-part2.md` | Part 2: gateway, data flow, gaps (478 lines) |
+| `unified-implementation-plan.md` | Merged AR + extension → U-01 to U-38 |
+| `implementation-roadmap.md` | 5-wave sequencing for strategic milestones |
+| `fleet-extension-milestones.md` | 30 extension milestones (Waves 6-11) |
+| `fleet-autonomy-milestones.md` | Hierarchical task management design |
+| `strategic-vision-localai-independence.md` | 5-stage LocalAI offload vision |
+
+### Subdirectories
+
+| Directory | Files | Content | Status |
+|-----------|-------|---------|--------|
+| `immune-system/` | 7 docs | Doctor, diseases, detection, response, integration | ✅ Live verified |
+| `teaching-system/` | 1 doc | Lessons, injection, comprehension | ✅ Live verified |
+| `methodology-system/` | 8 docs | 5 stage protocols, standards, custom fields | ✅ Live verified |
+| `fleet-elevation/` | 31 docs | Complete agent architecture redesign | 📐 Design only |
+| `agent-rework/` | 14 docs | Pre-embed, waking, per-role heartbeats | 📐 Design only |
+| `context-system/` | 8 docs | Context bundles, MCP upgrade, heartbeat pre-embed | 📐 Design only |
+
+---
+
+## 2. Complete Milestone Registry
+
+### Verified Complete ✅
+
+| Set | ID Range | Count | Document |
+|-----|----------|-------|----------|
+| Three Systems | A01–G05 | 44 | milestone-plan-three-systems.md |
+| Event Bus | M-EB01–20 | 17/20 | fleet-event-bus-architecture.md |
+
+### Code Exists, Not Live Tested 🔨
+
+| Set | ID Range | Count | Document | Tests |
+|-----|----------|-------|----------|-------|
+| Labor Attribution | M-LA01–08 | 8 | labor-attribution-and-provenance.md | 44 unit |
+| Budget Mode | M-BM01–06 | 6 | budget-mode-system.md | 93 unit |
+| Multi-Backend Router | M-BR01–08 | 8 | multi-backend-routing-engine.md | 73 unit |
+| Iterative Validation | M-IV01–08 | 8 | iterative-validation-and-challenge-loops.md | 178 unit |
+| Model Upgrade | M-MU01–08 | 8 | model-upgrade-path.md | 130 unit |
+| Storm Prevention | M-SP01–09 | 9 | storm-prevention-system.md | 90 unit |
+| Cross-System Wiring | W1–W8 | 8 | integration-testing-plan.md | 23 integration |
+| Session Telemetry | W8 | 1 | (in integration-testing-plan.md) | 30 unit |
+
+### Design Complete, Not Implemented 📐
+
+| Set | ID Range | Count | Document |
+|-----|----------|-------|----------|
+| Control Surface | M-CS01–10 | 7 | fleet-control-surface.md |
+| Transpose Layer | T01–T07 | 7 | transpose-layer.md |
+| Context Bundles | CB01–05 | 5 | context-bundles.md |
+| Agent Rework | AR-01–20 | 20 | agent-rework.md + agent-rework/ |
+| Standards | M44–47 | 4 | standards-and-discipline.md |
+| Skills | M48–52 | 5 | skills-ecosystem.md |
+| Observability | M53–56 | 4 | observability-and-channels.md |
+| Traceability | M57–60 | 4 | navigability-and-traceability.md |
+| Code Delivery | M61–64 | 4 | phase-a-code-delivery.md |
+| Operations | M61–80 | 20 | fleet-operations-protocol.md |
+| Foundation Skills | M81–86 | 6 | phase-f1-foundation-skills.md |
+| Agent Communication | M87–91 | 5 | phase-f2-agent-communication.md |
+| IRC/Lounge | M92–96 | 5 | phase-f3-irc-the-lounge.md |
+| Governance | M97–102 | 6 | phase-f4-governance-agent.md |
+| Unified Plan | U-01–38 | 38 | unified-implementation-plan.md |
+
+### Operational Readiness (Blocked)
+
+| ID | What | Blocker |
+|----|------|---------|
+| #17 | Execute one real task end-to-end | Agent CLAUDE.md not per spec |
+| #18 | PM first heartbeat with Plane | Pre-embed not fully role-specific |
+| #19 | AICP Stage 1 complete | LocalAI not connected to fleet |
+| #20 | Fleet 24h observation | Requires #17-19 |
+| #21 | Resume autonomous flow | Requires #17-20 |
+
+---
+
+## 3. Milestone Count — Honest
+
+| Category | Count | Status |
+|----------|-------|--------|
+| Live verified ✅ | 61 | Three Systems (44) + Event Bus (17) |
+| Code exists 🔨 | 56 | Strategic (47) + Wiring (8) + Telemetry (1) |
+| Design only 📐 | ~133 | AR(20) + U(38) + M44-102(~59) + CS(7) + T(7) + CB(5) |
+| Blocked | 5 | Operational readiness (#17-21) |
+| **Total** | **~255** | **61 verified, 56 coded, ~133 designed, 5 blocked** |
+
+---
+
+## 4. PO Requirements — Quoted, Not Lost
+
+Every document contains PO requirements. Key quotes that drive everything:
+
+**On agents:**
+> "every role are top tier expert of their profession" (fleet-elevation/02)
+> "massive review and rework... make all agent start with the right data" (agent-rework.md)
+> "agents need a command center that will guide them" (agent-command-center.md)
+
+**On process:**
+> "every manual step is a bug" (fleet-operations-protocol.md)
+> "Build the safety net before the trapeze" (implementation-roadmap.md)
+> "I should be able to Pause and even Stop" (fleet-control-surface.md)
+
+**On quality:**
+> "TRANSPOSE... DATA → RICH HTML... and in reverse" (transpose-layer.md)
+> "making it smart and tooling for the agent and making it easy" (phase-f1)
+> "WE need order and logic for when to use what" (phase-f2)
+> "quote back in a document that prove we have this awareness and control" (context-window)
+
+**On cost:**
+> "the fleet cp is also going to have to keep track of the plan usage" (storm-prevention)
+> "budget mode to fine-tune the spending" (budget-mode-system.md)
+> "the main first mission is to make localAI functional" (strategic-vision)
+
+**On standards:**
+> "strong OOP and SRP and remember code hygiene" (agent-command-center.md)
+> "do not corrupt or minimize or compress" (strategic-vision)
+> "PO's words are sacrosanct" (fleet-elevation/20)
+
+---
+
+## 5. Critical Path — What Blocks Everything
 
 ```
-Event Bus (mostly done)
-  ↓ events infrastructure used by everything
-Fleet Autonomy (Phase 1-3)
-  ↓ orchestrator, MCP tools, data model
-Foundation (A01-A08)
-  ↓ custom fields on both platforms
-Methodology (B01-B09)
-  ↓ stages, protocols, standards
-Control Surface (M-CS01-10)
-  ↓ PO can see and control the fleet
-Teaching (C01-C06)
-  ↓ lessons, practice, verification
-Immune System (D01-D10)
-  ↓ doctor, detection, response
-Platform Evolution (E01-E06)
-  ↓ orchestrator, gateway, events, MCP integration
-OCMC UI Integration (G01-G05)
-  ↓ everything visible in the UI
-Operational Readiness (#17-21)
-  ↓ fleet running with all systems
-Autonomous Operation
+BLOCKER: 0/10 agent CLAUDE.md follow fleet-elevation specs
+  → Agents don't have anti-corruption rules
+  → Agents don't follow stage protocol properly
+  → Blocks ALL live testing
+
+BLOCKER: Contribution flow not implemented
+  → fleet_contribute MCP tool doesn't exist
+  → Brain doesn't create contribution subtasks
+  → Specialists can't provide input before work
+  → Blocks full agent synergy
+
+BLOCKER: Template files not deployed
+  → MC_WORKFLOW.md, STANDARDS.md, MC_API_REFERENCE.md in _template/ only
+  → Workers may run without workflow instructions
+  → Blocks proper agent behavior
+
+BLOCKER: Pre-embed not fully per-role
+  → PM doesn't get Plane sprint data
+  → Workers don't get artifact completeness
+  → Blocks effective heartbeats
 ```
 
-The event bus is mostly built — it provides the infrastructure
-everything else publishes through. Fleet autonomy gives the fleet
-its brain (orchestrator, MCP tools). Foundation gives the data model
-the three systems need. The three systems (methodology, teaching,
-immune) make the fleet safe to run autonomously. The control surface
-gives the PO real-time control. Operational readiness validates
-everything works end-to-end.
+First live test requires fixing blockers 1 + 3 minimum.
 
 ---
 
-## Total Milestones Across All Sets
+## 6. Design Document References
 
-| Set | Count | Status |
-|-----|-------|--------|
-| Three Systems (A-G) | 44 | **44 done — COMPLETE** |
-| Control Surface (M-CS) | 7 | **7 done — COMPLETE** |
-| Event Bus (M-EB) | 20 | **20 done — COMPLETE** |
-| Fleet Autonomy | ~15 (5 phases) | **All 5 phases COMPLETE** |
-| Transpose Layer | 7 | **7 done — COMPLETE** |
-| Context System | 36 | **34 done**, 2 nice-to-haves remaining |
-| Operational Readiness | 5 | Pending (needs fleet running) |
-| **Labor Attribution (M-LA)** | **8** | **8 done — COMPLETE** |
-| **Budget Mode System (M-BM)** | **6** | **6 done — COMPLETE** |
-| **Multi-Backend Router (M-BR)** | **8** | **8 done — COMPLETE** (4 FUTURE schema-ready) |
-| **Iterative Validation (M-IV)** | **8** | **8 done — COMPLETE** |
-| **Model Upgrade Path (M-MU)** | **8** | **8 done — COMPLETE** (3 FUTURE schema-ready) |
-| **Storm Prevention (M-SP)** | **9** | **9 done — COMPLETE** |
-| **Total** | **~181** | **~175 implemented, 47 strategic milestones COMPLETE** |
-
----
-
-### 6. Labor Attribution and Provenance System
-**Document:** `labor-attribution-and-provenance.md`
-**Milestones:** M-LA01 through M-LA08
-**Status:** COMPLETE — all 8 milestones implemented (Wave 1 + Wave 4)
-
-Every fleet artifact carries a labor stamp: agent, backend, model, effort,
-skills, confidence tier, cost. Trainee/community tier work gets extra review.
-
-### 7. Budget Mode System for OCMC Orders
-**Document:** `budget-mode-system.md`
-**Milestones:** M-BM01 through M-BM06
-**Status:** COMPLETE — all 6 milestones implemented (Wave 1 + Wave 2 + Wave 4 + Wave 5)
-
-Graduated budget modes: blitz, standard, economic, frugal, survival, blackout.
-Per-order cost envelopes. Auto-transitions based on quota pressure.
-
-### 8. Multi-Backend Routing Decision Engine
-**Document:** `multi-backend-routing-engine.md`
-**Milestones:** M-BR01 through M-BR08
-**Status:** COMPLETE — all 8 milestones implemented (Wave 2 + Wave 5; M-BR08 FUTURE schema-ready)
-
-Plugin-style backend registry. Claude + LocalAI + OpenRouter free + Codex CLI.
-Budget-constrained routing. Fallback chains. Cheapest capable backend wins.
-
-### 9. Iterative Validation and Challenge Loops
-**Document:** `iterative-validation-and-challenge-loops.md`
-**Milestones:** M-IV01 through M-IV08
-**Status:** COMPLETE — all 8 milestones implemented (Wave 3)
-
-Multi-round adversarial challenges. Automated + agent + cross-model + scenario.
-Confidence tier determines challenge depth. Budget-aware skip/defer logic.
-
-### 10. Model Upgrade Path — LocalAI Next-Gen
-**Document:** `model-upgrade-path.md`
-**Milestones:** M-MU01 through M-MU08
-**Status:** COMPLETE — all 8 milestones implemented (Wave 4 + Wave 5; M-MU05/06/08 FUTURE schema-ready)
-
-Upgrade hermes-3b → Qwen3-8B. Plan for 19GB dual-GPU. Shadow routing.
-TurboQuant and BitNet monitoring. Confidence tier progression tracking.
-
-### 11. Storm Prevention System
-**Document:** `storm-prevention-system.md`
-**Milestones:** M-SP01 through M-SP09
-**Status:** COMPLETE — all 9 milestones implemented (Wave 1 + Wave 2 + Wave 3)
-
-Automatic graduated response. 9 indicators, 5 severity levels. Circuit
-breakers per-agent and per-backend. Diagnostic snapshots. Post-incident reports.
-
----
-
-### 12. Implementation Roadmap
-**Document:** `implementation-roadmap.md`
-**Status:** ACTIVE PLAN
-
-5 implementation waves sequencing all 47 new milestones:
-- Wave 1: Foundation (safety + observability) — 10 milestones, CRITICAL
-- Wave 2: Routing (multi-backend + budget control) — 10 milestones, HIGH
-- Wave 3: Validation (challenge loops) — 9 milestones, HIGH
-- Wave 4: Evolution (better models + analytics) — 10 milestones, MEDIUM
-- Wave 5: Scale (dual GPU + advanced) — 8 milestones, MEDIUM-LOW
-
-Integration with operational readiness (#17-21), LocalAI stages, and
-Fleet Elevation. Success criteria per wave. Critical rule: do NOT resume
-autonomous flow without Wave 1 complete.
-
-### 13. Cross-System Integration
-**Document:** `integration-testing-plan.md`
-**Status:** COMPLETE — Phase 1 (wiring) and Phase 2 (tests) done
-
-8 cross-system connections wired (W1-W8):
-- Budget → Challenge, Stamp ↔ Challenge, Storm → Budget
-- Shadow → Promotion, Health → Router, Promotion → Router
-- Tier → Codex Review, Session Telemetry → All Systems
-
-23 integration tests across 5 end-to-end flows. 767 total tests passing.
-
-### 14. Context Window Awareness
-**Document:** `context-window-awareness-and-control.md`
-**Status:** COMPLETE — configurations applied
-
-Statusline IaC (`make install-statusline`), `.claudeignore` for 4 projects,
-session telemetry adapter (`session_telemetry.py`) feeding real Claude Code
-JSON data into fleet systems. Context pressure as storm indicator.
-
----
-
-## Dependency Map (Updated 2026-03-31)
-
-```
-Event Bus (done) ─── events infrastructure
-  ↓
-Fleet Autonomy (done) ─── orchestrator, MCP tools
-  ↓
-Foundation + Methodology + Teaching + Immune (done)
-  ↓
-Control Surface (done) ─── PO visibility
-  ↓
-Operational Readiness (#17-21)
-  ↓
-┌─────────────────────────────────────────────────┐
-│  NEW STRATEGIC MILESTONES (2026-03-31)          │
-│                                                 │
-│  Storm Prevention (M-SP) ← infrastructure guard │
-│    ↓                                            │
-│  Budget Mode System (M-BM) ← spending strategy  │
-│    ↓                                            │
-│  Multi-Backend Router (M-BR) ← cheapest backend │
-│    ↓                                            │
-│  Labor Attribution (M-LA) ← provenance chain    │
-│    ↓                                            │
-│  Iterative Validation (M-IV) ← challenge loops  │
-│    ↓                                            │
-│  Model Upgrade Path (M-MU) ← better local AI   │
-└─────────────────────────────────────────────────┘
-  ↓
-LocalAI Independence (Stages 2-5)
-  ↓
-Autonomous Operation at Scale
-```
-
----
-
-## Documents in This Directory
-
-```
-active/
-├── MASTER-INDEX.md                         ← this file
-├── fleet-control-surface.md                ← control surface design
-├── fleet-event-bus-architecture.md         ← event bus milestones
-├── fleet-event-bus-audit.md                ← event bus audit
-├── milestone-plan-three-systems.md         ← 44 milestones detailed
-├── three-systems-runtime.md                ← how 3 systems interact
-├── labor-attribution-and-provenance.md     ← NEW: labor stamps
-├── budget-mode-system.md                   ← NEW: budget modes
-├── multi-backend-routing-engine.md         ← NEW: multi-backend router
-├── iterative-validation-and-challenge-loops.md ← NEW: challenge loops
-├── model-upgrade-path.md                   ← NEW: LocalAI model upgrades
-├── storm-prevention-system.md              ← NEW: storm prevention
-├── implementation-roadmap.md               ← NEW: 5-wave sequencing
-├── context-window-awareness-and-control.md ← NEW: context/cost management
-├── integration-testing-plan.md             ← NEW: 8 wires, 5 flows, 23 tests
-├── immune-system/
-│   ├── 01-overview.md ... 07-integration.md
-├── teaching-system/
-│   └── 01-overview.md
-├── methodology-system/
-│   ├── 01-overview.md ... new-custom-fields.md
-└── fleet-elevation/
-    ├── 01-overview.md ... 31-transition.md
-```
+| Topic | Primary Design Doc | Supporting Docs |
+|-------|-------------------|-----------------|
+| Agent architecture | fleet-elevation/02 | agent-rework/01-14 |
+| Per-role specs | fleet-elevation/05-14 | agent-rework/04-08 |
+| AI behavior | fleet-elevation/20 | immune-system/02-06 |
+| Cross-agent synergy | fleet-elevation/15 | agent-rework/09 |
+| Agent lifecycle | fleet-elevation/23 | — |
+| Delivery phases | fleet-elevation/03 | config/phases.yaml |
+| Brain/orchestrator | fleet-elevation/04 | agent-rework/03 |
+| Multi-fleet identity | fleet-elevation/16 | — |
+| Standards framework | fleet-elevation/17 | standards-and-discipline.md |
+| PO governance | fleet-elevation/18 | — |
+| Flow validation | fleet-elevation/19 | — |
+| Task lifecycle | fleet-elevation/21 | — |
+| Tool call catalog | fleet-elevation/24 | — |
+| Config reference | fleet-elevation/26 | — |
+| Codebase inventory | fleet-elevation/28 | fleet-vision-architecture.md |
+| Lessons learned | fleet-elevation/29 | — |
+| Strategy synthesis | fleet-elevation/30 | — |
+| Transition strategy | fleet-elevation/31 | — |
