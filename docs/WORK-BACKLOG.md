@@ -14,6 +14,7 @@
 **Work:** Restructure agents/ so templates+config are committed, agent directories are fully untracked runtime output. Create provision script. Update .gitignore. Move accountability src/ to fleet module.
 **Why first:** New CLAUDE.md files must go into `_template/CLAUDE.md/{role}.md`, not `agents/{name}/CLAUDE.md`. If we write B1 before B0, the files go in the wrong place.
 **Effort:** 4-8 hours
+**Progress:** Template structure created (`_template/CLAUDE.md/` × 10 + `heartbeats/` × 6). Remaining: .gitignore update, `git rm --cached` agent runtime files, update provision script to use new dirs.
 
 ### B1: Agent CLAUDE.md (0/10 per spec)
 
