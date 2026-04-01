@@ -29,4 +29,5 @@ systems, what's implemented, and what's needed.
 | 17 | [Plane Integration](17-plane.md) | Sync, methodology, watcher | 4 modules | 🔨 Code exists |
 | 18 | [Notifications](18-notifications.md) | Routing, cross-refs, IRC | 3 modules | 🔨 Code exists |
 | 19 | [Session & Context](19-session.md) | Telemetry, assembly, preembed | 5 modules | 🔨 Code exists |
-| 20 | [Infrastructure](20-infrastructure.md) | Gateway, MC, Plane clients | 8 modules | 🔨 Code exists |
+| 20 | [Infrastructure](20-infrastructure.md) | Gateway, MC, Plane clients + ecosystem gap | 8 modules | 🔨 Code exists |
+| 21 | [Agent Tooling](21-agent-tooling.md) | Per-role MCP/plugins/skills via IaC | 0 deployed | 📐 Spec only |
