@@ -254,7 +254,173 @@ the PM task tracks overall progress.
 
 ---
 
-## 7. NOT Implemented
+---
+
+## 7. PlaneSyncer — Full API (plane_sync.py)
+
+The PlaneSyncer is the core class. It handles ALL bidirectional sync:
+
+| Method | Lines | What It Does |
+|--------|-------|-------------|
+| `ingest_from_plane()` | 200-252 | Discover unlinked Plane issues. Create OCMC PM tasks with plane_issue_id, plane_project_id, plane_workspace. Map priority. Returns IngestResult(created, skipped, errors). |
+| `push_completions_to_plane()` | 253-298 | Find done OCMC tasks with plane_issue_id. Update Plane issue state to configured "done" state. Returns PushResult(updated, errors). |
+| `sync_methodology_fields()` | 300-455 | Bidirectional methodology sync: OCMC task stage/readiness → Plane labels. Plane labels → OCMC fields (if changed on Plane side). Verbatim injection into Plane description HTML. |
+| `sync_plane_state_metadata()` | 456-552 | Sync Plane issue metadata (priority, state, assignee) to OCMC custom fields. Detect changes made directly on Plane. |
+| `_create_ocmc_task(issue, project_id)` | 586-617 | Create OCMC task from Plane issue: title, description (HTML→plain), custom fields with Plane references, priority mapping. |
+
+### IngestResult + PushResult
+
+```python
+IngestResult:
+    created: list[str]   # task IDs created
+    skipped: list[str]   # issue IDs already linked
+    errors: list[str]    # errors during creation
+    # created_count, skipped_count properties
+
+PushResult:
+    updated: list[str]   # issue IDs updated
+    errors: list[str]    # errors during push
+    # updated_count property
+```
+
+---
+
+## 8. Plane Methodology — Labels + HTML (plane_methodology.py)
+
+Since Plane CE lacks custom fields, methodology state is encoded in
+labels and HTML markers:
+
+### Label Encoding
+
+```
+Stage labels:     stage:conversation, stage:analysis, stage:investigation,
+                  stage:reasoning, stage:work
+
+Readiness labels: readiness:0, readiness:5, readiness:10, readiness:20,
+                  readiness:30, readiness:50, readiness:70, readiness:80,
+                  readiness:90, readiness:95, readiness:99, readiness:100
+
+Priority labels:  (Plane native)
+Module labels:    (Plane native — maps to epics)
+```
+
+### Verbatim in Description HTML
+
+```html
+<!-- In Plane issue description -->
+<p>Some PO notes here...</p>
+
+<span class="fleet-verbatim" style="display:none">verbatim:start</span>
+<blockquote>
+  <strong>Verbatim Requirement:</strong><br/>
+  Add fleet controls to the OCMC header bar so the PO can
+  switch work mode, cycle phase, and backend mode without
+  modifying config files.
+</blockquote>
+<span class="fleet-verbatim" style="display:none">verbatim:end</span>
+
+<p>More PO notes here (untouched by fleet)...</p>
+```
+
+Plane strips HTML comments but preserves span elements with
+`display:none`. The fleet-verbatim markers enable extraction
+without touching PO's own notes.
+
+### Functions
+
+| Function | What It Does |
+|----------|-------------|
+| `extract_stage_from_labels(labels)` | Parse stage:X from label list. Returns stage string or None. |
+| `extract_readiness_from_labels(labels)` | Parse readiness:N from label list. Returns int (highest if multiple). |
+| `extract_methodology_state(issue)` | Combined: stage + readiness + verbatim from issue labels + description. Returns PlaneMethodologyState. |
+| `build_label_updates(current_labels, new_stage, new_readiness)` | Diff current vs desired labels. Returns (add_labels, remove_labels) for Plane API. |
+| `inject_verbatim_into_html(html, verbatim)` | Insert/replace verbatim section in Plane description HTML with fleet-verbatim markers. |
+
+---
+
+## 9. Data Shapes
+
+### PlaneMethodologyState
+
+```python
+PlaneMethodologyState(
+    task_stage="reasoning",
+    task_readiness=80,
+    requirement_verbatim="Add fleet controls to the OCMC header bar...",
+)
+```
+
+### OCMC Task Custom Fields (Plane-linked)
+
+```python
+task.custom_fields:
+    plane_issue_id: "uuid-of-plane-issue"
+    plane_project_id: "uuid-of-plane-project"
+    plane_workspace: "fleet"
+    # These 3 fields establish the bidirectional link
+```
+
+### Plane Issue (as seen by PlaneSyncer)
+
+```python
+PlaneIssue:
+    id: "uuid"
+    title: "Add fleet controls to header"
+    description_html: "<p>...</p><span class='fleet-verbatim'>...</span>"
+    state: "In Progress"
+    priority: "high"
+    labels: ["stage:reasoning", "readiness:80", "priority:high"]
+    cycle_id: "sprint-uuid"  # which sprint
+    module_id: "module-uuid"  # which epic/module
+```
+
+---
+
+## 10. The Full Ops → PM → Plane Propagation
+
+When a software-engineer completes an ops task (child of a PM task
+linked to Plane issue #42):
+
+```
+1. Agent calls fleet_task_complete(summary="Added FleetControlBar component")
+   ↓
+2. MCP tool:
+   ├── git push branch
+   ├── create PR with changelog + labor stamp
+   ├── update ops task: status=review, readiness=100
+   ├── create approval for fleet-ops
+   ├── post completion comment on ops task
+   ├── IRC: "[software-engineer] PR READY: Added FleetControlBar..."
+   └── event: fleet.task.completed
+   ↓
+3. Orchestrator Step 7 (_evaluate_parents):
+   ├── Check: are ALL children of PM task done?
+   │   ├── architect design_input: done ✓
+   │   ├── qa test_definition: done ✓
+   │   ├── engineer implementation: in review (just completed)
+   │   ├── fleet-ops review: pending
+   │   └── NOT all done → PM task stays in current state
+   │
+   │   LATER: fleet-ops approves → engineer ops task done
+   │   LATER: all children done → PM task moves to review
+   │   LATER: PM task approved → PM task done
+   ↓
+4. When PM task reaches done:
+   ├── push_completions_to_plane():
+   │   └── Update Plane issue #42 state → "Done"
+   ├── sync_methodology_fields():
+   │   └── Update labels: stage:work → (remove), readiness:100
+   └── Cross-refs:
+       └── Plane comment: "OCMC PM task completed. PR: {url}"
+   ↓
+5. PO sees on Plane:
+   Issue #42 marked "Done" with full trail of ops work visible
+   through comments and artifact HTML in description.
+```
+
+---
+
+## 11. NOT Implemented
 
 - **Ops comment → Plane comment sync:** When ops tasks complete, the
   comment should appear on the Plane issue. Currently ops completions
@@ -265,5 +431,7 @@ the PM task tracks overall progress.
   writer should scan Plane pages for staleness and update.
 - **Artifact HTML on Plane issues:** Transpose renders artifacts but
   integration with Plane issue description updates is partial.
+- **Bidirectional Plane comment sync:** PO comments on Plane issue
+  should appear in OCMC task context for agents.
 
-## 8. Test Coverage: **40+ tests**
+## 12. Test Coverage: **40+ tests**
