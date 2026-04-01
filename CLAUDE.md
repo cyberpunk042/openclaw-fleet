@@ -223,9 +223,25 @@ fleet plane list-projects  # List Plane projects
 5. **Standards first** — conventional commits, changelogs, good patterns
 6. **Local-first** — LocalAI for routine, Claude for complex (AICP mission)
 
+## Documentation (Start Here)
+
+- **Navigation**: `docs/README.md` — master index for ~100 docs, 5-layer hierarchy
+- **Architecture**: `docs/ARCHITECTURE.md` — 20 systems, how they relate
+- **Integration**: `docs/INTEGRATION.md` — 12 cross-system data flows
+- **Spec vs Code**: `docs/SPEC-TO-CODE.md` — 69 specs mapped to 94 modules
+- **Work Backlog**: `docs/WORK-BACKLOG.md` — 31 prioritized items
+- **System Docs**: `docs/systems/01-22` — per-system reference (10,283 lines)
+- **Milestones**: `docs/milestones/active/MASTER-INDEX.md` — 255 milestones, honest status
+
+## Config
+
+- **Agent tooling**: `config/agent-tooling.yaml` — per-role MCP/plugins/skills
+- **Agent autonomy**: `config/agent-autonomy.yaml` — per-role lifecycle thresholds
+- **Phases**: `config/phases.yaml` — PO-defined delivery phases
+- **Skills**: `config/skill-assignments.yaml` — skill → agent mapping
+
 ## Related
 
-- **Status**: `docs/milestones/STATUS-TRACKER.md`
 - **DSPD mission**: `../devops-solution-product-development/config/mission.yaml`
 - **AICP LocalAI**: `../devops-expert-local-ai/CLAUDE.md`
 - **Strategic vision**: `docs/milestones/active/strategic-vision-localai-independence.md`
