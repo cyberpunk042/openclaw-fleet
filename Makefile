@@ -21,6 +21,18 @@ provision:
 setup-tools:
 	bash scripts/setup-agent-tools.sh
 
+provision-files:
+	bash scripts/provision-agent-files.sh
+
+generate-tools:
+	bash scripts/generate-tools-md.sh
+
+generate-agents:
+	bash scripts/generate-agents-md.sh
+
+install-plugins:
+	bash scripts/install-plugins.sh
+
 validate-agents:
 	bash scripts/validate-agents.sh
 
