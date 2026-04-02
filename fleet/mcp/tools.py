@@ -496,26 +496,67 @@ def register_tools(server: FastMCP) -> None:
         return result
 
     @server.tool()
-    async def fleet_task_progress(done: str, next_step: str, blockers: str = "none") -> dict:
+    async def fleet_task_progress(
+        done: str,
+        next_step: str,
+        blockers: str = "none",
+        progress_pct: int = 0,
+    ) -> dict:
         """Post a progress update on your current task.
 
         Args:
             done: What you've completed so far.
             next_step: What you're working on next.
             blockers: Any blockers (or "none").
+            progress_pct: Work progress 0-100 (0=started, 50=halfway, 70=done, 80=challenged, 90=reviewed).
         """
         ctx = _get_ctx()
         if not ctx.task_id:
             return {"ok": False, "error": "No task_id. Call fleet_read_context first."}
         board_id = await ctx.resolve_board_id()
+        agent = ctx.agent_name or "agent"
 
-        comment = comment_tmpl.format_progress(done, next_step, blockers, ctx.agent_name or "agent")
+        comment = comment_tmpl.format_progress(done, next_step, blockers, agent)
 
         try:
             await ctx.mc.post_comment(board_id, ctx.task_id, comment)
+
+            # Update task_progress custom field if provided
+            if progress_pct > 0:
+                try:
+                    await ctx.mc.update_task(
+                        board_id, ctx.task_id,
+                        custom_fields={"task_progress": progress_pct},
+                    )
+                except Exception:
+                    pass
+
+                # Checkpoint events at key thresholds
+                if progress_pct >= 50:
+                    _emit_event(
+                        "fleet.methodology.checkpoint_reached",
+                        subject=ctx.task_id,
+                        agent=agent,
+                        progress=progress_pct,
+                    )
+
+            # Trail event
+            try:
+                await ctx.mc.post_memory(
+                    board_id,
+                    content=(
+                        f"**[trail]** Progress update: {agent} "
+                        f"progress={progress_pct}% task:{ctx.task_id[:8]}"
+                    ),
+                    tags=["trail", f"task:{ctx.task_id}", "progress_update"],
+                    source=agent,
+                )
+            except Exception:
+                pass
+
         except Exception as e:
             return {"ok": False, "error": str(e)}
-        return {"ok": True}
+        return {"ok": True, "progress_pct": progress_pct}
 
     @server.tool()
     async def fleet_commit(files: list[str], message: str) -> dict:

@@ -145,20 +145,26 @@ def extract_methodology_state(
     )
 
 
+PHASE_PREFIX = "phase:"
+
+
 def build_label_updates(
     current_label_names: list[str],
     stage: Optional[str] = None,
     readiness: Optional[int] = None,
+    delivery_phase: Optional[str] = None,
 ) -> list[str]:
     """Build an updated label name list with methodology labels replaced.
 
-    Removes old stage/readiness labels and adds new ones.
+    Removes old stage/readiness/phase labels and adds new ones.
     Returns the full list of label names (not IDs — caller resolves to IDs).
     """
     # Remove existing methodology labels
     updated = [
         name for name in current_label_names
-        if not name.startswith(STAGE_PREFIX) and not name.startswith(READINESS_PREFIX)
+        if not name.startswith(STAGE_PREFIX)
+        and not name.startswith(READINESS_PREFIX)
+        and not name.startswith(PHASE_PREFIX)
     ]
 
     # Add new stage label
@@ -170,5 +176,9 @@ def build_label_updates(
         # Snap to nearest valid value
         closest = min(VALID_READINESS, key=lambda v: abs(v - readiness))
         updated.append(f"{READINESS_PREFIX}{closest}")
+
+    # Add delivery phase label (PO-declared, free text)
+    if delivery_phase:
+        updated.append(f"{PHASE_PREFIX}{delivery_phase}")
 
     return updated

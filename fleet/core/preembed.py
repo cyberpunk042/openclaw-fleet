@@ -47,6 +47,7 @@ def format_task_full(task: Task) -> str:
         f"- Type: {cf.task_type or 'unset'}",
         f"- Stage: {cf.task_stage or 'unset'}",
         f"- Readiness: {cf.task_readiness}%",
+        f"- Delivery Phase: {cf.delivery_phase or 'not set'}",
         f"- Story Points: {cf.story_points or 'unset'}",
     ]
     if cf.requirement_verbatim:

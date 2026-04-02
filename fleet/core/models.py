@@ -117,7 +117,8 @@ class TaskCustomFields:
     plane_project_id: Optional[str] = None
     plane_workspace: Optional[str] = None
     # Methodology system fields
-    task_readiness: int = 0  # 0-100 percentage. Work protocol at 99-100%.
+    task_readiness: int = 0  # Pre-dispatch authorization (0-99). Gate at 99. PO confirms.
+    task_progress: int = 0   # Post-dispatch work progression (0-100). 70=done, 80=challenged, 90=reviewed, 100=complete.
     requirement_verbatim: Optional[str] = None  # PO's exact words. The anchor.
     task_stage: Optional[str] = None  # conversation/analysis/investigation/reasoning/work
     # Delivery phase fields — PO-defined maturity tracking
@@ -137,8 +138,6 @@ class TaskCustomFields:
     labor_cost_usd: Optional[float] = None    # Estimated cost in USD
     labor_duration_s: Optional[int] = None    # Duration in seconds
     labor_iteration: int = 1                  # Attempt number (increments on rejection + rework)
-    # Budget mode fields — set by dispatch, constrain model selection
-    budget_mode: Optional[str] = None         # blitz, standard, economic, frugal, survival, blackout
     # Challenge loop fields (M-IV01) — iterative validation
     challenge_round: int = 0                  # Current challenge round (0 = not started)
     challenge_max_rounds: int = 3             # Max rounds before human escalation
