@@ -1,7 +1,7 @@
 # Research Group 04 — Skills Classification (Internal + Ecosystem)
 
 **Date:** 2026-04-02
-**Status:** INTERNAL COMPLETE, ECOSYSTEM PENDING
+**Status:** COMPLETE — internal + ecosystem cataloged
 **Workflow step:** 1/4 (Research → Classify → Document → Build)
 
 ---
@@ -88,13 +88,75 @@ Their names convey intent but the body is the same boilerplate. Only 37 skills
 
 ---
 
-## Part 3: Ecosystem Skills Research (pending)
+## Part 3: Ecosystem Skills Research (COMPLETE)
 
-*Waiting for ecosystem research agent to complete. Will add:*
-- Superpowers (132K stars) — 20+ TDD methodology skills
-- claude-skills (9K stars) — 220+ skills for 10+ roles
-- plugins-plus-skills (2K stars) — 1,367 skills
-- Other collections
+### Collections Cataloged
+
+| Collection | Stars | Skills | Quality | Philosophy |
+|------------|-------|--------|---------|------------|
+| **Superpowers** (obra) | 132K | 14 core + 5 lab | HIGHEST | Methodology enforcement (TDD, brainstorming, subagent-driven) |
+| **anthropics/skills** | 109K | 17 | REFERENCE | Official canonical examples |
+| **antigravity** (sickn33) | 30K | 1,340+ | MEDIUM | Bundle installer, wide coverage |
+| **VoltAgent** | 14K | 1,060+ | HIGHEST (vendor) | Official vendor skills (Trail of Bits, Microsoft, HashiCorp) |
+| **claude-skills** (alirezarezvani) | 9K | 223 | HIGH | Role-based expert personas, 9 domains |
+| **plugins-plus-skills** (jeremylongshore) | 2K | 2,811 | MEDIUM | Atomic task generators, 20 categories |
+
+### Superpowers — The Methodology Layer (132K stars)
+
+14 core skills that enforce HOW to develop, not just WHAT:
+- `brainstorming` — Socratic design refinement before code
+- `writing-plans` — 2-5 minute tasks with exact files + verification
+- `executing-plans` — Batch execution with human checkpoints
+- `subagent-driven-development` — Fresh subagent per task, two-stage review
+- `test-driven-development` — TRUE TDD: write test, watch fail, write code, watch pass, commit. **Deletes code written before tests.**
+- `systematic-debugging` — 4-phase root cause process
+- `verification-before-completion` — Ensures actually fixed
+- `requesting-code-review` / `receiving-code-review` — Pre-review checklist + feedback response
+- `using-git-worktrees` — Parallel development branches
+- `finishing-a-development-branch` — Merge/PR decision workflow
+- `writing-skills` — Meta-skill for creating new skills
+- `dispatching-parallel-agents` — Concurrent subagent workflows
+
+**Conflict with fleet:** Superpowers assumes autonomous multi-hour execution. Fleet has "one step, wait for approval" guardrails. Methodology is sound but autonomy level needs throttling.
+
+**Overlap with our skills:** Minimal — complementary. Our skills = WHAT (feature-implement, ops-deploy). Superpowers = HOW (TDD, brainstorming, subagent dispatch). They layer on top.
+
+### alirezarezvani — Role-Based Expert Personas (9K stars)
+
+223 skills across 9 domains. Key for fleet:
+- **Engineering POWERFUL tier (36):** agent-designer, agent-workflow-designer, rag-architect, mcp-server-builder, skill-security-auditor, pr-review-expert, tech-debt-tracker, observability-designer
+- **Engineering Core (36):** senior-architect, senior-devops, senior-qa, senior-secops, tdd-guide, playwright-pro (9 sub-skills), incident-commander
+- **PM (8):** senior-pm, scrum-master, product-manager-toolkit, agile-product-owner
+
+Also has: Marketing (43), C-Level (28), Regulatory/QM (14), Finance (3) — not needed now but available.
+
+### VoltAgent — Vendor-Official Skills (14K stars)
+
+1,060+ skills from 35+ vendor teams. Key for fleet:
+- **Trail of Bits (21):** semgrep-rule-creator, property-based-testing, variant-analysis, constant-time-analysis — CRITICAL for devsecops
+- **Microsoft (133):** Azure SDK skills across 6 languages
+- **HashiCorp (11):** Terraform patterns and best practices — for devops
+- **Sentry (7):** Code review and error monitoring — for QA/fleet-ops
+- **Hugging Face (13):** ML skills (future if ML agents added)
+
+### What NOT to Adopt
+
+- Bulk-generated collections (2,811 or 44,000+ skills) — quantity ≠ quality
+- Generic artifact generators — fleet needs methodology enforcement, not templates
+- Marketing/C-level/finance domains — not relevant to coding fleet
+
+### Ecosystem Recommendations Per Role
+
+| Role | Adopt From Ecosystem |
+|------|---------------------|
+| **ALL agents** | Superpowers: brainstorming, TDD, systematic-debugging, verification |
+| **architect** | alirezarezvani: agent-designer, rag-architect; Superpowers: writing-plans |
+| **devsecops** | VoltAgent/Trail of Bits: 21 security skills; alirezarezvani: red-team |
+| **qa-engineer** | alirezarezvani: playwright-pro (9 sub-skills), tdd-guide |
+| **devops** | VoltAgent/HashiCorp: 11 Terraform skills; alirezarezvani: observability-designer |
+| **fleet-ops** | alirezarezvani: pr-review-expert; Superpowers: requesting-code-review |
+| **PM** | alirezarezvani: senior-pm, scrum-master, agile-product-owner |
+| **engineer** | Superpowers: subagent-driven-development, TDD, git-worktrees |
 
 ---
 
