@@ -1,0 +1,231 @@
+# Plan 01 — Safety + Memory Layer
+
+**Phase:** 1 (no dependencies — can start immediately)
+**Source:** Synthesis D1, D3, D4 | Analysis 02 (plugins), 05 (hooks)
+**Milestone IDs:** EA-001, EA-005, EA-008, HK-001, HK-002
+
+---
+
+## What This Plan Delivers
+
+Agents get: cross-session memory (claude-mem), destructive command
+protection (safety-net), and continuous Python type checking (pyright-lsp).
+These are the baseline safety and intelligence layers that every
+subsequent milestone builds on.
+
+---
+
+## 1. Install claude-mem on all agents
+
+**What:** Cross-session memory via github.com/thedotmack/claude-mem
+**Config:** SQLite-only mode (CRITICAL for WSL2 — avoids ChromaDB spawn storms)
+
+**Steps:**
+1. Install claude-mem plugin: `claude plugin install claude-mem`
+   - If marketplace install fails, use OpenClaw installer:
+     `curl -fsSL https://install.cmem.ai/openclaw.sh | bash`
+2. Configure SQLite-only mode in `~/.claude-mem/settings.json`:
+   ```json
+   { "chromaEnabled": false }
+   ```
+3. Set `ANTHROPIC_API_KEY` (needed for observation compression)
+4. Verify worker starts: `http://localhost:37777`
+5. Verify MCP tools available: search, timeline, get_observations
+
+**IaC integration:**
+- Add to `scripts/install-plugins.sh` — claude-mem install per agent
+- Add SQLite-only config to provisioning
+- Add health check: worker running + port 37777 responding
+
+**Test (in Claude Code, no fleet needed):**
+- Start a session, make some edits
+- `/compact` the session
+- Start new session — does claude-mem inject previous context?
+- Use search tool — does it find previous observations?
+
+**Known issues:**
+- Issue #1106: OpenClaw installer missing `openclaw.extensions` field
+- Issue #1471: MCP server not registered properly
+- Workaround: manual mcp.json entry if plugin install fails
+
+**Connects to:**
+- Knowledge map: memory integration layer
+- Session manager: context recovery after compact/prune
+- Agent heartbeat: recall without Claude costs (local SQLite search)
+
+---
+
+## 2. Install safety-net on all agents
+
+**What:** PreToolUse hook that catches destructive commands before execution
+**Source:** github.com/kenryu42/claude-code-safety-net (1K stars)
+
+**Steps:**
+1. Install: `claude plugin install safety-net`
+   - If not in default marketplace: `/plugin marketplace add kenryu42/claude-code-safety-net`
+   - Then: `/plugin install safety-net`
+2. Verify hook registered: `/hooks` should show PreToolUse handler
+3. Test: try `rm -rf /` in a safe context — should be blocked
+
+**IaC integration:**
+- Add to `scripts/install-plugins.sh` — safety-net install per agent
+- Add to `scripts/validate-agents.sh` — verify hook registered
+
+**Test (in Claude Code, no fleet needed):**
+- Run: try destructive git command (git reset --hard) — blocked?
+- Run: try rm -rf on project dir — blocked?
+- Run: normal git commit — allowed?
+- Verify: no false positives on legitimate operations
+
+**Connects to:**
+- Anti-corruption Line 1 (structural prevention)
+- PreToolUse hook (our hook infrastructure — Tier 1)
+- Agent permissions (§53)
+- Trail system (blocked commands should be recorded)
+
+---
+
+## 3. Install pyright-lsp on all Python agents
+
+**What:** Continuous Python type checking via pyright language server
+**Source:** Official Anthropic claude-plugins-official
+
+**Steps:**
+1. Install pyright binary: `npm i -g pyright`
+2. Install plugin: `claude plugin install pyright-lsp`
+3. Verify: make a type error in a Python file — diagnostic should appear
+
+**IaC integration:**
+- Add pyright to system dependencies in setup script
+- Add to `scripts/install-plugins.sh`
+- Add to `scripts/validate-agents.sh` — verify pyright binary + plugin
+
+**Test (in Claude Code, no fleet needed):**
+- Open a fleet Python file
+- Introduce a type error (wrong argument type)
+- Does pyright catch it automatically?
+- Does it provide code navigation (go to definition)?
+
+**Connects to:**
+- quality-lint skill (type checking is linting)
+- PostToolUse hook (diagnostics after every edit)
+- Feature implementation workflow (catch errors during coding)
+
+---
+
+## 4. Implement PreToolUse hook for stage enforcement
+
+**What:** Custom hook that validates tool calls against methodology stage
+**Currently:** Stage enforcement is in MCP tools.py (_check_stage_allowed)
+**Enhancement:** Move to hook layer for STRUCTURAL enforcement
+
+**Steps:**
+1. Create hooks config in fleet project:
+   ```json
+   {
+     "hooks": {
+       "PreToolUse": [{
+         "type": "command",
+         "command": "python -m fleet.hooks.stage_gate",
+         "match": ["Bash", "Write", "Edit"]
+       }]
+     }
+   }
+   ```
+2. Create `fleet/hooks/stage_gate.py`:
+   - Read current stage from context
+   - If stage != work and tool is destructive → block with feedback
+   - If stage == conversation and tool writes files → block
+   - Return: allow/deny with reason
+3. This COMPLEMENTS the MCP _check_stage_allowed (belt + suspenders)
+
+**IaC integration:**
+- Hooks config generated by `scripts/provision-agent-files.sh`
+- Per-agent hooks from agent-tooling.yaml
+
+**Test (in Claude Code, no fleet needed):**
+- Set up a test scenario with stage=conversation
+- Try to write a file — hook should block
+- Change stage to work — should allow
+
+**Connects to:**
+- safety-net (complementary — safety-net catches destructive, this catches stage violations)
+- Anti-corruption Line 1
+- Methodology system (S01)
+- Doctor immune system (hook fires before doctor detects)
+
+---
+
+## 5. Implement PostToolUse hook for trail recording
+
+**What:** Automatic trail event recording after every successful tool call
+**Currently:** Trail recording requires manual calls in each MCP tool
+**Enhancement:** Hook-based = automatic, never missed
+
+**Steps:**
+1. Add PostToolUse hook config:
+   ```json
+   {
+     "hooks": {
+       "PostToolUse": [{
+         "type": "command",
+         "command": "python -m fleet.hooks.trail_record",
+         "match": ["*"]
+       }]
+     }
+   }
+   ```
+2. Create `fleet/hooks/trail_record.py`:
+   - Read tool name, result, agent name from hook input
+   - Post trail event to board memory (tagged trail + task:{id} + tool:{name})
+   - Lightweight — must complete in <100ms
+3. This replaces the manual trail recording in each MCP tool
+
+**IaC integration:**
+- Hook config in agent provisioning
+- Trail tags standardized via config
+
+**Test (in Claude Code, no fleet needed):**
+- Call fleet_read_context — does trail event appear in board memory?
+- Call fleet_commit — trail event with commit SHA?
+- Verify: no performance impact on tool calls
+
+**Connects to:**
+- trail_recorder.py (hook calls the recorder)
+- Fleet-ops review Step 4 (trail verification)
+- Accountability generator (trail completeness audit)
+- LaborStamp mini-signatures (agent + model + context% per trail event)
+
+---
+
+## Validation Checklist
+
+After completing all 5 items:
+
+- [ ] claude-mem installed and working in SQLite-only mode
+- [ ] claude-mem search tools return results from previous sessions
+- [ ] safety-net blocks destructive commands (git reset --hard, rm -rf)
+- [ ] safety-net allows legitimate operations (git commit, file edits)
+- [ ] pyright-lsp catches type errors automatically
+- [ ] pyright-lsp provides code navigation
+- [ ] PreToolUse stage hook blocks file writes in conversation stage
+- [ ] PreToolUse stage hook allows file writes in work stage
+- [ ] PostToolUse trail hook records events for every tool call
+- [ ] All hooks registered and visible via `/hooks`
+- [ ] All plugins visible via `/plugin list`
+- [ ] IaC scripts updated to provision all of the above
+- [ ] validate-agents.sh checks for plugin + hook presence
+
+---
+
+## What This Enables
+
+With this plan complete:
+- Agents have MEMORY across sessions (claude-mem)
+- Agents are PROTECTED from destructive commands (safety-net)
+- Agents get CONTINUOUS type checking (pyright-lsp)
+- Tool calls are ENFORCED by stage (PreToolUse hook)
+- Every tool call is RECORDED in trail (PostToolUse hook)
+
+These are the enforcement + intelligence foundations that
+every subsequent plan builds on.
