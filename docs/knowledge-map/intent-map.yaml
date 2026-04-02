@@ -1,0 +1,321 @@
+# Intent Map — Situation → What to Inject
+#
+# Part of: Fleet Knowledge Map → Metadata layer
+# Purpose: The brain reads this to determine WHAT content from the
+#   knowledge map to inject into agent context for a given situation.
+#
+# Format: Each intent defines a situation (role + stage + context)
+#   and maps it to specific content from the map branches.
+#
+# The navigator module reads this at context assembly time.
+
+# ─── Injection Profile Selection ────────────────────────────────────
+#
+# Profile selected based on model + context window:
+#   opus-1m:    Full detail — all sections, complete manuals
+#   sonnet-200k: Condensed — key concepts, essential sections
+#   localai-8k:  Minimal — names only, action directive, essentials
+#   heartbeat:   Just enough for idle check (role data + fleet state)
+
+profiles:
+  opus-1m:
+    system_manuals: full         # docs/systems/*.md
+    agent_manual: full           # agent-manuals.md (full entry)
+    methodology: full            # methodology-manual.md (full stage)
+    standards: full              # standards-manual.md (relevant standard)
+    module_manual: condensed     # module-manuals.md (relevant modules)
+    skills: full_descriptions    # all assigned skills with descriptions
+    commands: full_guidance      # all commands with per-role per-stage guidance
+    tools: full_chains           # full tool call trees
+    plugins: full_capabilities   # all plugin capabilities
+    hooks: awareness             # hook behavior described
+    contributions: full          # synergy matrix + received + missing
+    trail: full                  # trail events for task
+    context_awareness: full      # both countdowns + aggregate math
+
+  sonnet-200k:
+    system_manuals: condensed    # system-manuals-condensed.md
+    agent_manual: condensed      # mission + tools + key rules
+    methodology: full            # methodology is ALWAYS full (critical)
+    standards: required_fields   # field list only, no quality criteria
+    module_manual: none          # not needed at this context size
+    skills: names_only           # /skill-name list
+    commands: key_per_stage      # top 3 commands for current stage
+    tools: names_and_purpose     # tool name + one-line purpose
+    plugins: names_only          # plugin names
+    hooks: none                  # not needed
+    contributions: received_only # what's been received, not full matrix
+    trail: summary               # key events only
+    context_awareness: both_pcts # just the two percentages
+
+  localai-8k:
+    system_manuals: none
+    agent_manual: minimal        # mission (1 line) + core responsibility
+    methodology: stage_only      # current stage MUST/MUST NOT only
+    standards: none
+    module_manual: none
+    skills: none                 # agent knows skills from CLAUDE.md
+    commands: none               # agent knows commands from CLAUDE.md
+    tools: fleet_read_context    # "call fleet_read_context for more detail"
+    plugins: none
+    hooks: none
+    contributions: names_only    # "design_input received from architect"
+    trail: none
+    context_awareness: none
+
+  heartbeat:
+    system_manuals: none
+    agent_manual: none           # identity comes from IDENTITY.md (static)
+    methodology: none            # stage comes from task-context.md
+    standards: none
+    module_manual: none
+    skills: none
+    commands: none
+    tools: none
+    plugins: none
+    hooks: none
+    contributions: none
+    trail: none
+    context_awareness: none
+    # Heartbeat gets: fleet state + directives + messages + tasks + role data
+    # All from fleet-context.md (written by brain every 30s)
+
+# ─── Per-Role Per-Stage Intents ─────────────────────────────────────
+
+intents:
+
+  # ── Project Manager ──────────────────────────────────────────────
+
+  pm-conversation:
+    inject:
+      - agent_manual: pm (mission + tools + rules)
+      - methodology: conversation (MUST/MUST NOT)
+      - skills: [idea-capture, fleet-communicate, brainstorming]
+      - commands: [/context]
+      - contributions: none (PM doesn't receive contributions)
+
+  pm-reasoning:
+    inject:
+      - agent_manual: pm
+      - methodology: reasoning
+      - skills: [pm-plan, fleet-plan, fleet-sprint, writing-plans]
+      - commands: [/plan, /context, /cost]
+      - tools: [fleet_task_create, fleet_gate_request]
+
+  pm-work:
+    inject:
+      - agent_manual: pm
+      - methodology: work
+      - skills: [fleet-sprint, fleet-plane, pm-status-report]
+      - commands: [/cost, /usage]
+      - tools: [fleet_task_create, fleet_gate_request, fleet_plane_*]
+
+  pm-heartbeat:
+    inject:
+      - fleet_state: [work_mode, cycle_phase, budget_mode]
+      - role_data: [unassigned_count, blocked_count, sprint_progress]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
+
+  # ── Fleet-Ops ────────────────────────────────────────────────────
+
+  fleet-ops-review:
+    inject:
+      - agent_manual: fleet-ops (7-step review)
+      - standards: [completion_claim, pull_request]
+      - skills: [fleet-review, quality-audit, fleet-test]
+      - commands: [/diff, /pr-comments, /security-review]
+      - tools: [fleet_approve, fleet_alert]
+      - trail: task trail (for Step 4 trail verification)
+      - contributions: received for task (verify used)
+      - challenge: challenge results if available
+
+  fleet-ops-heartbeat:
+    inject:
+      - fleet_state: all
+      - role_data: [pending_approvals, review_queue, offline_agents]
+      - directives: all
+      - messages: mentions
+      - health: [storm_status, budget_status, agent_health]
+
+  # ── Architect ────────────────────────────────────────────────────
+
+  architect-analysis:
+    inject:
+      - agent_manual: architect
+      - methodology: analysis
+      - skills: [architecture-review, quality-audit]
+      - commands: [/context, /plan, /diff]
+      - tools: [fleet_artifact_create (analysis_document)]
+      - mcp: [filesystem, github, Context7]
+
+  architect-investigation:
+    inject:
+      - agent_manual: architect
+      - methodology: investigation
+      - skills: [architecture-review, infra-search]
+      - commands: [/plan, /context]
+      - tools: [fleet_artifact_create (investigation_document)]
+      - mcp: [filesystem, github, Context7]
+      - note: "minimum 3 options explored"
+
+  architect-reasoning:
+    inject:
+      - agent_manual: architect
+      - methodology: reasoning
+      - skills: [architecture-propose, writing-plans, brainstorming]
+      - commands: [/plan, /branch, /effort high]
+      - tools: [fleet_task_accept, fleet_artifact_create (plan)]
+      - mcp: [filesystem, Context7, sequential-thinking]
+
+  architect-contribution:
+    inject:
+      - agent_manual: architect (contribution role)
+      - tools: [fleet_contribute (design_input)]
+      - target_task: full context of task being contributed to
+      - standards: for contribution artifact type
+
+  # ── DevSecOps ────────────────────────────────────────────────────
+
+  devsecops-investigation:
+    inject:
+      - agent_manual: devsecops
+      - methodology: investigation
+      - skills: [fleet-security-audit, infra-security]
+      - commands: [/security-review, /debug]
+      - mcp: [filesystem, docker, Trivy, Semgrep]
+
+  devsecops-contribution:
+    inject:
+      - agent_manual: devsecops (security layer)
+      - tools: [fleet_contribute (security_requirement)]
+      - target_task: full context
+      - note: "phase-appropriate — POC basic, production full"
+
+  devsecops-review:
+    inject:
+      - tools: [fleet_alert (security), security_hold mechanism]
+      - commands: [/security-review]
+      - mcp: [Trivy, Semgrep, Snyk]
+
+  # ── Software Engineer ────────────────────────────────────────────
+
+  engineer-reasoning:
+    inject:
+      - agent_manual: engineer
+      - methodology: reasoning
+      - skills: [feature-plan, writing-plans]
+      - commands: [/plan]
+      - tools: [fleet_task_accept]
+      - contributions: check for architect/QA/devsecops inputs
+      - note: "do NOT start implementing — plan only"
+
+  engineer-work:
+    inject:
+      - agent_manual: engineer (full — this is their primary stage)
+      - methodology: work (full MUST/MUST NOT)
+      - skills: [feature-implement, feature-test, TDD, verification, systematic-debugging]
+      - commands: [/debug, /diff, /fast, /compact, /batch]
+      - tools: [fleet_read_context, fleet_task_accept, fleet_commit, fleet_task_complete]
+      - mcp: [filesystem, github, playwright, Context7, pytest-mcp]
+      - plugins: [pyright-lsp, safety-net, context7, claude-mem]
+      - contributions: all received (architect design, QA tests, devsecops security)
+      - standards: [plan, pull_request, completion_claim]
+      - context_awareness: both countdowns
+
+  # ── DevOps ───────────────────────────────────────────────────────
+
+  devops-work:
+    inject:
+      - agent_manual: devops
+      - methodology: work
+      - skills: [foundation-docker, foundation-ci, ops-deploy, ops-rollback, ops-incident]
+      - commands: [/debug, /loop, /batch]
+      - tools: [fleet_commit, fleet_task_complete, fleet_contribute]
+      - mcp: [filesystem, github, docker]
+      - plugins: [safety-net]
+      - note: "everything MUST be IaC — no manual runtime commands"
+
+  # ── QA Engineer ──────────────────────────────────────────────────
+
+  qa-contribution:
+    inject:
+      - agent_manual: qa (test predefinition)
+      - tools: [fleet_contribute (qa_test_definition)]
+      - target_task: full context
+      - standards: qa_test_definition artifact type
+      - note: "structured test criteria with IDs (TC-001)"
+
+  qa-work:
+    inject:
+      - agent_manual: qa
+      - methodology: work
+      - skills: [quality-coverage, feature-test, foundation-testing, TDD]
+      - commands: [/debug]
+      - tools: [fleet_commit, fleet_task_complete]
+      - mcp: [filesystem, playwright, pytest-mcp]
+
+  qa-review:
+    inject:
+      - agent_manual: qa (validation role)
+      - tools: [fleet-test skill]
+      - predefined_criteria: qa_test_definition for this task
+      - note: "validate against YOUR predefined criteria, not discovered ones"
+
+  # ── Technical Writer ─────────────────────────────────────────────
+
+  writer-work:
+    inject:
+      - agent_manual: writer
+      - methodology: work
+      - skills: [feature-document, pm-changelog, pm-handoff]
+      - commands: [/plan, /compact]
+      - tools: [fleet_artifact_create, fleet_commit, fleet_plane_*]
+      - mcp: [filesystem, github, Context7]
+      - note: "documentation is a LIVING SYSTEM — update or delete, never leave stale"
+
+  writer-contribution:
+    inject:
+      - tools: [fleet_contribute (documentation_outline)]
+      - target_task: full context
+
+  writer-heartbeat-autonomous:
+    inject:
+      - role_data: [completed_tasks_without_docs, stale_plane_pages]
+      - tools: [fleet_plane_*, fleet_commit]
+      - note: "scan for missing/stale docs, update proactively"
+
+  # ── UX Designer ──────────────────────────────────────────────────
+
+  ux-contribution:
+    inject:
+      - agent_manual: ux
+      - tools: [fleet_contribute (ux_spec)]
+      - target_task: full context
+      - note: "specify ALL states — loading, error, empty, success, partial"
+
+  ux-reasoning:
+    inject:
+      - agent_manual: ux
+      - methodology: reasoning
+      - skills: [quality-accessibility]
+      - commands: [/plan, /branch]
+      - mcp: [filesystem, playwright]
+
+  # ── Accountability Generator ─────────────────────────────────────
+
+  accountability-analysis:
+    inject:
+      - agent_manual: accountability
+      - skills: [quality-audit]
+      - tools: [fleet_artifact_create (compliance_report)]
+      - trail: all trail events for reporting period
+      - standards: methodology compliance metrics
+      - note: "verify every detail — reconstruct trails event by event"
+
+  accountability-heartbeat:
+    inject:
+      - role_data: [completed_tasks (need trail verification)]
+      - trail: recent completions
+      - note: "sprint boundary → generate compliance report"

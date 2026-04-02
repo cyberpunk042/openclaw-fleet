@@ -1,0 +1,327 @@
+# Cross-References — System → Module → Tool → Agent Relationships
+#
+# Part of: Fleet Knowledge Map → Metadata layer
+# Purpose: The relationship graph connecting every piece of the fleet.
+#   The intent-map reads this to determine WHAT to inject per situation.
+#
+# Format: Each system lists its modules, tools, connected systems,
+#   and which agent roles interact with it.
+
+systems:
+
+  methodology:
+    id: S01
+    modules: [methodology.py, stage_context.py, phases.py]
+    tools:
+      uses: [fleet_task_accept, fleet_task_progress, fleet_commit, fleet_task_complete]
+      gates: [fleet_commit (stages 2-5), fleet_task_complete (work only)]
+    connected_systems: [S02 (protocol_violation → doctor), S03 (teaching lessons per stage), S07 (orchestrator enforces), S08 (MCP stage gating), S09 (standards per artifact), S22 (preembed injects stage instructions)]
+    agent_roles:
+      all: [stage protocol awareness]
+      pm: [stage progression management, gate routing]
+      fleet-ops: [methodology compliance review]
+    skills: [feature-plan, pm-plan, fleet-plan, writing-plans]
+    commands: [/plan]
+
+  immune-system:
+    id: S02
+    modules: [doctor.py, behavioral_security.py, self_healing.py]
+    tools:
+      produces: [protocol_violation events, security_hold on tasks]
+      reads: [agent health profiles, task stage, readiness]
+    connected_systems: [S01 (methodology violations), S03 (teaching response), S04 (disease events), S06 (agent health), S07 (Step 2 every cycle), S13 (labor stamps for laziness detection)]
+    agent_roles:
+      hidden_from: [all agents (doctor is invisible)]
+      devsecops: [behavioral security scanner input]
+      fleet-ops: [health report consumer]
+    skills: [quality-audit, fleet-security-audit]
+    hooks: [PostToolUse (trail), PreToolUse (stage enforcement)]
+
+  teaching:
+    id: S03
+    modules: [teaching.py]
+    tools:
+      uses: [gateway inject_content (lesson delivery)]
+    connected_systems: [S02 (disease triggers teaching), S07 (orchestrator injects lessons), S15 (challenge analytics → teaching signals)]
+    agent_roles:
+      all: [lesson recipients]
+    skills: []
+
+  event-bus:
+    id: S04
+    modules: [events.py, event_chain.py, event_router.py, event_display.py]
+    tools:
+      produces: [47 event types across 9 domains]
+      chains: [task_complete (6 surfaces), alert, contribution, gate_request, rejection, phase_advance, transfer, sprint_complete]
+    connected_systems: [S07 (orchestrator emits), S08 (MCP tools emit), S11 (storm events), S17 (Plane surface), S18 (notification routing)]
+    agent_roles:
+      all: [event consumers via feeds]
+      fleet-ops: [review/approval events]
+      pm: [task/sprint events]
+    hooks: [PostToolUse (emit events)]
+
+  control-surface:
+    id: S05
+    modules: [fleet_mode.py, directives.py, config_watcher.py]
+    tools:
+      reads: [OCMC board fleet_config JSON]
+    connected_systems: [S07 (orchestrator reads every cycle), S12 (budget_mode axis)]
+    agent_roles:
+      po: [sets all 3 axes + directives]
+      all: [sees fleet state in context]
+    commands: [/config]
+
+  agent-lifecycle:
+    id: S06
+    modules: [agent_lifecycle.py, agent_roles.py, memory_structure.py, heartbeat_gate.py]
+    tools:
+      produces: [heartbeat decisions (WAKE/SILENT/STRATEGIC)]
+    connected_systems: [S02 (agent health), S07 (orchestrator manages lifecycle), S12 (budget affects heartbeat frequency), S13 (heartbeat stamps)]
+    agent_roles:
+      all: [lifecycle state applies to all]
+      fleet-ops: [PR authority, final approver]
+      devsecops: [security_hold authority]
+    plugins: [claude-mem (cross-session memory)]
+
+  orchestrator:
+    id: S07
+    modules: [orchestrator.py, context_assembly.py, preembed.py, context_writer.py, role_providers.py, change_detector.py, smart_chains.py, driver.py, contributions.py, dispatch.py, health.py, self_healing.py, board_cleanup.py, routing.py, task_scoring.py, task_lifecycle.py, pr_hygiene.py, error_reporter.py, velocity.py]
+    tools:
+      orchestrates: [ALL fleet operations]
+      writes: [context/ files every 30s]
+    connected_systems: [ALL (S01-S22) — the brain touches everything]
+    agent_roles:
+      pm: [wake on unassigned tasks, pre-embed sprint data]
+      fleet-ops: [wake on pending approvals, pre-embed review queue]
+      architect: [pre-embed design-needed tasks]
+      devsecops: [pre-embed security tasks]
+      workers: [pre-embed assigned tasks + artifacts]
+
+  mcp-tools:
+    id: S08
+    modules: [tools.py, server.py, context.py]
+    tools:
+      provides: [29 fleet MCP tools]
+    connected_systems: [S01 (stage gating), S04 (event emission), S07 (dispatch triggers), S09 (compliance check), S10 (artifact rendering), S13 (labor stamps), S17 (Plane sync)]
+    agent_roles:
+      all: [fleet_read_context, fleet_chat, fleet_alert, fleet_escalate]
+      pm: [fleet_task_create, fleet_gate_request, fleet_plane_*]
+      fleet-ops: [fleet_approve]
+      workers: [fleet_task_accept, fleet_commit, fleet_task_complete]
+      contributors: [fleet_contribute, fleet_request_input]
+
+  standards:
+    id: S09
+    modules: [standards.py, plan_quality.py, skill_enforcement.py]
+    tools:
+      checks: [artifact completeness at fleet_artifact_create, plan quality at fleet_task_accept, tool compliance at fleet_task_complete]
+    connected_systems: [S07 (readiness suggestions), S08 (compliance in approval), S10 (artifact rendering per standard)]
+    agent_roles:
+      all: [produce artifacts per standards]
+      fleet-ops: [review against standards]
+      accountability: [compliance reporting]
+
+  transpose:
+    id: S10
+    modules: [transpose.py, artifact_tracker.py]
+    tools:
+      uses: [fleet_artifact_create, fleet_artifact_update, fleet_artifact_read]
+    connected_systems: [S08 (MCP tools), S09 (standard compliance), S17 (Plane HTML rendering)]
+    agent_roles:
+      all: [produce artifacts]
+      pm: [view completeness]
+
+  storm:
+    id: S11
+    modules: [storm_monitor.py, storm_integration.py, storm_analytics.py, incident_report.py, gateway_guard.py]
+    tools:
+      monitors: [9-10 indicators]
+      controls: [dispatch rate, cycle halt]
+    connected_systems: [S07 (pre-check every cycle), S12 (budget fast_climb), S19 (context_pressure indicator)]
+    agent_roles:
+      po: [notified on STORM+]
+      fleet-ops: [health monitoring]
+
+  budget:
+    id: S12
+    modules: [budget_monitor.py, budget_modes.py, budget_analytics.py, budget_ui.py]
+    tools:
+      monitors: [Claude OAuth quota (5h, 7d)]
+      controls: [dispatch pause at 90%/95%, tempo offset]
+    connected_systems: [S05 (budget_mode axis), S07 (dispatch gate), S11 (fast_climb indicator), S13 (cost tracking)]
+    agent_roles:
+      po: [sets budget_mode]
+      fleet-ops: [budget awareness]
+      accountability: [cost auditing]
+    commands: [/cost, /usage]
+
+  labor:
+    id: S13
+    modules: [labor_stamp.py, labor_analytics.py, heartbeat_stamp.py, review_gates.py, trail_recorder.py]
+    tools:
+      stamps: [fleet_task_complete (full stamp), heartbeat (mini stamp)]
+    connected_systems: [S07 (dispatch records), S08 (stamp at completion), S14 (confidence tier from backend), S15 (challenge rounds in stamp)]
+    agent_roles:
+      all: [produce stamped work]
+      fleet-ops: [review stamps for quality]
+      accountability: [audit stamps]
+
+  router:
+    id: S14
+    modules: [backend_router.py, backend_health.py, model_swap.py, codex_review.py, router_unification.py, model_selection.py, openai_client.py]
+    tools:
+      decides: [which backend per task]
+    connected_systems: [S05 (backend_mode), S07 (dispatch uses router), S12 (budget constrains), S16 (model configs)]
+    agent_roles:
+      devsecops: [always Claude, never trainee]
+      architect: [always Claude for design]
+    mcp_servers: [Context7, Trivy, Semgrep, Snyk, pytest-mcp]
+    plugins: [codex-plugin-cc]
+
+  challenge:
+    id: S15
+    modules: [challenge.py, challenge_protocol.py, challenge_automated.py, challenge_cross_model.py, challenge_scenario.py, challenge_readiness.py, challenge_deferred.py, challenge_analytics.py]
+    tools:
+      invoked_by: [fleet_task_complete (after work)]
+    connected_systems: [S03 (teaching signals), S13 (challenge rounds in stamp), S14 (cross-model uses different backend)]
+    agent_roles:
+      qa: [agent challenger]
+      devsecops: [security challenger]
+      architect: [design challenger]
+      fleet-ops: [challenge results in review]
+
+  models:
+    id: S16
+    modules: [model_benchmark.py, model_configs.py, model_promotion.py, shadow_routing.py, tier_progression.py, cluster_peering.py, dual_gpu.py, turboquant.py]
+    tools:
+      manages: [LocalAI models, benchmarks, promotions]
+    connected_systems: [S14 (model selection), S12 (cost per model)]
+    agent_roles:
+      po: [promotion decisions]
+
+  plane:
+    id: S17
+    modules: [plane_sync.py, plane_watcher.py, plane_methodology.py, config_sync.py]
+    tools:
+      uses: [fleet_plane_* (7 tools)]
+    connected_systems: [S07 (sync daemon), S08 (MCP Plane tools), S10 (artifact HTML)]
+    agent_roles:
+      pm: [primary Plane operator]
+      writer: [Plane page maintenance]
+    mcp_servers: [Plane MCP (makeplane/plane-mcp-server)]
+
+  notifications:
+    id: S18
+    modules: [notification_router.py, cross_refs.py, urls.py, event_display.py]
+    tools:
+      routes: [events → IRC/ntfy/Plane]
+    connected_systems: [S04 (event source), S07 (orchestrator triggers)]
+    agent_roles:
+      po: [ntfy consumer]
+      all: [IRC #fleet visibility]
+    channels: ["#fleet", "#alerts", "#reviews", "#sprint", "#gates", "#contributions"]
+
+  session:
+    id: S19
+    modules: [session_telemetry.py, session_metrics.py, session_manager.py, context_assembly.py, heartbeat_context.py, preembed.py, context_writer.py]
+    tools:
+      manages: [context per agent, rate limit awareness]
+    connected_systems: [S07 (Step 0 + Step 10), S11 (context_pressure), S12 (cost tracking), S13 (labor fields)]
+    agent_roles:
+      all: [context consumers]
+    commands: [/compact, /context, /usage]
+    plugins: [claude-mem (session memory)]
+
+  infrastructure:
+    id: S20
+    modules: [auth.py, cache.py, federation.py, interfaces.py, models.py, urls.py]
+    infra_modules: [gateway_client.py, mc_client.py, plane_client.py, irc_client.py, ntfy_client.py, gh_client.py, config_loader.py, cache_sqlite.py]
+    connected_systems: [ALL (infrastructure serves everything)]
+    agent_roles:
+      all: [via MCP tools that use infra clients]
+
+  agent-tooling:
+    id: S21
+    modules: [skill_enforcement.py]
+    config: [agent-tooling.yaml, agent-identities.yaml, agent-autonomy.yaml]
+    connected_systems: [S08 (skill compliance in approval), S09 (tool enforcement)]
+    agent_roles:
+      all: [per-role tool/skill/plugin assignments]
+    mcp_servers: [filesystem, github, playwright, docker, Context7, pytest-mcp, Trivy, Plane MCP]
+    plugins: [claude-mem, context7, safety-net, pyright-lsp, codex-plugin-cc, superpowers]
+    skills: [85 internal + ecosystem]
+
+  agent-intelligence:
+    id: S22
+    modules: [autocomplete.py, context_assembly.py, heartbeat_context.py, preembed.py, context_writer.py, role_providers.py, smart_chains.py]
+    connected_systems: [S06 (lifecycle state), S07 (orchestrator drives), S19 (session management)]
+    agent_roles:
+      all: [autocomplete chain consumers]
+    concepts: [8-layer onion, intent-map, injection profiles, three-tier decisions]
+
+# ─── Role → System Mapping ─────────────────────────────────────────
+
+roles:
+
+  project-manager:
+    primary_systems: [S07, S08, S17]
+    reads: [S05 (fleet state), S09 (standards), S01 (methodology)]
+    operates: [S17 (Plane), S08 (fleet_task_create, fleet_gate_request)]
+    monitors: [S12 (budget), S07 (sprint velocity)]
+
+  fleet-ops:
+    primary_systems: [S07, S08, S02]
+    reads: [S09 (standards), S13 (labor stamps), S15 (challenge results)]
+    operates: [S08 (fleet_approve), S18 (notifications)]
+    monitors: [S11 (storm), S12 (budget), S06 (agent health)]
+
+  architect:
+    primary_systems: [S07, S08, S09]
+    reads: [S01 (methodology), S10 (artifacts)]
+    operates: [S08 (fleet_contribute design_input, fleet_artifact_create)]
+    contributes_to: [engineer, devops, qa, writer, devsecops]
+
+  devsecops-expert:
+    primary_systems: [S02, S07, S08]
+    reads: [S14 (router/backend health)]
+    operates: [S08 (fleet_contribute security_requirement, fleet_alert, security_hold)]
+    monitors: [S02 (behavioral security), S11 (storm)]
+    mcp_servers: [Trivy, Semgrep, Snyk]
+
+  software-engineer:
+    primary_systems: [S07, S08, S01]
+    reads: [S09 (standards), S10 (artifacts), S22 (autocomplete chain)]
+    operates: [S08 (fleet_task_accept, fleet_commit, fleet_task_complete)]
+    receives_from: [architect, qa, devsecops, ux]
+    mcp_servers: [filesystem, github, playwright, Context7, pytest-mcp]
+
+  devops:
+    primary_systems: [S07, S08, S20]
+    reads: [S05 (fleet state), S12 (budget)]
+    operates: [S08 (fleet_commit, fleet_task_complete), docker, infrastructure]
+    monitors: [S20 (infrastructure health), S07 (fleet daemons)]
+    mcp_servers: [filesystem, github, docker]
+
+  qa-engineer:
+    primary_systems: [S07, S08, S15]
+    reads: [S09 (standards), S10 (artifacts)]
+    operates: [S08 (fleet_contribute qa_test_definition), S15 (challenger)]
+    mcp_servers: [filesystem, playwright, pytest-mcp]
+
+  technical-writer:
+    primary_systems: [S07, S08, S17]
+    reads: [S10 (artifacts), S09 (standards)]
+    operates: [S08 (fleet_artifact_create, fleet_commit), S17 (Plane pages)]
+    mcp_servers: [filesystem, github, Context7]
+
+  ux-designer:
+    primary_systems: [S07, S08]
+    reads: [S09 (standards), S10 (artifacts)]
+    operates: [S08 (fleet_contribute ux_spec)]
+    mcp_servers: [filesystem, playwright]
+
+  accountability-generator:
+    primary_systems: [S07, S13]
+    reads: [S01 (methodology compliance), S09 (standards), S13 (labor stamps)]
+    operates: [S08 (fleet_artifact_create compliance_report)]
+    monitors: [trail completeness, process adherence]

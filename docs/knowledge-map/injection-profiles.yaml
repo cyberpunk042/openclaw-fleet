@@ -1,0 +1,222 @@
+# Injection Profiles — How Much Content Per Context Size
+#
+# Part of: Fleet Knowledge Map → Metadata layer
+# Purpose: Define exactly what gets injected at each context tier.
+#   The navigator selects a profile based on model + context window,
+#   then reads the intent-map to determine WHICH content from each
+#   branch to inject.
+#
+# Four tiers matching the knowledge map tree:
+#   full (docs/systems/*) → condensed (system-manuals-condensed.md)
+#   → minimal (system-manuals-minimal.md) → none
+
+opus-1m:
+  description: "Maximum context — inject everything relevant"
+  context_budget: ~50K tokens for knowledge map content
+  model: opus-4-6
+  context_window: 1000000
+
+  branches:
+    system_manuals:
+      level: full
+      source: docs/systems/{id}.md
+      max_systems: 3  # most relevant to current task
+      selection: by task type + agent role (from cross-references.yaml)
+
+    agent_manual:
+      level: full
+      source: knowledge-map/agent-manuals.md
+      section: current agent's full entry (~35 lines)
+
+    methodology:
+      level: full
+      source: knowledge-map/methodology-manual.md
+      section: current stage (all subsections — tools, skills, commands, MCP, plugins)
+
+    standards:
+      level: full
+      source: knowledge-map/standards-manual.md
+      section: relevant standard for current artifact type
+      plus: artifact type schema from standards.py
+
+    module_manual:
+      level: condensed
+      source: knowledge-map/module-manuals.md
+      selection: modules related to current task's target files
+
+    skills:
+      level: full_descriptions
+      inject: all assigned skills with descriptions
+      per_stage: recommended skills highlighted
+
+    commands:
+      level: full_guidance
+      inject: all relevant commands with per-role per-stage guidance
+
+    tools:
+      level: full_chains
+      inject: tool call trees for tools this role uses
+      source: fleet-elevation/24
+
+    plugins:
+      level: full_capabilities
+      inject: what each active plugin provides
+
+    contributions:
+      level: full
+      inject: synergy matrix + received contributions + missing
+
+    trail:
+      level: full
+      inject: trail events for current task
+
+    context_awareness:
+      level: full
+      inject: context %, rate limit %, aggregate fleet math, rollover time
+
+sonnet-200k:
+  description: "Condensed context — key concepts, essential guidance"
+  context_budget: ~15K tokens for knowledge map content
+  model: sonnet-4-6
+  context_window: 200000
+
+  branches:
+    system_manuals:
+      level: condensed
+      source: knowledge-map/system-manuals-condensed.md
+      max_systems: 1  # only the most relevant
+      selection: primary system for current task
+
+    agent_manual:
+      level: condensed
+      inject: mission (1 sentence) + primary tools + key rules (3)
+
+    methodology:
+      level: full  # methodology is ALWAYS full — never compress process
+      source: knowledge-map/methodology-manual.md
+      section: current stage only
+
+    standards:
+      level: required_fields
+      inject: required field list for current artifact type
+
+    module_manual:
+      level: none
+
+    skills:
+      level: names_only
+      inject: "Available skills: /skill1, /skill2, /skill3"
+
+    commands:
+      level: key_per_stage
+      inject: top 3 commands for current stage
+
+    tools:
+      level: names_and_purpose
+      inject: "fleet_commit — commit with conventional format [work stage]"
+
+    plugins:
+      level: names_only
+      inject: "Plugins: claude-mem (memory search), context7 (library docs)"
+
+    contributions:
+      level: received_only
+      inject: contributions received (names + contributor, not full content)
+
+    trail:
+      level: summary
+      inject: "Trail: 5 events recorded (created → assigned → dispatched → accepted → 2 commits)"
+
+    context_awareness:
+      level: both_pcts
+      inject: "Context: 45% | Rate limit: 5h 23% / 7d 41%"
+
+localai-8k:
+  description: "Minimal context — just enough to work correctly"
+  context_budget: ~2K tokens for knowledge map content
+  model: hermes-3b / qwen3.5-4b
+  context_window: 8192
+
+  branches:
+    system_manuals:
+      level: none
+
+    agent_manual:
+      level: minimal
+      inject: "You are {display_name}, {role}. {mission}."
+
+    methodology:
+      level: stage_only
+      inject: "Stage: {stage}. MUST: {must_list}. MUST NOT: {must_not_list}."
+
+    standards:
+      level: none
+
+    module_manual:
+      level: none
+
+    skills:
+      level: none
+
+    commands:
+      level: none
+
+    tools:
+      level: fleet_read_context
+      inject: "Call fleet_read_context for full task context."
+
+    plugins:
+      level: none
+
+    contributions:
+      level: names_only
+      inject: "Inputs: design_input (architect), qa_tests (QA)"
+
+    trail:
+      level: none
+
+    context_awareness:
+      level: none
+
+heartbeat:
+  description: "Idle check — fleet state + directives + tasks only"
+  context_budget: ~1K tokens
+  model: any (brain evaluates before model call)
+  context_window: any
+
+  branches:
+    # Heartbeat context comes from fleet-context.md (written by brain)
+    # NOT from the knowledge map — the static agent files
+    # (IDENTITY, SOUL, CLAUDE, TOOLS, AGENTS, HEARTBEAT) provide
+    # the agent's identity and protocol. The heartbeat profile
+    # is about the DYNAMIC content only.
+    all:
+      level: none  # dynamic content handled by fleet-context.md
+      note: "Brain writes fleet-context.md with fleet state, directives, messages, tasks, role data, events. Gateway injects static files. No map injection needed for heartbeat."
+
+# ─── Profile Selection Logic ────────────────────────────────────────
+
+selection:
+  rules:
+    - model: opus-4-6
+      context: "[1m]"
+      profile: opus-1m
+    - model: opus-4-6
+      context: default  # 200K
+      profile: sonnet-200k
+    - model: sonnet-4-6
+      context: "[1m]"
+      profile: opus-1m  # big context = full injection
+    - model: sonnet-4-6
+      context: default
+      profile: sonnet-200k
+    - model: hermes-3b
+      profile: localai-8k
+    - model: hermes
+      profile: localai-8k
+    - model: qwen*
+      profile: localai-8k  # unless qwen3.5-9B gets larger context
+    - model: phi-*
+      profile: localai-8k
+    - default:
+      profile: sonnet-200k  # safe default
