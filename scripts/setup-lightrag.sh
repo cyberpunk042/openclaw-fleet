@@ -127,15 +127,9 @@ start_services() {
 
 sync_full() {
     echo ""
-    echo "Syncing KB + sources to knowledge graph (full)..."
-    echo "  Sources: Python modules, config YAMLs, docs, agent templates, SKILL.md files"
+    echo "Syncing KB to knowledge graph (full)..."
     activate_venv
-    python -u -m fleet.core.kb_sync --full --url "$LIGHTRAG_URL"
-    echo ""
-    echo "  Verifying graph content..."
-    local labels
-    labels=$(curl -s "$LIGHTRAG_URL/graph/label/list" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
-    echo -e "  ${GREEN}[ok]${NC} Graph has $labels entity labels"
+    python -m fleet.core.kb_sync --full --url "$LIGHTRAG_URL"
 }
 
 sync_incremental() {
