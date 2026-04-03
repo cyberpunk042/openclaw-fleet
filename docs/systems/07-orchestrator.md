@@ -108,15 +108,6 @@ WARNING+ → diagnostic snapshot captured to disk
 Gateway duplication check runs every cycle — the root cause of the
 March catastrophe. If duplicate gateway detected → storm indicator.
 
-**Effort Profile** (orchestrator.py:97-107):
-```
-profile = get_profile(profile_name)
-if not profile.allow_dispatch:
-    return state  # skip entire cycle
-
-config["max_dispatch_per_cycle"] = min(current, profile.max_dispatch_per_cycle)
-```
-
 **Fleet Mode** (orchestrator.py:198-199):
 ```
 if not fleet_should_dispatch(fleet_state):

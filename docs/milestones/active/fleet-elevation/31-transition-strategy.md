@@ -16,7 +16,7 @@ The fleet is LIVE right now:
 - IRC running (miniircd on port 6667)
 - The Lounge running (Docker)
 - Plane running (Docker: proxy, live, space)
-- Effort profile: conservative (after budget drain incident)
+- Work mode: paused (after budget drain incident)
 
 10 agents are configured. The orchestrator cycles every 30 seconds.
 The sync daemon runs every 60 seconds. Tasks exist on the board.

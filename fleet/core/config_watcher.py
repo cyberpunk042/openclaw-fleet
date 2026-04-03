@@ -4,7 +4,7 @@ Watches config files and emits events when they change.
 This enables the system to detect manual edits and trigger re-sync.
 
 Tracked files:
-  - config/fleet.yaml — orchestrator config, effort profiles
+  - config/fleet.yaml — orchestrator config
   - config/agent-identities.yaml — agent roster
   - config/projects.yaml — project registry
   - DSPD config/mission.yaml — Plane mission structure

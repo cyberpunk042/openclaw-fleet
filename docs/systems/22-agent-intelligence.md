@@ -46,9 +46,6 @@ SLEEPING (3 HEARTBEAT_OK) → OFFLINE (4h)
 
 Heartbeat intervals: ACTIVE=0, IDLE=30min, IDLE=60min, SLEEPING=2h.
 
-Effort profiles (docs/systems/05) define 4 throttle levels:
-full, conservative, minimal, paused.
-
 ### 1.2 What's Missing — The Tuning Layer
 
 The thresholds are HARDCODED. A proficient fleet needs ADAPTIVE tuning:
@@ -683,7 +680,6 @@ The brain must weigh multiple factors simultaneously:
 - Context size per agent (1M vs 200K — spike is proportional)
 - Aggregate fleet context (sum of all agent contexts vs remaining quota)
 - Model assigned (Opus vs Sonnet — different costs)
-- Effort profile (full vs conservative vs minimal)
 - Distance to next rate limit reset
 - Current rate limit usage %
 - Whether each agent's context is needed for predicted upcoming work

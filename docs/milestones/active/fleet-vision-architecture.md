@@ -10481,7 +10481,6 @@ Scripts:            43
 Agent files:        10 agents × 7-8 files
 Chain builders:     3 (task_complete, alert, sprint_complete)
 Event types:        16 CloudEvents-based
-Effort profiles:    4 (full, conservative, minimal, paused)
 Agent lifecycle:    4 states (ACTIVE, IDLE, SLEEPING, OFFLINE)
 Unused modules:     smart_chains.py (never imported)
 ```

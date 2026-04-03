@@ -282,7 +282,7 @@ echo ""
 
 # Step 15: Start fleet daemons (sync + monitor + orchestrator in conservative mode)
 echo "=== Starting Fleet Daemons ==="
-echo "NOTE: Effort profile is CONSERVATIVE. Use 'fleet effort full' when ready."
+echo "NOTE: Fleet starts paused. Use 'fleet resume' when ready."
 if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
     # Source .env for latest Plane credentials + fleet config
     PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
@@ -335,7 +335,7 @@ echo ""
 echo "IRC Channels: #fleet #alerts #reviews #sprint #agents #security #human #builds #memory #plane"
 echo ""
 echo "Safety:"
-echo "  Effort profile:   conservative (max 1 dispatch/cycle, sonnet only)"
+echo "  Work mode:        starts paused (use 'fleet resume' to dispatch)"
 echo "  Heartbeats:       staggered 30-90m per agent"
 echo "  Budget monitor:   reads CLAUDE_QUOTA_* — auto-pause at 90%"
 echo "  Kill switch:      fleet pause / fleet resume"

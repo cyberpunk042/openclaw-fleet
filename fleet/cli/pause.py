@@ -73,9 +73,9 @@ async def _pause(reason: str = "") -> int:
     except Exception as e:
         print(f"   WARNING: Could not disable cron jobs: {e}")
 
-    # 5. Set effort profile to paused in config
+    # 5. Set work mode to paused in config
     fleet_dir = str(Path(__file__).resolve().parent.parent.parent)
-    print("5. Setting effort profile to 'paused'...")
+    print("5. Setting work mode to 'paused'...")
     try:
         import yaml
         config_path = os.path.join(fleet_dir, "config", "fleet.yaml")

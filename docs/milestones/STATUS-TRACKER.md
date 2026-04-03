@@ -207,7 +207,6 @@ from the March 2026 catastrophic process storms. See MASTER-INDEX.md for details
 - fleet_notify_human — ntfy works but agents never called it
 - fleet_escalate — never called by an agent
 - Budget monitor (OAuth API) — code in orchestrator, never triggered
-- Effort profiles — conservative active, never tested with dispatches
 - Outage detector — code in orchestrator, never triggered
 - All 10 heartbeat rewrites — pushed but agents haven't read them
 - Review gates — fleet_task_complete populates but fleet-ops never reviewed

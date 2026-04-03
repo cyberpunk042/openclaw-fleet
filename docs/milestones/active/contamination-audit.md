@@ -49,23 +49,6 @@ nobody can tell what's real requirements vs hallucination.
 
 ---
 
-## 2. Effort Profiles (`fleet/core/effort_profiles.py`)
-
-**PO said:** Used "conservative" after budget drain. Concept of controlling fleet intensity.
-
-**AI invented:**
-| Invented | What | Status |
-|----------|------|--------|
-| 4 profile names | full, conservative, minimal, paused | "conservative" is PO-used. Others invented. |
-| Specific intervals | 30/60, 60/120, 120/0, 0/0 min | Made up numbers |
-| Active agent lists | all, [PM,ops,devsecops], [ops], [] | Invented |
-| Dispatch rates | 2, 1, 0, 0 per cycle | Made up |
-
-**What's salvageable:**
-- EffortProfile DATACLASS — reasonable structure
-- "conservative" as a real profile name — PO-used
-- The concept of controlling who's active — logical
-
 ---
 
 ## 3. Model Selection (`fleet/core/model_selection.py`)
@@ -187,7 +170,6 @@ All 7 contamination areas have been addressed:
 | Area | Action Taken |
 |------|-------------|
 | Budget Modes | Stripped to tempo setting only. Invented modes (blitz/frugal/survival/blackout) removed from code + docs. |
-| Effort Profiles | Deleted entirely — redundant with work_mode/backend_mode/budget_mode. |
 | Model Selection | Code kept (pattern is PO-aligned). Gaps documented for milestones (context size, LocalAI/OpenRouter selection). |
 | Backend Router | Now uses backend_mode from FleetControlState (7 combos of Claude/LocalAI/OpenRouter). |
 | Codex Review | Budget mode refs removed. Review triggered by confidence tier only. |

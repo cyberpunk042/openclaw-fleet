@@ -138,7 +138,7 @@ Environment variables set per agent:
 │  Step 7: Evaluate parent tasks (all children done → review)          │
 │  Step 8: Health check (stuck tasks, offline agents)                  │
 │                                                                      │
-│  Guards: Storm monitor │ Budget monitor │ Fleet mode │ Effort profile│
+│  Guards: Storm monitor │ Budget monitor │ Fleet mode                 │
 └──────────┬───────────────────────────────────────────────────────────┘
            │ writes context/ files        │ inject_content()
            │ (every cycle)                │ (wake/teach)

@@ -62,7 +62,7 @@ protective measures**.
 | C5 | Token budget monitor | Detects problems, doesn't auto-respond |
 | C6 | Max dispatch per cycle (3) | Fixed limit, doesn't adapt to pressure |
 | C7 | Cascade depth limit (3) | Fixed limit |
-| C13 | Effort profiles | Manual selection, doesn't auto-transition |
+| C13 | Work mode | Manual selection, doesn't auto-transition |
 
 **The gap:** Every fix is either **manual** (human must notice and act)
 or **fixed threshold** (doesn't adapt to conditions). There is no

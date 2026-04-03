@@ -40,7 +40,6 @@ files is pointless if the gateway doesn't inject them.
 
 Completed 2026-04-01. Removed all fabricated specifics:
 - Budget modes: 6 invented modes → tempo setting only
-- Effort profiles: deleted (redundant with work_mode/backend_mode)
 - Router: uses backend_mode from FleetControlState (7 combos)
 - CostTicker/cost envelopes: removed (fabricated USD tracking)
 - budget_mode removed from incident reports, labor stamps, storm system

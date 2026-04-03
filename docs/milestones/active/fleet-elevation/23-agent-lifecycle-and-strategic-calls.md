@@ -397,9 +397,6 @@ ALL of them for every call:
   are allowed. Economic = sonnet only. Frugal = LocalAI only.
 - Rate limit session position affects whether expensive calls
   are appropriate at this time.
-- Effort profile (full/conservative/minimal/paused) sets fleet-wide
-  caps on what's allowed.
-
 **7. Agent Role**
 - PM and fleet-ops default to opus (strategic reasoning).
 - Workers default to sonnet (implementation work).

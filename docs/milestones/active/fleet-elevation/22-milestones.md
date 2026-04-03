@@ -308,7 +308,6 @@ Per document 23. Evolves existing infrastructure.
 **I3: Strategic call decisions**
 - decide_claude_call() — model, effort, session, turns, mode
 - Budget-aware call reduction
-- Effort profile integration
 - Tests: decision matrix for all situation × config combinations
 
 **I4: Change detector per-agent tracking**

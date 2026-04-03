@@ -90,9 +90,7 @@ still runs — it just doesn't pull new work.
 Phase filtering applied by orchestrator at dispatch time:
 `get_active_agents_for_phase(state)` returns which agents can work.
 
-### 2.4 Effort Profiles — Throttle Intensity
-
-### 2.5 Directives — PO Commands to Agents
+### 2.4 Directives — PO Commands to Agents
 
 PO posts to board memory with tags:
 ```
@@ -233,14 +231,6 @@ are just tagged board memory entries. This means:
 2. Directives are visible to all agents (transparency)
 3. Directives are persistent (survive restarts)
 4. Directives are auditable (board memory is logged)
-
-### Why is the profile read from YAML, not from board?
-
-Effort profiles are infrastructure configuration, not runtime control.
-The PO sets them less frequently than work mode. YAML in git means
-the profile is part of IaC — version-controlled, reproducible.
-Work mode changes happen via the OCMC UI (runtime). Profiles change
-via config commits (infrastructure).
 
 ### Why does crisis-management activate fleet-ops + devsecops only?
 

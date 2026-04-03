@@ -398,11 +398,7 @@ The fleet needs to know:
 > "reduce the efforts and strategy like that strategic and driven by the
 > user and circumstances"
 
-Build configurable effort profiles:
-- **Full**: all agents active, normal heartbeats, opus for complex tasks
-- **Conservative**: only drivers active, long heartbeats, sonnet only
-- **Minimal**: only fleet-ops monitoring, no heartbeats, emergency only
-- **Paused**: nothing runs, gateway heartbeats off
+Build configurable fleet throttle levels via work_mode and budget controls.
 
 Human selects profile via `fleet effort conservative` or config.
 
@@ -638,7 +634,6 @@ This is a future milestone but important to note:
 | C10 | Board cleanup — remove 90 noise tasks before relaunch | Bug 11 |
 | C11 | Gateway restart stagger — don't fire all heartbeats simultaneously | Bug 12 |
 | C12 | Outage and rate-limit detection — back off when throttled | Bug 14 |
-| C13 | Effort profiles — full/conservative/minimal/paused | FIX 7 |
 | C14 | fleet-ops as budget guardian — monitor usage, detect anomalies | FIX 5 |
 
 ### After fleet is safe to restart:
@@ -672,6 +667,6 @@ The fleet must be:
 2. **Smart** — only consume tokens when there's actual work
 3. **Economic** — minimize token usage for overhead, maximize for real work
 4. **Observable** — budget tracking, usage reporting, anomaly detection
-5. **Controllable** — pause/resume, effort profiles, human override
+5. **Controllable** — pause/resume, work mode, human override
 6. **Productive** — agents follow roles, communicate, flow work properly
 7. **Sustainable** — works within budget indefinitely, not in bursts

@@ -274,7 +274,7 @@ with the right model, effort, and session configuration.
 ### What to Encode in the Fleet
 - Document 23 (agent lifecycle) is the reference
 - Budget monitoring feeds into call decisions
-- Effort profiles gate what models/agents are allowed
+- Work mode gates what models/agents are allowed
 - The brain decides WHETHER and HOW to call Claude per agent per cycle
 
 ---

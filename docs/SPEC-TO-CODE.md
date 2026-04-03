@@ -138,7 +138,7 @@
 | **Model Upgrade** | M-MU01-08 | 130 ✅ | 4 ✅ | 0 | ✅ Yes — shadow, promote, tier, benchmark per spec |
 | **Storm Prevention** | M-SP01-09 | 90 ✅ | 5 ✅ | 0 | ✅ Yes — 9 indicators, 5 severity, circuit breakers per spec |
 
-**Contamination cleanup (2026-04-01):** Budget modes, router, and challenge system were cleaned of fabricated specifics. Test count dropped from ~1800 to 1730 (removed tests for invented behavior). effort_profiles.py deleted (redundant). Code is cleaner but specs need updating to match.
+**Contamination cleanup (2026-04-01):** Budget modes, router, and challenge system were cleaned of fabricated specifics. Test count dropped from ~1800 to 1730 (removed tests for invented behavior). Code is cleaner but specs need updating to match.
 
 ---
 
@@ -184,9 +184,8 @@ DONE: Per-type standards (8 docs in standards/)
   Quality gates for all agent files, brain modules, IaC.
 
 DONE: Contamination cleanup (2026-04-01)
-  Removed fabricated budget modes, effort profiles, cost envelopes.
-  Budget mode → tempo only. Router → backend_mode (7 combos).
-  effort_profiles.py deleted (redundant). 1730 tests pass.
+  Removed fabricated budget modes, cost envelopes.
+  Router → backend_mode (7 combos). 1730 tests pass.
 
 BLOCKER 0: B0.7 — Gateway Injection Order
   Gateway reads ONLY CLAUDE.md + context/ files.
