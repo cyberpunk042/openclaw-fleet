@@ -22,7 +22,6 @@ logs/
 
 # Runtime PIDs
 *.pid
-.gateway-starting
 
 # Runtime databases and caches
 *.db
