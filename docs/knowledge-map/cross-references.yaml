@@ -247,8 +247,12 @@ systems:
     connected_systems: [S08 (skill compliance in approval), S09 (tool enforcement)]
     agent_roles:
       all: [per-role tool/skill/plugin assignments]
-    mcp_servers: [filesystem, github, playwright, docker, Context7, pytest-mcp, Trivy, Plane MCP]
-    plugins: [claude-mem, context7, safety-net, pyright-lsp, codex-plugin-cc, superpowers]
+    mcp_servers:
+      defaults: [fleet, lightrag]
+      role_specific: [filesystem, github, playwright, docker, pytest-mcp, github-actions, semgrep, plane]
+    plugins:
+      defaults: [claude-mem, safety-net]
+      role_specific: [context7, superpowers, pyright-lsp, adversarial-spec, pr-review-toolkit, security-guidance, sage, hookify, commit-commands, plannotator, ars-contexta]
     skills: [85 internal + ecosystem]
 
   agent-intelligence:
@@ -274,45 +278,54 @@ roles:
     reads: [S09 (standards), S13 (labor stamps), S15 (challenge results)]
     operates: [S08 (fleet_approve), S18 (notifications)]
     monitors: [S11 (storm), S12 (budget), S06 (agent health)]
+    mcp_servers: [github]
+    plugins: [pr-review-toolkit]
 
   architect:
     primary_systems: [S07, S08, S09]
     reads: [S01 (methodology), S10 (artifacts)]
     operates: [S08 (fleet_contribute design_input, fleet_artifact_create)]
     contributes_to: [engineer, devops, qa, writer, devsecops]
+    mcp_servers: [filesystem, github]
+    plugins: [context7, superpowers, adversarial-spec]
 
   devsecops-expert:
     primary_systems: [S02, S07, S08]
     reads: [S14 (router/backend health)]
     operates: [S08 (fleet_contribute security_requirement, fleet_alert, security_hold)]
     monitors: [S02 (behavioral security), S11 (storm)]
-    mcp_servers: [Trivy, Semgrep, Snyk]
+    mcp_servers: [filesystem, docker, semgrep]
+    plugins: [security-guidance, sage]
 
   software-engineer:
     primary_systems: [S07, S08, S01]
     reads: [S09 (standards), S10 (artifacts), S22 (autocomplete chain)]
     operates: [S08 (fleet_task_accept, fleet_commit, fleet_task_complete)]
     receives_from: [architect, qa, devsecops, ux]
-    mcp_servers: [filesystem, github, playwright, Context7, pytest-mcp]
+    mcp_servers: [filesystem, github, playwright, pytest-mcp]
+    plugins: [context7, superpowers, pyright-lsp]
 
   devops:
     primary_systems: [S07, S08, S20]
     reads: [S05 (fleet state), S12 (budget)]
     operates: [S08 (fleet_commit, fleet_task_complete), docker, infrastructure]
     monitors: [S20 (infrastructure health), S07 (fleet daemons)]
-    mcp_servers: [filesystem, github, docker]
+    mcp_servers: [filesystem, github, docker, github-actions]
+    plugins: [hookify, commit-commands]
 
   qa-engineer:
     primary_systems: [S07, S08, S15]
     reads: [S09 (standards), S10 (artifacts)]
     operates: [S08 (fleet_contribute qa_test_definition), S15 (challenger)]
     mcp_servers: [filesystem, playwright, pytest-mcp]
+    plugins: [superpowers]
 
   technical-writer:
     primary_systems: [S07, S08, S17]
     reads: [S10 (artifacts), S09 (standards)]
     operates: [S08 (fleet_artifact_create, fleet_commit), S17 (Plane pages)]
-    mcp_servers: [filesystem, github, Context7]
+    mcp_servers: [filesystem, github]
+    plugins: [context7, ars-contexta]
 
   ux-designer:
     primary_systems: [S07, S08]
@@ -325,3 +338,4 @@ roles:
     reads: [S01 (methodology compliance), S09 (standards), S13 (labor stamps)]
     operates: [S08 (fleet_artifact_create compliance_report)]
     monitors: [trail completeness, process adherence]
+    mcp_servers: [filesystem]
