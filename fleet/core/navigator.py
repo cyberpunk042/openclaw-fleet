@@ -159,27 +159,20 @@ class Navigator:
 
         return ctx
 
-    def _enforce_limit(self, ctx: NavigatorContext, max_chars: int = 7800) -> None:
-        """Truncate sections to fit gateway's per-file character limit.
+    def _enforce_limit(self, ctx: NavigatorContext, max_chars: int = 7500) -> None:
+        """Drop lowest-priority sections to fit gateway's per-file limit.
 
-        Preserves priority order — earlier sections (agent manual, methodology)
-        are kept over later ones (graph context, notes).
+        NEVER hard-cuts mid-section — broken text confuses the AI.
+        Drops entire sections from the end (lowest priority) until
+        the total fits. Priority order: agent manual + methodology
+        (highest) are preserved over graph context + notes (lowest).
         """
-        separators = max(0, len(ctx.sections) - 1) * 2  # "\n\n" between sections
-        total = sum(len(s) for s in ctx.sections) + separators
-        if total <= max_chars:
-            return
+        def _total() -> int:
+            seps = max(0, len(ctx.sections) - 1) * 2
+            return sum(len(s) for s in ctx.sections) + seps
 
-        # Trim from the end (lowest priority sections)
-        while ctx.sections and (sum(len(s) for s in ctx.sections) + max(0, len(ctx.sections) - 1) * 2) > max_chars:
-            last = ctx.sections[-1]
-            excess = sum(len(s) for s in ctx.sections) - max_chars
-            if excess >= len(last):
-                ctx.sections.pop()
-            else:
-                # Truncate the last section
-                ctx.sections[-1] = last[:len(last) - excess] + "\n...(truncated)"
-                break
+        while ctx.sections and _total() > max_chars:
+            ctx.sections.pop()
 
     # ── Profile selection ──────────────────────────────────────────
 
