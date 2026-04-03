@@ -495,6 +495,9 @@ class Navigator:
                 lines = ["## Available Skills"]
                 for skill_name in ref:
                     skill_path = KB_DIR / "skills" / f"{skill_name}.md"
+                    if not skill_path.exists():
+                        # Try lowercase (intent says TDD, file is tdd.md)
+                        skill_path = KB_DIR / "skills" / f"{skill_name.lower()}.md"
                     if skill_path.exists():
                         content = self._read_file(skill_path)
                         # Extract Purpose section content

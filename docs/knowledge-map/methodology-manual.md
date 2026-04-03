@@ -282,6 +282,19 @@ and plugins are relevant. Drives the intent-map injection logic.
 
 ---
 
+## All Stages: Universal Tools
+
+These are available at EVERY stage for ALL agents:
+
+| Tool/Server | Why |
+|-------------|-----|
+| fleet MCP (29 tools) | Fleet operations — tasks, commits, artifacts, communication |
+| lightrag MCP (22 tools) | Knowledge graph queries — find related systems, patterns, context |
+| claude-mem (4 tools) | Search past observations — patterns, decisions, gotchas from prior sessions |
+| safety-net (hook) | Prevent destructive commands — blocks rm -rf, git reset --hard, DROP TABLE |
+
+---
+
 ## Cross-Stage Connections
 
 | From Stage | To Stage | Via |
