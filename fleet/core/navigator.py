@@ -294,6 +294,14 @@ class Navigator:
             return self._load_system_manuals(ref, level)
         elif branch == "plugins":
             return self._load_plugins(ref, level)
+        elif branch == "mcp":
+            return self._load_mcp(ref, level)
+        elif branch == "contributions":
+            return self._load_contributions(ref, level)
+        elif branch == "context_awareness":
+            return self._load_context_awareness(ref, level)
+        elif branch == "trail":
+            return self._load_trail(ref, level)
 
         return None
 
@@ -306,21 +314,42 @@ class Navigator:
             return None
 
         content = path.read_text()
-        role_short = self._role_short(role) if "-" in role else role
+
+        # Map short role names to how they appear in agent-manuals.md headers
+        manual_names = {
+            "pm": "Project Manager",
+            "fleet-ops": "Fleet-Ops",
+            "architect": "Architect",
+            "devsecops": "DevSecOps",
+            "engineer": "Software Engineer",
+            "devops": "DevOps",
+            "qa": "QA Engineer",
+            "writer": "Technical Writer",
+            "ux": "UX Designer",
+            "accountability": "Accountability Generator",
+            # Also handle full role names from agent-tooling.yaml
+            "project-manager": "Project Manager",
+            "software-engineer": "Software Engineer",
+            "qa-engineer": "QA Engineer",
+            "devsecops-expert": "DevSecOps",
+            "technical-writer": "Technical Writer",
+            "ux-designer": "UX Designer",
+            "accountability-generator": "Accountability Generator",
+        }
+
+        search_name = manual_names.get(role, role).lower()
 
         # Find the section for this role
-        # Agent manuals use ## headers with role names
         sections = content.split("\n## ")
         for section in sections:
-            if role_short.lower() in section.lower().split("\n")[0].lower():
+            header = section.split("\n")[0].lower()
+            if search_name in header:
                 if level == "full":
                     return f"## {section}"
                 elif level == "condensed":
-                    # First 10 lines
                     lines = section.strip().split("\n")
                     return "## " + "\n".join(lines[:10])
                 elif level == "minimal":
-                    # First line only (mission)
                     first_line = section.strip().split("\n")[0]
                     return f"You are {first_line.strip()}"
         return None
@@ -479,6 +508,61 @@ class Navigator:
             return None
         if isinstance(ref, list) and level == "names_only":
             return "Plugins: " + ", ".join(ref)
+        return None
+
+    def _load_mcp(self, ref, level: str) -> Optional[str]:
+        """Load MCP server info for injection."""
+        if level == "none":
+            return None
+        if isinstance(ref, list):
+            lines = ["## MCP Servers"]
+            for server_name in ref:
+                mcp_path = KB_DIR / "mcp" / f"{server_name}.md"
+                if mcp_path.exists():
+                    content = mcp_path.read_text()
+                    # Extract first paragraph after title
+                    parts = content.split("\n\n")
+                    desc = parts[1] if len(parts) > 1 else ""
+                    lines.append(f"- **{server_name}**: {desc.strip()[:150]}")
+                else:
+                    lines.append(f"- **{server_name}**")
+            return "\n".join(lines)
+        return None
+
+    def _load_contributions(self, ref, level: str) -> Optional[str]:
+        """Load contribution context for injection."""
+        if level == "none" or ref == "none":
+            return None
+        if isinstance(ref, str):
+            if ref == "none":
+                return None
+            # Simple reference like "received_only" or "full"
+            return f"**Contributions:** Check fleet_read_context for contribution status ({ref})"
+        if isinstance(ref, list):
+            return "**Contributions:** " + ", ".join(str(r) for r in ref)
+        return None
+
+    def _load_context_awareness(self, ref, level: str) -> Optional[str]:
+        """Load context awareness info for injection."""
+        if level == "none":
+            return None
+        if level == "full":
+            return ("**Context awareness:** Monitor context % and rate limit %.\n"
+                    "Use /context for visual grid. Use /usage for rate limit status.\n"
+                    "Compact at 70% context. Strategic compaction at 85% rate limit.")
+        elif level == "both_pcts":
+            return "**Context:** Check /context and /usage for remaining capacity."
+        return None
+
+    def _load_trail(self, ref, level: str) -> Optional[str]:
+        """Load trail info for injection."""
+        if level == "none":
+            return None
+        if level == "full":
+            return ("**Trail:** Every tool call is recorded. fleet-ops verifies trail completeness.\n"
+                    "Ensure commits, artifacts, and task updates create proper trail events.")
+        elif level == "summary":
+            return "**Trail:** Your actions are being recorded for review."
         return None
 
     # ── LightRAG graph queries ─────────────────────────────────────

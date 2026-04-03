@@ -373,7 +373,9 @@ async def _refresh_agent_contexts(
 
             # Write knowledge context from navigator (autocomplete web)
             try:
-                nav = Navigator()
+                if not hasattr(_refresh_agent_contexts, '_navigator'):
+                    _refresh_agent_contexts._navigator = Navigator()
+                nav = _refresh_agent_contexts._navigator
                 current_task = in_progress[0] if in_progress else None
                 stage = (
                     current_task.custom_fields.task_stage
