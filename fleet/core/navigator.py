@@ -689,7 +689,8 @@ class Navigator:
         except Exception as e:
             logger.debug("LightRAG query skipped (not running): %s", e)
 
-        return None
+        # Fallback: traverse cross-references.yaml as local graph
+        return self._traverse_local_graph(task_context, role, profile)
 
     def _select_graph_mode(self, task_context: str, role: str) -> str:
         """Select LightRAG query mode based on task and role.
@@ -719,6 +720,93 @@ class Navigator:
 
         # Default: hybrid
         return "hybrid"
+
+    # ── Local graph traversal (cross-references.yaml) ───────────────
+
+    def _traverse_local_graph(
+        self,
+        task_context: str,
+        role: str,
+        profile: InjectionProfile,
+    ) -> Optional[str]:
+        """Traverse cross-references.yaml as a local knowledge graph.
+
+        Fallback when LightRAG isn't running. Searches system descriptions,
+        modules, tools, skills for keywords from the task context. Returns
+        matching systems with their connections.
+
+        This is the autocomplete web without Docker — the cross-references
+        ARE a relationship graph, just stored as YAML.
+        """
+        if not self._cross_refs or not task_context:
+            return None
+
+        systems = self._cross_refs.get("systems", {})
+        if not systems:
+            return None
+
+        # Extract keywords from task context
+        keywords = set()
+        for word in task_context.lower().split():
+            if len(word) > 3 and word not in ("the", "and", "for", "with", "from", "that", "this", "what", "work"):
+                keywords.add(word)
+
+        if not keywords:
+            return None
+
+        # Score each system by keyword match
+        scored = []
+        for sys_name, sys_data in systems.items():
+            if not isinstance(sys_data, dict):
+                continue
+
+            score = 0
+            sys_text = str(sys_data).lower()
+
+            for kw in keywords:
+                if kw in sys_text:
+                    score += 1
+                # Bonus for name match
+                if kw in sys_name.lower():
+                    score += 2
+
+            # Bonus for role match
+            roles_data = sys_data.get("agent_roles", {})
+            role_short = self._role_short(role)
+            if role_short in str(roles_data).lower() or "all" in roles_data:
+                score += 1
+
+            if score > 0:
+                sys_id = sys_data.get("id", "")
+                modules = sys_data.get("modules", [])
+                connections = sys_data.get("connected_systems", [])
+                scored.append((score, sys_id, sys_name, modules, connections))
+
+        if not scored:
+            return None
+
+        # Take top 3 matches
+        scored.sort(reverse=True)
+        top = scored[:3]
+
+        lines = ["## Relevant Systems (from knowledge graph)"]
+        for score, sys_id, name, modules, connections in top:
+            conn_ids = []
+            for c in connections[:3]:
+                if isinstance(c, str):
+                    # Extract system ID from "S02 (protocol_violation → doctor)"
+                    conn_id = c.split("(")[0].strip()
+                    conn_ids.append(conn_id)
+
+            line = f"- **{sys_id} {name}**"
+            if modules:
+                mod_str = ", ".join(str(m) for m in modules[:3])
+                line += f" ({mod_str})"
+            if conn_ids:
+                line += f" → connects to {', '.join(conn_ids)}"
+            lines.append(line)
+
+        return "\n".join(lines)
 
     # ── Cross-reference enrichment ──────────────────────────────────
 
