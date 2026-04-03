@@ -16,9 +16,16 @@ defaults:
       env:
         FLEET_DIR: "{{FLEET_DIR}}"
         FLEET_AGENT: "{{AGENT_NAME}}"
+    - name: lightrag
+      command: "python"
+      args: ["-m", "daniel_lightrag_mcp"]
+      env:
+        LIGHTRAG_BASE_URL: "http://localhost:9621"
+        LIGHTRAG_API_KEY: ""
   plugins:
     - claude-mem          # cross-session memory — github.com/thedotmack/claude-mem
                           # SQLite-only mode recommended for WSL2 (avoids ChromaDB spawn storms)
+    - safety-net          # PreToolUse hook catches destructive commands (rm -rf, git reset --hard, etc)
   skills:
     - fleet-communicate   # ALL agents: communication surface guide (IRC/ntfy/board/Plane)
 

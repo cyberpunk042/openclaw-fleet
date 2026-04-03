@@ -77,14 +77,23 @@ build_mcp_json() {
     local agent_name="$1"
     local result='{"mcpServers":{}}'
 
-    # Default fleet MCP server
-    local fleet_cmd fleet_args fleet_env
-    fleet_cmd=$(resolve "$(yq -r '.defaults.mcp_servers[0].command // ""' "$CONFIG")" "$agent_name")
-    fleet_args=$(yq -r '.defaults.mcp_servers[0].args // [] | @json' "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
-    fleet_env=$(yq -r '.defaults.mcp_servers[0].env // {} | @json' "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
+    # Default MCP servers (all agents)
+    local default_server_count
+    default_server_count=$(yq -r '.defaults.mcp_servers | length' "$CONFIG") || default_server_count=0
 
-    result=$(echo "$result" | jq --arg cmd "$fleet_cmd" --argjson args "$fleet_args" --argjson env "$fleet_env" \
-        '.mcpServers.fleet = {command: $cmd, args: $args, env: $env}')
+    local d=0
+    while (( d < default_server_count )); do
+        local def_name def_cmd def_args def_env
+        def_name=$(yq -r ".defaults.mcp_servers[$d].name" "$CONFIG")
+        def_cmd=$(resolve "$(yq -r ".defaults.mcp_servers[$d].command // \"\"" "$CONFIG")" "$agent_name")
+        def_args=$(yq -r ".defaults.mcp_servers[$d].args // [] | @json" "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
+        def_env=$(yq -r ".defaults.mcp_servers[$d].env // {} | @json" "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
+
+        result=$(echo "$result" | jq --arg n "$def_name" --arg cmd "$def_cmd" --argjson args "$def_args" --argjson env "$def_env" \
+            '.mcpServers[$n] = {command: $cmd, args: $args, env: $env}')
+
+        d=$((d + 1))
+    done
 
     # Role-specific MCP servers
     local server_count
