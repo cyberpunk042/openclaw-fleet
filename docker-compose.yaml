@@ -173,7 +173,7 @@ services:
       EMBEDDING_DIM: ${LIGHTRAG_EMBEDDING_DIM:-768}
 
       # ── Entity extraction ──
-      ENTITY_TYPES: '["system","agent","tool","hook","skill","plugin"]'
+      ENTITY_TYPES: '["system","agent","tool","hook","skill","plugin","command","mcp_server","layer","infrastructure","research","module","concept","function","class","config","design_doc"]'
       # Chunk size 1000 — big enough for entity pairs to appear together (relationships)
       # Too small (600) = entities split across chunks = 0 relationships
       CHUNK_SIZE: "1000"

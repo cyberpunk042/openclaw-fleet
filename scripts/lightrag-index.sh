@@ -1,72 +1,52 @@
 #!/usr/bin/env bash
-# lightrag-index.sh — Index fleet knowledge base into LightRAG
+# lightrag-index.sh — Index fleet content into LightRAG via text insertion
 #
-# Syncs KB entries, manuals, and metadata into the LightRAG knowledge graph.
-# Idempotent — LightRAG deduplicates by content hash (MD5).
+# This script handles TEXT INSERTION (LLM-based extraction for prose/code).
+# KB entries are handled by kb_sync.py (direct graph API, no LLM needed).
+#
+# Content sources indexed here:
+#   --manuals     Manuals (prose chunks for naive/mix queries)
+#   --systems     Full system docs (deep system knowledge)
+#   --research    Research docs (decision rationale)
+#   --code        Critical source code files (actual relationships)
+#   --config      Config YAMLs (agent-tooling, synergy-matrix, etc.)
+#   --design      Design docs + fleet-elevation (architecture decisions)
+#   --crossrefs   cross-references.yaml (role-system mappings)
+#   --agents      Agent template CLAUDE.md files (what agents are told)
+#   --all         Everything above
 #
 # Usage:
-#   ./scripts/lightrag-index.sh                    # index all KB content
-#   ./scripts/lightrag-index.sh --branch systems   # index one branch only
-#   ./scripts/lightrag-index.sh --scan             # scan input dir for new files
-#   ./scripts/lightrag-index.sh --health           # check LightRAG health
+#   ./scripts/lightrag-index.sh --manuals        # index manuals only
+#   ./scripts/lightrag-index.sh --code            # index source code only
+#   ./scripts/lightrag-index.sh --all             # index everything
+#   ./scripts/lightrag-index.sh --health          # check LightRAG health
 #
-# Prerequisites:
-#   - LightRAG running (docker compose up lightrag)
-#   - curl available
-#
-# Environment:
-#   LIGHTRAG_URL   — LightRAG API base URL (default: http://localhost:9621)
-#   LIGHTRAG_API_KEY — API key if auth is enabled (default: empty)
+# Note: KB entries use scripts/setup-lightrag.sh --sync (kb_sync.py)
+#       This script is for ADDITIONAL content that needs text/prose indexing.
 
-set -euo pipefail
+set -u
 
 LIGHTRAG_URL="${LIGHTRAG_URL:-http://localhost:9621}"
-LIGHTRAG_API_KEY="${LIGHTRAG_API_KEY:-}"
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-KB_DIR="${FLEET_DIR}/docs/knowledge-map/kb"
-MANUALS_DIR="${FLEET_DIR}/docs/knowledge-map"
-INPUT_DIR="${FLEET_DIR}/data/lightrag/inputs"
 
-# Auth header (empty if no key)
-AUTH_HEADER=""
-if [ -n "$LIGHTRAG_API_KEY" ]; then
-    AUTH_HEADER="-H X-API-Key: ${LIGHTRAG_API_KEY}"
-fi
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+TOTAL=0
+OK=0
+FAIL=0
 
 # ── Functions ──────────────────────────────────────────────────────
 
 health_check() {
     echo "Checking LightRAG health..."
-    local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" "${LIGHTRAG_URL}/health" 2>/dev/null) || true
-    if [ "$response" = "200" ]; then
-        echo "  LightRAG is healthy (${LIGHTRAG_URL})"
+    if curl -s -o /dev/null "${LIGHTRAG_URL}/health"; then
+        echo -e "  ${GREEN}[ok]${NC} LightRAG healthy at ${LIGHTRAG_URL}"
         return 0
     else
-        echo "  ERROR: LightRAG not reachable at ${LIGHTRAG_URL} (HTTP ${response:-timeout})"
-        echo "  Run: docker compose up lightrag"
-        return 1
-    fi
-}
-
-upload_file() {
-    local file_path="$1"
-    local file_name
-    file_name=$(basename "$file_path")
-
-    # Upload via documents/upload endpoint
-    local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
-        -X POST "${LIGHTRAG_URL}/documents/upload" \
-        ${AUTH_HEADER} \
-        -F "file=@${file_path}" \
-        2>/dev/null) || true
-
-    if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
-        echo "  ✓ ${file_name}"
-        return 0
-    else
-        echo "  ✗ ${file_name} (HTTP ${http_code:-error})"
+        echo -e "  ${RED}[fail]${NC} LightRAG not reachable"
         return 1
     fi
 }
@@ -75,152 +55,185 @@ insert_text() {
     local file_path="$1"
     local file_name
     file_name=$(basename "$file_path")
+
     local content
     content=$(cat "$file_path")
 
     local http_code
     http_code=$(curl -s -o /dev/null -w "%{http_code}" \
         -X POST "${LIGHTRAG_URL}/documents/text" \
-        ${AUTH_HEADER} \
         -H "Content-Type: application/json" \
-        -d "$(jq -n --arg text "$content" --arg desc "$file_name" \
-            '{text: $text, description: $desc}')" \
-        2>/dev/null) || true
+        -d "$(python3 -c "import json,sys; print(json.dumps({'text': sys.stdin.read(), 'description': '$file_name'}))" <<< "$content")" \
+        ) || true
 
+    TOTAL=$((TOTAL + 1))
     if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
-        echo "  ✓ ${file_name}"
-        return 0
+        OK=$((OK + 1))
+        echo -e "  ${GREEN}✓${NC} ${file_name}"
     else
-        # Fallback: copy to input dir for scan-based ingestion
-        cp "$file_path" "${INPUT_DIR}/${file_name}" 2>/dev/null || true
-        echo "  → ${file_name} (copied to inputs for scan)"
-        return 0
+        FAIL=$((FAIL + 1))
+        echo -e "  ${RED}✗${NC} ${file_name} (HTTP ${http_code})"
     fi
 }
 
-index_branch() {
-    local branch="$1"
-    local branch_dir="${KB_DIR}/${branch}"
+insert_dir() {
+    local dir="$1"
+    local pattern="${2:-*.md}"
+    local label="$3"
 
-    if [ ! -d "$branch_dir" ]; then
-        echo "  Branch not found: ${branch}"
-        return 1
+    if [ ! -d "$dir" ]; then
+        echo -e "  ${YELLOW}[skip]${NC} $label: directory not found"
+        return
     fi
 
-    local count=0
-    local total
-    total=$(find "$branch_dir" -name "*.md" | wc -l)
-    echo "Indexing branch: ${branch} (${total} files)"
+    local count
+    count=$(find "$dir" -maxdepth 1 -name "$pattern" | wc -l)
+    echo ""
+    echo "Indexing $label ($count files):"
 
-    for file in "${branch_dir}"/*.md; do
+    for file in "$dir"/$pattern; do
         [ -f "$file" ] || continue
         insert_text "$file"
-        count=$((count + 1))
     done
-
-    echo "  ${count}/${total} files indexed from ${branch}/"
 }
 
-index_manuals() {
-    echo "Indexing manuals..."
-    local manuals=(
-        "agent-manuals.md"
-        "methodology-manual.md"
-        "standards-manual.md"
-        "module-manuals.md"
-        "system-manuals-condensed.md"
-        "system-manuals-minimal.md"
-    )
+insert_files() {
+    local label="$1"
+    shift
+    local files=("$@")
 
-    for manual in "${manuals[@]}"; do
-        local path="${MANUALS_DIR}/${manual}"
-        if [ -f "$path" ]; then
-            insert_text "$path"
+    echo ""
+    echo "Indexing $label (${#files[@]} files):"
+
+    for file in "${files[@]}"; do
+        if [ -f "$file" ]; then
+            insert_text "$file"
         else
-            echo "  - ${manual} (not found)"
+            echo -e "  ${YELLOW}[skip]${NC} $(basename "$file") (not found)"
         fi
     done
 }
 
-index_all() {
-    echo "═══════════════════════════════════════════════"
-    echo "  LightRAG Fleet Knowledge Indexing"
-    echo "═══════════════════════════════════════════════"
-    echo ""
+# ── Content sources ────────────────────────────────────────────────
 
-    # Ensure input dir exists
-    mkdir -p "$INPUT_DIR"
-
-    # Health check first
-    health_check || exit 1
-    echo ""
-
-    # Index each KB branch
-    local branches
-    branches=$(find "$KB_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
-
-    for branch in $branches; do
-        index_branch "$branch"
-        echo ""
-    done
-
-    # Index manuals
-    index_manuals
-    echo ""
-
-    # Trigger scan for any files in input dir
-    echo "Triggering document scan..."
-    curl -s -X POST "${LIGHTRAG_URL}/documents/scan" \
-        ${AUTH_HEADER} \
-        -H "Content-Type: application/json" \
-        -d '{}' > /dev/null 2>&1 || true
-    echo "  Scan triggered"
-
-    echo ""
-    echo "═══════════════════════════════════════════════"
-    echo "  Indexing complete"
-    echo "═══════════════════════════════════════════════"
+index_manuals() {
+    insert_dir "${FLEET_DIR}/docs/knowledge-map" "*.md" "Manuals"
 }
 
-scan_only() {
-    echo "Scanning input directory for new documents..."
+index_systems() {
+    insert_dir "${FLEET_DIR}/docs/systems" "*.md" "System docs (full)"
+}
+
+index_research() {
+    insert_dir "${FLEET_DIR}/docs/milestones/active/research" "*.md" "Research docs"
+}
+
+index_crossrefs() {
+    echo ""
+    echo "Indexing cross-references:"
+    insert_text "${FLEET_DIR}/docs/knowledge-map/cross-references.yaml"
+}
+
+index_code() {
+    insert_files "Critical source code" \
+        "${FLEET_DIR}/fleet/cli/orchestrator.py" \
+        "${FLEET_DIR}/fleet/cli/dispatch.py" \
+        "${FLEET_DIR}/fleet/core/navigator.py" \
+        "${FLEET_DIR}/fleet/core/kb_sync.py" \
+        "${FLEET_DIR}/fleet/core/preembed.py" \
+        "${FLEET_DIR}/fleet/core/context_writer.py" \
+        "${FLEET_DIR}/fleet/core/role_providers.py" \
+        "${FLEET_DIR}/fleet/core/doctor.py" \
+        "${FLEET_DIR}/fleet/core/storm_monitor.py" \
+        "${FLEET_DIR}/fleet/core/methodology.py" \
+        "${FLEET_DIR}/fleet/core/models.py" \
+        "${FLEET_DIR}/fleet/core/contributions.py" \
+        "${FLEET_DIR}/fleet/core/trail_recorder.py" \
+        "${FLEET_DIR}/fleet/core/heartbeat_gate.py" \
+        "${FLEET_DIR}/fleet/core/session_manager.py" \
+        "${FLEET_DIR}/fleet/core/backend_router.py" \
+        "${FLEET_DIR}/fleet/mcp/tools.py" \
+        "${FLEET_DIR}/fleet/mcp/server.py" \
+        "${FLEET_DIR}/fleet/mcp/context.py" \
+        "${FLEET_DIR}/gateway/executor.py" \
+        "${FLEET_DIR}/gateway/ws_server.py" \
+        "${FLEET_DIR}/gateway/setup.py"
+}
+
+index_config() {
+    insert_files "Config files" \
+        "${FLEET_DIR}/config/agent-tooling.yaml" \
+        "${FLEET_DIR}/config/agent-identities.yaml" \
+        "${FLEET_DIR}/config/agent-autonomy.yaml" \
+        "${FLEET_DIR}/config/synergy-matrix.yaml" \
+        "${FLEET_DIR}/config/phases.yaml" \
+        "${FLEET_DIR}/config/fleet.yaml" \
+        "${FLEET_DIR}/config/skill-assignments.yaml" \
+        "${FLEET_DIR}/config/projects.yaml"
+}
+
+index_design() {
+    # Key design docs (not all 162 — the essential architecture ones)
+    insert_files "Design docs (key)" \
+        "${FLEET_DIR}/docs/milestones/active/fleet-vision-architecture.md" \
+        "${FLEET_DIR}/docs/milestones/active/complete-roadmap.md" \
+        "${FLEET_DIR}/docs/milestones/active/ecosystem-deployment-plan.md" \
+        "${FLEET_DIR}/docs/milestones/active/budget-mode-system.md" \
+        "${FLEET_DIR}/docs/milestones/active/context-window-awareness-and-control.md" \
+        "${FLEET_DIR}/docs/milestones/active/agent-rework.md"
+
+    # Fleet-elevation design docs
+    insert_dir "${FLEET_DIR}/docs/fleet-elevation" "*.md" "Fleet-elevation design"
+}
+
+index_agents() {
+    insert_dir "${FLEET_DIR}/agents/_template/CLAUDE.md" "*.md" "Agent CLAUDE.md templates"
+    insert_files "Agent template files" \
+        "${FLEET_DIR}/agents/_template/MC_API_REFERENCE.md" \
+        "${FLEET_DIR}/agents/_template/MC_WORKFLOW.md" \
+        "${FLEET_DIR}/agents/_template/STANDARDS.md"
+}
+
+index_all() {
+    echo "═══════════════════════════════════════════════════════"
+    echo "  LightRAG Content Indexing (text insertion)"
+    echo "═══════════════════════════════════════════════════════"
+
     health_check || exit 1
 
-    curl -s -X POST "${LIGHTRAG_URL}/documents/scan" \
-        ${AUTH_HEADER} \
-        -H "Content-Type: application/json" \
-        -d '{}' 2>/dev/null || true
-    echo "  Scan complete"
+    index_manuals
+    index_systems
+    index_research
+    index_crossrefs
+    index_code
+    index_config
+    index_design
+    index_agents
+
+    echo ""
+    echo "═══════════════════════════════════════════════════════"
+    echo -e "  Total: ${TOTAL} files, ${GREEN}${OK} ok${NC}, ${RED}${FAIL} fail${NC}"
+    echo "═══════════════════════════════════════════════════════"
 }
 
 # ── Main ───────────────────────────────────────────────────────────
 
 case "${1:-}" in
-    --health)
-        health_check
-        ;;
-    --scan)
-        scan_only
-        ;;
-    --branch)
-        if [ -z "${2:-}" ]; then
-            echo "Usage: $0 --branch <branch_name>"
-            echo "Available branches:"
-            find "$KB_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | sed 's/^/  /'
-            exit 1
-        fi
-        health_check || exit 1
-        index_branch "$2"
-        ;;
-    --manuals)
-        health_check || exit 1
-        index_manuals
-        ;;
-    ""|--all)
-        index_all
-        ;;
+    --health)     health_check ;;
+    --manuals)    health_check && index_manuals ;;
+    --systems)    health_check && index_systems ;;
+    --research)   health_check && index_research ;;
+    --crossrefs)  health_check && index_crossrefs ;;
+    --code)       health_check && index_code ;;
+    --config)     health_check && index_config ;;
+    --design)     health_check && index_design ;;
+    --agents)     health_check && index_agents ;;
+    --all)        index_all ;;
     *)
-        echo "Usage: $0 [--all|--branch <name>|--manuals|--scan|--health]"
+        echo "Usage: $0 [--all|--manuals|--systems|--research|--crossrefs|--code|--config|--design|--agents|--health]"
+        echo ""
+        echo "KB entries are indexed via: bash scripts/setup-lightrag.sh --sync"
+        echo "This script indexes ADDITIONAL content (manuals, code, config, design docs)"
         exit 1
         ;;
 esac
