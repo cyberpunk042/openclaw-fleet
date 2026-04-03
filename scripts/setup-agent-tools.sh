@@ -101,19 +101,34 @@ build_mcp_json() {
 
     local i=0
     while (( i < server_count )); do
-        local name package srv_args
+        local name package srv_cmd
         name=$(yq -r ".agents.$agent_name.mcp_servers[$i].name" "$CONFIG")
         package=$(yq -r ".agents.$agent_name.mcp_servers[$i].package // \"\"" "$CONFIG")
+        srv_cmd=$(yq -r ".agents.$agent_name.mcp_servers[$i].command // \"\"" "$CONFIG")
 
         if [[ -n "$package" ]]; then
-            # npx-based server
+            # npx-based server (has package field)
+            local srv_args
             srv_args=$(yq -r ".agents.$agent_name.mcp_servers[$i].args // [] | @json" "$CONFIG")
             srv_args=$(resolve "$srv_args" "$agent_name")
-            # Build: ["npx", "-y", "package", ...extra_args]
             local full_args
             full_args=$(echo "$srv_args" | jq --arg pkg "$package" '[ "-y", $pkg ] + .')
             result=$(echo "$result" | jq --arg n "$name" --argjson a "$full_args" \
                 '.mcpServers[$n] = {command: "npx", args: $a}')
+        elif [[ -n "$srv_cmd" ]]; then
+            # Command-based server (has command field — pip packages, custom servers)
+            local cmd_resolved cmd_args cmd_env
+            cmd_resolved=$(resolve "$srv_cmd" "$agent_name")
+            cmd_args=$(yq -r ".agents.$agent_name.mcp_servers[$i].args // [] | @json" "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
+            cmd_env=$(yq -r ".agents.$agent_name.mcp_servers[$i].env // {} | @json" "$CONFIG" | sed "s|{{FLEET_DIR}}|$FLEET_DIR|g;s|{{FLEET_VENV}}|$VENV|g;s|{{AGENT_NAME}}|$agent_name|g")
+
+            if [[ "$cmd_env" == "{}" ]]; then
+                result=$(echo "$result" | jq --arg n "$name" --arg cmd "$cmd_resolved" --argjson a "$cmd_args" \
+                    '.mcpServers[$n] = {command: $cmd, args: $a}')
+            else
+                result=$(echo "$result" | jq --arg n "$name" --arg cmd "$cmd_resolved" --argjson a "$cmd_args" --argjson e "$cmd_env" \
+                    '.mcpServers[$n] = {command: $cmd, args: $a, env: $e}')
+            fi
         fi
 
         i=$((i + 1))

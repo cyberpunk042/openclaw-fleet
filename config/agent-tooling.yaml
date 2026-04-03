@@ -1,11 +1,14 @@
 # Agent Tooling — Per-role MCP servers, plugins, skills
 #
-# This config drives scripts/setup-agent-tools.sh
-# Each agent gets role-specific tools installed via IaC.
+# This config drives:
+#   scripts/setup-agent-tools.sh  — deploy per-agent mcp.json
+#   scripts/install-plugins.sh    — install per-agent plugins
+#   scripts/setup-claude-mem.sh   — deploy per-agent memory
+#   scripts/setup-lightrag.sh     — knowledge graph setup
 #
-# MCP servers: installed via npx, configured in per-agent mcp.json
+# MCP servers: command-based (fleet, lightrag) or npx-based (filesystem, github, etc)
 # Plugins: installed via claude plugin install
-# Skills: assigned from skill-assignments.yaml + custom per role
+# Skills: assigned from .claude/skills/ per role
 # System tools: expected to be available on the system
 
 defaults:
@@ -23,9 +26,8 @@ defaults:
         LIGHTRAG_BASE_URL: "http://localhost:9621"
         LIGHTRAG_API_KEY: ""
   plugins:
-    - claude-mem          # cross-session memory — github.com/thedotmack/claude-mem
-                          # SQLite-only mode recommended for WSL2 (avoids ChromaDB spawn storms)
-    - safety-net          # PreToolUse hook catches destructive commands (rm -rf, git reset --hard, etc)
+    - claude-mem          # cross-session memory (SQLite-only mode for WSL2)
+    - safety-net          # PreToolUse hook catches destructive commands
   skills:
     - fleet-communicate   # ALL agents: communication surface guide (IRC/ntfy/board/Plane)
 
@@ -38,13 +40,15 @@ agents:
       - name: github
         package: "@modelcontextprotocol/server-github"
     plugins:
-      - context7          # library/framework documentation
+      - context7              # library/framework documentation
+      - superpowers           # TDD, writing-plans, brainstorming, systematic-debugging (132K stars)
+      - adversarial-spec      # multi-LLM debate for spec refinement (518 stars)
     skills:
       - architecture-propose
       - architecture-review
       - scaffold
-      - feature-plan          # plan changes for features
-      - refactor-architecture # restructure project architecture
+      - feature-plan
+      - refactor-architecture
 
   software-engineer:
     mcp_servers:
@@ -55,17 +59,21 @@ agents:
         package: "@modelcontextprotocol/server-github"
       - name: playwright
         package: "@playwright/mcp@latest"
+      - name: pytest-mcp
+        command: "python"
+        args: ["-m", "pytest_mcp_server"]
     plugins:
       - context7
+      - superpowers           # TDD, systematic-debugging, verification (132K stars)
+      - pyright-lsp           # Python type error detection
     skills:
       - feature-implement
-      - feature-plan            # plan changes for features
-      - feature-test            # write and run tests
+      - feature-plan
+      - feature-test
       - refactor-extract
-      - refactor-split          # split large modules
-      - foundation-deps         # dependency management
-      - quality-lint            # linting + fixes
-      # note: /debug is Claude built-in, not a custom skill
+      - refactor-split
+      - foundation-deps
+      - quality-lint
 
   qa-engineer:
     mcp_servers:
@@ -74,16 +82,20 @@ agents:
         args: ["{{WORKSPACE}}"]
       - name: playwright
         package: "@playwright/mcp@latest"
-    plugins: []
+      - name: pytest-mcp
+        command: "python"
+        args: ["-m", "pytest_mcp_server"]
+    plugins:
+      - superpowers           # TDD, systematic-debugging (132K stars)
     skills:
       - quality-coverage
       - quality-audit
-      - quality-lint            # linting as quality gate
-      - quality-debt            # identify tech debt
+      - quality-lint
+      - quality-debt
       - foundation-testing
-      - feature-test            # write and run tests
-      - feature-review          # code review
-      - fleet-test              # fleet: run + analyze test results for review
+      - feature-test
+      - feature-review
+      - fleet-test
 
   devops:
     mcp_servers:
@@ -94,18 +106,22 @@ agents:
         package: "@modelcontextprotocol/server-github"
       - name: docker
         package: "@modelcontextprotocol/server-docker"
-    plugins: []
+      - name: github-actions
+        package: "github-actions-mcp-server"
+    plugins:
+      - hookify               # natural-language hook creation (official Anthropic)
+      - commit-commands        # git commit workflows (official Anthropic)
     skills:
       - foundation-docker
       - foundation-ci
-      - foundation-config       # configuration management
+      - foundation-config
       - ops-deploy
-      - ops-rollback            # rollback on failure
-      - ops-incident            # incident response + RCA
-      - ops-backup              # backup/restore procedures
+      - ops-rollback
+      - ops-incident
+      - ops-backup
       - ops-maintenance
-      - config-deploy           # deployment configuration
-      - infra-monitoring        # monitoring setup
+      - config-deploy
+      - infra-monitoring
 
   devsecops-expert:
     mcp_servers:
@@ -114,46 +130,57 @@ agents:
         args: ["{{WORKSPACE}}"]
       - name: docker
         package: "@modelcontextprotocol/server-docker"
-    plugins: []
+      - name: semgrep
+        command: "semgrep"
+        args: ["--mcp"]
+        # Semgrep: 30+ languages, custom rules, free tier. Most flexible security scanner.
+    plugins:
+      - security-guidance      # 9 security patterns via hooks (official Anthropic)
+      - sage                   # Agent Detection and Response — ADR (162 stars)
     skills:
       - infra-security
       - quality-audit
-      - config-secrets          # secret management + rotation
-      - foundation-auth         # auth implementation review
-      - fleet-security-audit    # fleet: security review (code, infra, supply chain)
+      - config-secrets
+      - foundation-auth
+      - fleet-security-audit
 
   fleet-ops:
     mcp_servers:
       - name: github
         package: "@modelcontextprotocol/server-github"
-    plugins: []
+    plugins:
+      - pr-review-toolkit      # 5 parallel Sonnet review agents (official Anthropic)
     skills:
       - pm-assess
       - quality-audit
-      - fleet-review            # fleet: 7-step review checklist
-      - openclaw-health         # fleet: OpenClaw health check
-      - openclaw-fleet-status   # fleet: fleet operational status
-      - openclaw-setup          # fleet: OpenClaw setup
-      - openclaw-add-agent      # fleet: add agent to OpenClaw
-      - scaffold-subagent       # create new agent in fleet
+      - fleet-review
+      - openclaw-health
+      - openclaw-fleet-status
+      - openclaw-setup
+      - openclaw-add-agent
+      - scaffold-subagent
 
   project-manager:
     mcp_servers:
       - name: github
         package: "@modelcontextprotocol/server-github"
-    plugins: []
+      - name: plane
+        package: "makeplane/plane-mcp-server"
+        # Official Plane MCP: issues, cycles, modules. Replaces direct API calls.
+    plugins:
+      - plannotator            # visual plan/diff annotation, team feedback (4K stars)
     skills:
       - pm-plan
-      - pm-assess               # project state assessment
+      - pm-assess
       - pm-status-report
       - pm-retrospective
       - pm-changelog
-      - pm-handoff              # handoff documentation
-      - idea-capture            # structured idea capture
-      - feature-plan            # feature change planning
-      - fleet-plan              # fleet: break epic into sprint tasks
-      - fleet-sprint            # fleet: sprint lifecycle management
-      - fleet-plane             # fleet: Plane sprint management
+      - pm-handoff
+      - idea-capture
+      - feature-plan
+      - fleet-plan
+      - fleet-sprint
+      - fleet-plane
 
   technical-writer:
     mcp_servers:
@@ -162,12 +189,14 @@ agents:
         args: ["{{WORKSPACE}}"]
       - name: github
         package: "@modelcontextprotocol/server-github"
-    plugins: []
+    plugins:
+      - context7              # library/framework documentation for accurate writing
+      - ars-contexta          # knowledge systems from conversation (3K stars)
     skills:
       - feature-document
       - pm-changelog
       - pm-handoff
-      - quality-debt            # identify documentation gaps
+      - quality-debt
 
   ux-designer:
     mcp_servers:
@@ -188,6 +217,6 @@ agents:
     plugins: []
     skills:
       - quality-audit
-      - quality-debt            # identify process/quality gaps
-      - quality-coverage        # verify test coverage
-      - pm-status-report        # generate compliance reports
+      - quality-debt
+      - quality-coverage
+      - pm-status-report

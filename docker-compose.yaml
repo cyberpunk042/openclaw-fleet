@@ -6,6 +6,7 @@
 #   cp .env.example .env
 #   # Edit .env — set LOCAL_AUTH_TOKEN (min 50 chars)
 #   docker compose up -d --build
+#   ./scripts/setup-mcp-deps.sh       # install pip-based MCP dependencies
 #   ./scripts/setup-lightrag.sh       # index knowledge base into graph
 #   ./scripts/setup-claude-mem.sh     # configure per-agent memory
 #   ./scripts/setup-agent-tools.sh    # deploy MCP configs per agent
