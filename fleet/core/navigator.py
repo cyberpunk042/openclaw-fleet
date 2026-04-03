@@ -692,10 +692,16 @@ class Navigator:
 
             query = f"What fleet systems, tools, and knowledge relate to: {task_context}"
 
+            # Pre-extract keywords to skip LLM keyword extraction call
+            # With hl_keywords + ll_keywords + only_need_context = zero LLM calls
+            keywords = self._extract_keywords(task_context, role)
+
             data = json.dumps({
                 "query": query,
                 "mode": mode,
                 "only_need_context": True,
+                "hl_keywords": keywords["high"],
+                "ll_keywords": keywords["low"],
             }).encode()
 
             req = urllib.request.Request(
@@ -725,6 +731,43 @@ class Navigator:
 
         # Fallback: traverse cross-references.yaml as local graph
         return self._traverse_local_graph(task_context, role, profile)
+
+    def _extract_keywords(self, task_context: str, role: str) -> dict:
+        """Extract high-level and low-level keywords from task context.
+
+        Pre-supplying keywords to LightRAG skips the LLM keyword
+        extraction call — making the entire query zero-LLM.
+
+        High-level: broad themes (e.g., "security", "review", "authentication")
+        Low-level: specific entities (e.g., "fleet_commit", "orchestrator", "hermes")
+        """
+        words = task_context.lower().split()
+
+        # High-level: thematic words (what the task is ABOUT)
+        themes = {"security", "review", "design", "implement", "test",
+                  "deploy", "monitor", "debug", "plan", "audit",
+                  "configure", "refactor", "document", "investigate",
+                  "architecture", "infrastructure", "authentication",
+                  "authorization", "performance", "quality", "budget",
+                  "sprint", "contribution", "methodology", "compliance"}
+        high = [w for w in words if w in themes or len(w) > 8]
+
+        # Low-level: specific entity names (fleet tools, systems, modules)
+        low = [w for w in words
+               if w.startswith("fleet_") or w.startswith("S0") or w.startswith("S1")
+               or w.startswith("S2") or "_" in w or w.startswith("/")
+               or w in {"orchestrator", "navigator", "gateway", "hermes",
+                        "lightrag", "claude-mem", "preembed", "doctor",
+                        "storm", "budget", "trail", "methodology"}]
+
+        # Add role as a keyword
+        high.append(role)
+
+        # Deduplicate
+        high = list(set(high)) or [task_context.split()[0]]
+        low = list(set(low)) or [task_context.split()[-1]]
+
+        return {"high": high, "low": low}
 
     def _select_graph_mode(self, task_context: str, role: str) -> str:
         """Select LightRAG query mode based on task and role.
