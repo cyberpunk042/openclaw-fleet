@@ -216,6 +216,20 @@ echo "=== Starting Mission Control Containers ==="
 bash scripts/setup-mc.sh --containers-only
 echo ""
 
+# Step 7a: Start LightRAG KB sync in background (independent of gateway/MC registration)
+# Requires: LightRAG container (started in step 7), LocalAI (external)
+echo "=== Starting LightRAG KB Sync (background) ==="
+LIGHTRAG_LOG="$FLEET_DIR/.lightrag-sync.log"
+if curl -sf http://localhost:9621/health >/dev/null 2>&1; then
+    bash scripts/setup-lightrag.sh --sync > "$LIGHTRAG_LOG" 2>&1 &
+    LIGHTRAG_PID=$!
+    echo "  LightRAG sync started (PID: $LIGHTRAG_PID, log: .lightrag-sync.log)"
+else
+    echo "  SKIP: LightRAG not healthy (run manually: bash scripts/setup-lightrag.sh)"
+    LIGHTRAG_PID=""
+fi
+echo ""
+
 # Step 7b: Start the fleet gateway (MC containers are up, health check passes)
 bash scripts/start-fleet.sh
 echo ""
@@ -225,30 +239,26 @@ echo "=== Registering Fleet in Mission Control ==="
 bash scripts/setup-mc.sh --register
 echo ""
 
-# Step 7d: Pre-seed gateway config with MC agent entries, then restart gateway.
+# Step 7d: Clean stale agents from previous setup runs
+bash scripts/clean-stale-agents.sh
+echo ""
+
+# Step 7e: Pre-seed gateway config with MC agent entries.
 # This avoids the SIGUSR1 restart storm during template sync: agents already
 # exist in gateway config on boot → template sync just pushes files (no agents.create).
 bash scripts/seed-gateway-agents.sh
 echo ""
-echo "=== Restarting Gateway (seeded config) ==="
-bash scripts/start-fleet.sh
-echo ""
 
-# Step 10: Start The Lounge (web IRC client)
-bash scripts/setup-lounge.sh
-echo ""
-
-# Step 11: Clean gateway config (remove duplicates, set safe heartbeat intervals)
-# MUST run after MC setup (which adds duplicate entries during provisioning)
+# Step 7f: Clean gateway config (dedup + stagger heartbeats) then restart once.
 echo "=== Cleaning Gateway Config ==="
 bash scripts/clean-gateway-config.sh
 echo ""
-
-# Step 11b: Restart gateway with clean config
-# The gateway loaded dirty config at Step 8. Now that we've cleaned it,
-# restart so it uses the deduplicated, staggered config.
-echo "=== Restarting Gateway (clean config) ==="
+echo "=== Restarting Gateway (seeded + clean config) ==="
 bash scripts/start-fleet.sh
+echo ""
+
+# Step 8: Start The Lounge (web IRC client)
+bash scripts/setup-lounge.sh
 echo ""
 
 # Step 12: Configure agent Claude Code settings (effort, memory, permissions)
@@ -320,17 +330,33 @@ print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'OpenClaw' in 
 fi
 echo ""
 
+# Step 17: Wait for background LightRAG sync
+if [[ -n "${LIGHTRAG_PID:-}" ]]; then
+    echo "=== Waiting for LightRAG Sync ==="
+    if wait "$LIGHTRAG_PID" 2>/dev/null; then
+        echo "  LightRAG sync complete"
+    else
+        echo "  WARN: LightRAG sync failed (check .lightrag-sync.log)"
+    fi
+    # Show summary
+    tail -3 "$LIGHTRAG_LOG" 2>/dev/null | sed 's/^/  /'
+    echo ""
+fi
+
 echo "╔══════════════════════════════════════╗"
 echo "║     Fleet Setup Complete             ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
+source "$FLEET_DIR/.env" 2>/dev/null || true
+GW_PORT="${OCF_GATEWAY_PORT:-18789}"
 echo "Everything is running:"
-echo "  Mission Control UI:  http://localhost:3000"
-echo "  Mission Control API: http://localhost:8000"
-echo "  OpenClaw Gateway:    ws://localhost:18789"
-echo "  OpenClaw Control UI: http://localhost:18789"
+echo "  Mission Control UI:  http://localhost:${FRONTEND_PORT:-3000}"
+echo "  Mission Control API: http://localhost:${BACKEND_PORT:-8000}"
+echo "  OpenClaw Gateway:    ws://localhost:${GW_PORT}"
+echo "  OpenClaw Control UI: http://localhost:${GW_PORT}"
+echo "  LightRAG:            http://localhost:${LIGHTRAG_PORT:-9621}"
 echo "  IRC Server:          localhost:6667"
-echo "  The Lounge (IRC UI): http://localhost:9000  (fleet/fleet)"
+echo "  The Lounge (IRC UI): http://localhost:${LOUNGE_PORT:-9000}  (fleet/fleet)"
 echo ""
 echo "IRC Channels: #fleet #alerts #reviews #sprint #agents #security #human #builds #memory #plane"
 echo ""

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Push enhanced SOUL.md and .claude/settings.json to all MC-provisioned agent workspaces.
+# Push enhanced SOUL.md and .claude/settings.json to MC-provisioned agent workspaces.
 # Combines agent role (from agents/<name>/SOUL.md) with MC workflow instructions.
 # Also ensures Claude Code permissions are set for each workspace.
+#
+# Only operates on CURRENT MC agent workspaces — stale workspaces from
+# previous setup runs are cleaned up automatically.
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 AGENTS_DIR="$FLEET_DIR/agents"
@@ -15,6 +18,41 @@ if [[ ! -f "$WORKFLOW" ]]; then
     exit 1
 fi
 
+set -a
+source "$FLEET_DIR/.env" 2>/dev/null || true
+set +a
+
+# Get current MC agent IDs — only these workspaces are valid
+CURRENT_IDS=""
+if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
+    CURRENT_IDS=$(curl -sf -m 10 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        "http://localhost:${BACKEND_PORT:-8000}/api/v1/agents" 2>/dev/null \
+        | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+items = data.get('items', data) if isinstance(data, dict) else data
+for a in items:
+    if 'Gateway' not in a.get('name', ''):
+        print(a['id'])
+" 2>/dev/null || true)
+fi
+
+# Clean up stale workspaces from previous setup runs
+if [[ -n "$CURRENT_IDS" ]]; then
+    cleaned=0
+    for workspace in "$FLEET_DIR"/workspace-mc-*; do
+        [[ -d "$workspace" ]] || continue
+        ws_id=$(basename "$workspace" | sed 's/workspace-mc-//')
+        if ! echo "$CURRENT_IDS" | grep -q "$ws_id"; then
+            rm -rf "$workspace"
+            cleaned=$((cleaned + 1))
+        fi
+    done
+    if [[ "$cleaned" -gt 0 ]]; then
+        echo "Cleaned $cleaned stale workspaces"
+    fi
+fi
+
 updated=0
 skipped=0
 
@@ -22,9 +60,8 @@ for workspace in "$FLEET_DIR"/workspace-mc-*; do
     [[ -d "$workspace" ]] || continue
 
     # Extract agent name from TOOLS.md
-    agent_name=$(grep 'AGENT_NAME=' "$workspace/TOOLS.md" 2>/dev/null | sed 's/.*`AGENT_NAME=//' | sed 's/`//' | tr -d '[:space:]')
+    agent_name=$(grep 'AGENT_NAME=' "$workspace/TOOLS.md" 2>/dev/null | sed 's/.*`AGENT_NAME=//' | sed 's/`//' | tr -d '[:space:]' || true)
     if [[ -z "$agent_name" ]]; then
-        echo "SKIP: $workspace (no AGENT_NAME in TOOLS.md)"
         skipped=$((skipped + 1))
         continue
     fi
