@@ -142,13 +142,19 @@ class Navigator:
             # No specific intent — use profile defaults
             self._assemble_defaults(ctx, role, profile)
 
-        # 4. Query LightRAG for task-relevant graph context
+        # 4. Enrich with cross-references (tool → system connections)
+        if intent and profile.name in ("opus-1m", "sonnet-200k"):
+            xref_context = self._enrich_from_crossrefs(intent, profile)
+            if xref_context:
+                ctx.sections.append(xref_context)
+
+        # 5. Query LightRAG for task-relevant graph context
         if task_context and profile.name != "heartbeat":
             graph_context = self._query_graph(task_context, role, profile)
             if graph_context:
                 ctx.sections.append(graph_context)
 
-        # 5. Enforce gateway character limit (8000 chars per context file)
+        # 6. Enforce gateway character limit (8000 chars per context file)
         self._enforce_limit(ctx, max_chars=7500)  # margin for separators + gateway overhead
 
         return ctx
@@ -713,6 +719,52 @@ class Navigator:
 
         # Default: hybrid
         return "hybrid"
+
+    # ── Cross-reference enrichment ──────────────────────────────────
+
+    def _enrich_from_crossrefs(self, intent: Intent, profile: InjectionProfile) -> Optional[str]:
+        """Find systems related to intent's tools via cross-references.
+
+        When an intent references tools like fleet_commit, the cross-ref
+        shows which systems use that tool (S01 methodology gates it).
+        This adds a compact "Related systems" section.
+        """
+        if not self._cross_refs:
+            return None
+
+        # Collect tools referenced in this intent
+        intent_tools = set()
+        for item in intent.inject:
+            if isinstance(item, dict) and "tools" in item:
+                ref = item["tools"]
+                if isinstance(ref, list):
+                    intent_tools.update(str(t).split("(")[0].strip() for t in ref)
+
+        if not intent_tools:
+            return None
+
+        # Find which systems reference these tools
+        systems = self._cross_refs.get("systems", {})
+        related = []
+        for sys_name, sys_data in systems.items():
+            if not isinstance(sys_data, dict):
+                continue
+            sys_id = sys_data.get("id", "")
+            tools = sys_data.get("tools", {})
+            # Check all tool lists in the system
+            for key, tool_list in tools.items():
+                if isinstance(tool_list, list):
+                    for tool in tool_list:
+                        tool_clean = str(tool).split("(")[0].strip()
+                        if tool_clean in intent_tools:
+                            related.append(f"- **{sys_id} {sys_name}**: {key} {tool}")
+                            break
+
+        if not related and profile.name == "opus-1m":
+            return None
+        if related:
+            return "## Related Systems\n" + "\n".join(related[:5])  # max 5 systems
+        return None
 
     # ── Cached file reading ─────────────────────────────────────────
 
