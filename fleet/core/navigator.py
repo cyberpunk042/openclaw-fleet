@@ -149,10 +149,14 @@ class Navigator:
                 ctx.sections.append(xref_context)
 
         # 5. Query LightRAG for task-relevant graph context
+        #    Budget: remaining space in 7500 char limit after static content
         if task_context and profile.name != "heartbeat":
-            graph_context = self._query_graph(task_context, role, profile)
-            if graph_context:
-                ctx.sections.append(graph_context)
+            used = sum(len(s) for s in ctx.sections)
+            remaining = 7500 - used - 200  # margin for separators + memory section
+            if remaining > 500:
+                graph_context = self._query_graph(task_context, role, profile, max_chars=remaining)
+                if graph_context:
+                    ctx.sections.append(graph_context)
 
         # 6. Query claude-mem for agent-specific memory
         if profile.name in ("opus-1m", "sonnet-200k") and stage != "heartbeat":
@@ -663,6 +667,7 @@ class Navigator:
         task_context: str,
         role: str,
         profile: InjectionProfile,
+        max_chars: int = 3000,
     ) -> Optional[str]:
         """Query LightRAG knowledge graph for task-relevant context.
 
@@ -700,11 +705,19 @@ class Navigator:
                 method="POST",
             )
 
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                result = json.loads(resp.read().decode())
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = json.loads(resp.read().decode())
+                # API returns {"response": "..."} dict or raw string
+                if isinstance(raw, dict):
+                    result = raw.get("response", "")
+                else:
+                    result = raw
                 if isinstance(result, str) and len(result) > 50:
-                    budget = profile.context_budget // 4
-                    truncated = result[:budget * 4]
+                    truncated = result[:max_chars]
+                    # Don't cut mid-entity — find last complete JSON block
+                    last_brace = truncated.rfind("}")
+                    if last_brace > 100:
+                        truncated = truncated[:last_brace + 1]
                     return f"## Knowledge Graph Context\n\n{truncated}"
 
         except Exception as e:

@@ -59,6 +59,8 @@ else
 fi
 
 pip_install_if_missing "pytest-mcp"   "Pytest test analysis — failures, coverage, traces"
+pip_install_if_missing "anthropic"    "Anthropic SDK — required by daniel-lightrag-mcp transitive dep"
+pip_install_if_missing "openai"       "OpenAI SDK — required by daniel-lightrag-mcp transitive dep"
 
 # ── System packages (check only, don't install) ───────────────────
 
