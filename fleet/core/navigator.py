@@ -85,16 +85,23 @@ class Navigator:
         self._profiles: dict[str, InjectionProfile] = {}
         self._cross_refs: dict = {}
         self._loaded = False
+        self._file_cache: dict[str, str] = {}  # path → content
 
     def load(self) -> None:
-        """Load metadata files from knowledge map."""
+        """Load metadata files from knowledge map. Caches file reads."""
         self._intent_map = self._load_yaml("intent-map.yaml")
         self._profiles = self._parse_profiles(self._load_yaml("injection-profiles.yaml"))
         self._cross_refs = self._load_yaml("cross-references.yaml")
+        self._file_cache.clear()
         self._loaded = True
         logger.info("Navigator loaded: %d intents, %d profiles",
                      len(self._intent_map.get("intents", {})),
                      len(self._profiles))
+
+    def reload(self) -> None:
+        """Force reload — clears cache and re-reads all metadata."""
+        self._loaded = False
+        self.load()
 
     def assemble(
         self,
@@ -314,7 +321,9 @@ class Navigator:
         if not path.exists():
             return None
 
-        content = path.read_text()
+        content = self._read_file(path)
+        if not content:
+            return None
 
         # Map short role names to how they appear in agent-manuals.md headers
         manual_names = {
@@ -361,7 +370,9 @@ class Navigator:
         if not path.exists():
             return None
 
-        content = path.read_text()
+        content = self._read_file(path)
+        if not content:
+            return None
 
         if stage and level in ("full", "stage_only"):
             # Find the section for this stage
@@ -390,7 +401,9 @@ class Navigator:
         if level == "none":
             return None
 
-        content = path.read_text()
+        content = self._read_file(path)
+        if not content:
+            return None
         sections = content.split("\n## ")
 
         # If ref is a list of specific standards, load only those
@@ -434,7 +447,7 @@ class Navigator:
                 for skill_name in ref:
                     skill_path = KB_DIR / "skills" / f"{skill_name}.md"
                     if skill_path.exists():
-                        content = skill_path.read_text()
+                        content = self._read_file(skill_path)
                         # Extract Purpose section content
                         desc = self._extract_section(content, "Purpose")
                         if not desc:
@@ -475,7 +488,7 @@ class Navigator:
                 for cmd_name in ref:
                     cmd_path = KB_DIR / "commands" / f"{cmd_name.lstrip('/')}.md"
                     if cmd_path.exists():
-                        content = cmd_path.read_text()
+                        content = self._read_file(cmd_path)
                         # Extract "What It Actually Does" section
                         lines.append(f"### {cmd_name}")
                         for section in content.split("\n## "):
@@ -499,7 +512,7 @@ class Navigator:
                 for tool_name in ref:
                     tool_path = KB_DIR / "tools" / f"{tool_name}.md"
                     if tool_path.exists():
-                        content = tool_path.read_text()
+                        content = self._read_file(tool_path)
                         # Extract purpose
                         for line in content.split("\n"):
                             if line.startswith("**Purpose"):
@@ -520,19 +533,12 @@ class Navigator:
             return None
 
         if level == "full":
-            # Load from full system docs
             if isinstance(ref, str):
-                path = KB_DIR / "systems" / f"{ref}.md"
-                if path.exists():
-                    return path.read_text()
+                return self._read_file(KB_DIR / "systems" / f"{ref}.md")
         elif level == "condensed":
-            path = KNOWLEDGE_MAP_DIR / "system-manuals-condensed.md"
-            if path.exists():
-                return path.read_text()
+            return self._read_file(KNOWLEDGE_MAP_DIR / "system-manuals-condensed.md")
         elif level == "minimal":
-            path = KNOWLEDGE_MAP_DIR / "system-manuals-minimal.md"
-            if path.exists():
-                return path.read_text()
+            return self._read_file(KNOWLEDGE_MAP_DIR / "system-manuals-minimal.md")
         return None
 
     def _load_plugins(self, ref, level: str) -> Optional[str]:
@@ -552,7 +558,7 @@ class Navigator:
             for server_name in ref:
                 mcp_path = KB_DIR / "mcp" / f"{server_name}.md"
                 if mcp_path.exists():
-                    content = mcp_path.read_text()
+                    content = self._read_file(mcp_path)
                     # Extract first paragraph after title
                     parts = content.split("\n\n")
                     desc = parts[1] if len(parts) > 1 else ""
@@ -611,19 +617,28 @@ class Navigator:
         Uses the graph to find entities and relationships related to the
         task — traversing the autocomplete web to find knowledge the
         static intent map doesn't cover.
+
+        Query mode selection:
+        - local: entity-focused ("What is X?") — for specific tasks
+        - global: relationship-focused ("How are X and Y related?") — for broad tasks
+        - hybrid: both — default for most work
+        - mix: all sources with reranking — for complex queries
         """
         try:
             import urllib.request
             import json
 
             url = "http://localhost:9621/query"
-            # Build query from task context
-            query = f"What fleet knowledge is relevant for {role} working on: {task_context}"
+
+            # Select query mode based on context
+            mode = self._select_graph_mode(task_context, role)
+
+            query = f"What fleet systems, tools, and knowledge relate to: {task_context}"
 
             data = json.dumps({
                 "query": query,
-                "mode": "hybrid",  # entities + relationships
-                "only_need_context": True,  # return context, not LLM response
+                "mode": mode,
+                "only_need_context": True,
             }).encode()
 
             req = urllib.request.Request(
@@ -636,15 +651,59 @@ class Navigator:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 result = json.loads(resp.read().decode())
                 if isinstance(result, str) and len(result) > 50:
-                    # Truncate to profile budget
-                    budget = profile.context_budget // 4  # graph gets ~25% of budget
-                    truncated = result[:budget * 4]  # rough char-to-token ratio
+                    budget = profile.context_budget // 4
+                    truncated = result[:budget * 4]
                     return f"## Knowledge Graph Context\n\n{truncated}"
 
         except Exception as e:
-            logger.debug("LightRAG query failed (may not be running): %s", e)
+            logger.debug("LightRAG query skipped (not running): %s", e)
 
         return None
+
+    def _select_graph_mode(self, task_context: str, role: str) -> str:
+        """Select LightRAG query mode based on task and role.
+
+        - Specific entity names → local (entity-focused)
+        - Broad/thematic questions → global (relationship-focused)
+        - Implementation tasks → hybrid (both)
+        - Review/audit → mix (all sources)
+        """
+        ctx_lower = task_context.lower() if task_context else ""
+
+        # Review/audit roles benefit from comprehensive results
+        if role in ("fleet-ops", "accountability-generator"):
+            return "mix"
+
+        # Security tasks need comprehensive coverage
+        if "security" in ctx_lower or "vulnerab" in ctx_lower or "audit" in ctx_lower:
+            return "mix"
+
+        # Architecture/design → relationship-focused
+        if "design" in ctx_lower or "architect" in ctx_lower or "plan" in ctx_lower:
+            return "global"
+
+        # Specific systems/tools referenced → entity-focused
+        if any(kw in ctx_lower for kw in ("system", "tool", "module", "hook", "command")):
+            return "local"
+
+        # Default: hybrid
+        return "hybrid"
+
+    # ── Cached file reading ─────────────────────────────────────────
+
+    def _read_file(self, path: Path) -> Optional[str]:
+        """Read a file with caching. Returns None if file doesn't exist."""
+        key = str(path)
+        if key in self._file_cache:
+            return self._file_cache[key]
+        if not path.exists():
+            return None
+        try:
+            content = path.read_text()
+            self._file_cache[key] = content
+            return content
+        except Exception:
+            return None
 
     # ── YAML loading ───────────────────────────────────────────────
 
@@ -655,8 +714,10 @@ class Navigator:
             logger.warning("Knowledge map file not found: %s", path)
             return {}
         try:
-            with open(path) as f:
-                return yaml.safe_load(f) or {}
+            content = self._read_file(path)
+            if not content:
+                return {}
+            return yaml.safe_load(content) or {}
         except Exception as e:
             logger.error("Failed to load %s: %s", filename, e)
             return {}
