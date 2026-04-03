@@ -429,22 +429,39 @@ class Navigator:
             return None
 
         if isinstance(ref, list):
-            # Specific skills listed
             if level == "full_descriptions":
                 lines = ["## Available Skills"]
                 for skill_name in ref:
                     skill_path = KB_DIR / "skills" / f"{skill_name}.md"
                     if skill_path.exists():
                         content = skill_path.read_text()
-                        # Extract first paragraph after the title
-                        parts = content.split("\n\n")
-                        desc = parts[1] if len(parts) > 1 else ""
-                        lines.append(f"- **/{skill_name}**: {desc.strip()[:200]}")
+                        # Extract Purpose section content
+                        desc = self._extract_section(content, "Purpose")
+                        if not desc:
+                            desc = self._extract_section(content, "What It Does")
+                        if not desc:
+                            # Fallback: first non-metadata paragraph
+                            for para in content.split("\n\n"):
+                                if not para.startswith("#") and not para.startswith("**"):
+                                    desc = para.strip()[:200]
+                                    break
+                        lines.append(f"- **/{skill_name}**: {desc[:200] if desc else ''}")
                     else:
                         lines.append(f"- **/{skill_name}**")
                 return "\n".join(lines)
             elif level == "names_only":
                 return "Available skills: " + ", ".join(f"/{s}" for s in ref)
+        return None
+
+    def _extract_section(self, content: str, section_name: str) -> Optional[str]:
+        """Extract content from a ## section by name."""
+        sections = content.split("\n## ")
+        for section in sections:
+            if section.strip().lower().startswith(section_name.lower()):
+                # Return content after the header line
+                lines = section.strip().split("\n")[1:]
+                text = "\n".join(l for l in lines if l.strip()).strip()
+                return text[:300] if text else None
         return None
 
     def _load_commands(self, ref, level: str) -> Optional[str]:
