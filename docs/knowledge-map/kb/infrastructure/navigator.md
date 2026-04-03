@@ -2,12 +2,17 @@
 
 **Type:** Infrastructure Component (Fleet Module)
 **Source:** fleet/core/navigator.py
-**Tests:** 22 passing (tests/test_navigator.py)
-**Status:** Production-ready — wired into orchestrator, all 26 intents working
+**Tests:** 31 passing (22 unit + 9 integration)
+**Status:** Production-ready — wired into orchestrator, all 26 intents working, three-layer pipeline complete
 
 ## What the Navigator Is
 
-The brain of the autocomplete web. Reads the knowledge map metadata (intent-map.yaml, injection-profiles.yaml), selects content at the right depth for the model, queries the LightRAG graph for task-relevant context, and assembles focused output that fits within the gateway's 8000 char limit.
+The brain of the autocomplete web. Three-layer knowledge pipeline:
+1. **Knowledge map** (static) — intent-map.yaml recipes, KB entries, manuals at right depth
+2. **LightRAG graph** — entity-relationship queries (fallback: cross-references.yaml local traversal)
+3. **Claude-mem memory** — per-agent past observations, patterns, decisions
+
+Assembles focused output that fits within the gateway's 8000 char limit. Never hard-cuts mid-section — drops whole sections from lowest priority.
 
 It answers one question: **"What does THIS agent need to know RIGHT NOW?"**
 
