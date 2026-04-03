@@ -1,0 +1,8 @@
+# Codex project config for fleet adversarial reviews
+# Docs: https://github.com/openai/codex-plugin-cc
+
+model = "o4-mini"
+model_reasoning_effort = "high"
+
+# Approval mode: suggest = read-only (safe for reviews)
+approval_mode = "suggest"

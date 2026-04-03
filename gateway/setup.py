@@ -348,22 +348,31 @@ def run_setup() -> int:
         else:
             print("   WARN: Could not register gateway")
     else:
-        # Update workspace_root if it's wrong (e.g., /app from old registration)
+        # Update gateway URL and workspace_root if stale
+        gw_port = os.environ.get("OCF_GATEWAY_PORT", "18789")
+        gw_host = os.environ.get("OCF_GATEWAY_HOST", "host.docker.internal")
+        expected_url = f"ws://{gw_host}:{gw_port}"
         fleet_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        updates = {}
+        if gw.get("url") != expected_url:
+            updates["url"] = expected_url
         if gw.get("workspace_root") != fleet_dir:
+            updates["workspace_root"] = fleet_dir
+        if updates:
             try:
                 r = httpx.patch(
                     f"{setup.mc_url}/api/v1/gateways/{gw['id']}",
                     headers=setup.headers,
-                    json={"workspace_root": fleet_dir},
+                    json=updates,
                     timeout=10.0,
                 )
                 if r.status_code == 200:
-                    print(f"   OK: Updated workspace_root → {fleet_dir}")
+                    for k, v in updates.items():
+                        print(f"   OK: Updated {k} → {v}")
                 else:
-                    print(f"   WARN: Could not update workspace_root: {r.status_code}")
+                    print(f"   WARN: Could not update gateway: {r.status_code}")
             except Exception as e:
-                print(f"   WARN: Could not update workspace_root: {e}")
+                print(f"   WARN: Could not update gateway: {e}")
         print(f"   OK: Already registered (id: {gw.get('id', '?')})")
 
     # Step 5: Board
@@ -452,12 +461,17 @@ def run_setup() -> int:
         print("\n   Skipping agents (no board)")
 
     # Step 7: Sync templates (push TOOLS.md + SOUL.md to agents)
-    if gw:
+    # Skip template sync here — it causes SIGUSR1 restart storms because agents
+    # don't exist in gateway config yet. setup.sh handles this by:
+    #   1. seed-gateway-agents.sh → writes MC agent entries into openclaw.json
+    #   2. Restart gateway → all agents exist from boot
+    #   3. Final template sync → just pushes files (no agents.create)
+    if gw and os.environ.get("FLEET_SKIP_TEMPLATE_SYNC") != "1":
         gw_id = gw.get("id", "")
         print("\n7. Syncing agent templates...")
         try:
             r = httpx.post(
-                f"{mc_url}/api/v1/gateways/{gw_id}/templates/sync?rotate_tokens=true&force_bootstrap=true",
+                f"{mc_url}/api/v1/gateways/{gw_id}/templates/sync?rotate_tokens=true",
                 headers=setup.headers, json={}, timeout=300.0,
             )
             if r.status_code in (200, 201):

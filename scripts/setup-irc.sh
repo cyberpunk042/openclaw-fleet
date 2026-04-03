@@ -122,22 +122,25 @@ with open('$OPENCLAW_CONFIG', 'w') as f:
 
 # 4. Bind agents to IRC channel
 echo "4. Binding agents to IRC..."
+# Get agents and bindings ONCE (openclaw CLI takes ~5s per invocation)
 AGENTS=$(openclaw agents list 2>/dev/null | grep "^-" | sed 's/^- //' | awk '{print $1}')
+BINDINGS=$(openclaw agents bindings 2>/dev/null || true)
+BOUND=0
 
 for agent in $AGENTS; do
     # Skip main and gateway agents
     [[ "$agent" == "main" ]] && continue
     [[ "$agent" == mc-gateway-* ]] && continue
 
-    # Check if already bound
-    BINDINGS=$(openclaw agents bindings 2>/dev/null | grep "$agent.*irc" || true)
-    if [[ -n "$BINDINGS" ]]; then
+    # Check cached bindings
+    if echo "$BINDINGS" | grep -q "$agent.*irc"; then
         continue
     fi
 
-    openclaw agents bind --agent "$agent" --bind "irc:fleet" 2>/dev/null || true
+    openclaw agents bind --agent "$agent" --bind "irc:fleet" >/dev/null 2>&1 || true
+    BOUND=$((BOUND + 1))
 done
-echo "   Agents bound to IRC (irc:fleet)"
+echo "   $BOUND agents bound to IRC (irc:fleet)"
 
 echo ""
 echo "=== IRC Setup Complete ==="

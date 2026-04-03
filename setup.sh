@@ -11,10 +11,11 @@ set -euo pipefail
 # 2. Configures OpenClaw gateway (bind, controlUi)
 # 3. Configures auth (Claude Code subscription bridge)
 # 4. Configures exec approval, CLI backend, workspace permissions
-# 5. Registers agents in OpenClaw
-# 6. Starts OpenClaw gateway
-# 7. Starts Mission Control (Docker) + connects to gateway
-# 8. Syncs templates (pushes TOOLS.md with auth tokens to agents)
+# 5. Sets up IRC channel
+# 6. Starts MC containers (docker compose up)
+# 7. Starts gateway (needs MC health check)
+# 8. Registers gateway/board/agents in MC (needs gateway running)
+#    MC provisions agents on gateway via template sync (agents.create)
 # 9. Pushes SOUL.md + Claude Code settings to agent workspaces
 
 FLEET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -137,8 +138,13 @@ print(f'  Prefix:     {identity.agent_prefix}')
 fi
 echo ""
 
-# Step 1: Install OpenClaw
-bash scripts/install-openclaw.sh
+# Step 1: Install OpenClaw (skip if already at latest)
+if command -v openclaw >/dev/null 2>&1; then
+    echo "=== OpenClaw ==="
+    echo "  $(openclaw --version 2>/dev/null | head -1)"
+else
+    bash scripts/install-openclaw.sh
+fi
 echo ""
 
 # Step 2: Configure OpenClaw (if not already set up)
@@ -200,42 +206,32 @@ echo ""
 bash scripts/configure-openclaw.sh
 echo ""
 
-# Step 6: Register agents in OpenClaw
-bash scripts/register-agents.sh
-echo ""
-
-# Step 7: Set up IRC channel for fleet observation
+# Step 6: Set up IRC channel for fleet observation
 bash scripts/setup-irc.sh
 echo ""
 
-# Step 8: Clear fleet agents from gateway config (MC re-provisions them fresh)
-echo "=== Preparing Gateway for Provisioning ==="
-python3 -c "
-import json, os
-p = os.path.expanduser('~/.openclaw/openclaw.json')
-with open(p) as f: cfg = json.load(f)
-agents = cfg.get('agents', {}).get('list', [])
-kept = [a for a in agents if 'Gateway' in a.get('name', '')]
-print(f'  Cleared {len(agents) - len(kept)} agent entries for MC to re-provision')
-cfg['agents']['list'] = kept
-with open(p, 'w') as f: json.dump(cfg, f, indent=2)
-
-# Reset gateway config health so it accepts the smaller config
-# (gateway refuses to load if file size dropped vs 'last known good')
-health_path = os.path.expanduser('~/.openclaw/logs/config-health.json')
-if os.path.exists(health_path):
-    os.remove(health_path)
-    print('  Reset gateway config health checkpoint')
-" 2>/dev/null || echo "  SKIP"
+# Step 7: Start MC containers (gateway needs MC health check, but MC setup needs gateway)
+# Solve chicken-and-egg: start containers → start gateway → register in MC → seed → restart
+echo "=== Starting Mission Control Containers ==="
+bash scripts/setup-mc.sh --containers-only
 echo ""
 
-# Step 8b: Start the fleet (gateway must be up before MC connects)
+# Step 7b: Start the fleet gateway (MC containers are up, health check passes)
 bash scripts/start-fleet.sh
 echo ""
 
-# Step 9: Start Mission Control + connect gateway + sync templates + push SOUL.md
-# MC provisions agents on the gateway (agents.create succeeds because they don't exist)
-bash scripts/setup-mc.sh
+# Step 7c: Register gateway, board, agents in MC (both MC and gateway are now up)
+echo "=== Registering Fleet in Mission Control ==="
+bash scripts/setup-mc.sh --register
+echo ""
+
+# Step 7d: Pre-seed gateway config with MC agent entries, then restart gateway.
+# This avoids the SIGUSR1 restart storm during template sync: agents already
+# exist in gateway config on boot → template sync just pushes files (no agents.create).
+bash scripts/seed-gateway-agents.sh
+echo ""
+echo "=== Restarting Gateway (seeded config) ==="
+bash scripts/start-fleet.sh
 echo ""
 
 # Step 10: Start The Lounge (web IRC client)

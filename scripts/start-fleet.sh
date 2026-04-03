@@ -7,6 +7,10 @@ set -euo pipefail
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Load config
+source "$FLEET_DIR/.env" 2>/dev/null || true
+GW_PORT="${OCF_GATEWAY_PORT:-18789}"
+
 # SAFETY: Check if fleet is paused. If paused, refuse to start.
 # Use "fleet resume" first, then start.
 if [ -f "$FLEET_DIR/.fleet-paused" ]; then
@@ -19,8 +23,9 @@ fi
 # SAFETY: Check if MC is reachable. If MC is down, refuse to start.
 # Starting the gateway without MC causes cron jobs to fire Claude
 # calls with no MC to serve — burning tokens for nothing.
-if ! curl -sf http://localhost:8000/healthz >/dev/null 2>&1; then
-    echo "ERROR: MC backend is not reachable (localhost:8000)."
+MC_PORT="${BACKEND_PORT:-8000}"
+if ! curl -sf "http://localhost:${MC_PORT}/health" >/dev/null 2>&1; then
+    echo "ERROR: MC backend is not reachable (localhost:${MC_PORT})."
     echo "  Start MC first: docker compose up -d"
     echo "  Then: make gateway"
     exit 1
@@ -28,9 +33,16 @@ fi
 
 echo "=== Starting OpenClaw Gateway ==="
 
+# Stop systemd-managed gateway if running (it would respawn after kill)
+if systemctl --user is-active openclaw-fleet-gateway.service >/dev/null 2>&1; then
+    echo "  Stopping systemd gateway service..."
+    systemctl --user stop openclaw-fleet-gateway.service 2>/dev/null || true
+    sleep 2
+fi
+
 # Kill existing gateway processes (avoid duplicates)
 if pgrep -f "openclaw-gateway" >/dev/null 2>&1; then
-    echo "  Killing existing gateway..."
+    echo "  Killing existing OpenClaw gateway..."
     pkill -f "openclaw-gateway" 2>/dev/null || true
     sleep 2
 fi
@@ -41,24 +53,45 @@ if pgrep -f "openclaw$" >/dev/null 2>&1; then
     sleep 1
 fi
 
-# Start gateway in background (detached from shell)
-# Increase Node.js heap to 4GB — template sync causes rapid config patches
-# that exhaust the default ~1.7GB heap during SIGUSR1 restart storms.
-export NODE_OPTIONS="--max-old-space-size=4096"
-nohup openclaw gateway run --port 18789 > "$FLEET_DIR/.gateway.log" 2>&1 &
-disown
-GATEWAY_PID=$!
+# Kill anything else occupying the gateway port
+PORT_PID=$(lsof -ti :"$GW_PORT" 2>/dev/null || true)
+if [[ -n "$PORT_PID" ]]; then
+    echo "  Killing process on port $GW_PORT (PID: $PORT_PID)..."
+    kill $PORT_PID 2>/dev/null || true
+    sleep 2
+    # Force kill if still alive
+    if lsof -ti :"$GW_PORT" >/dev/null 2>&1; then
+        kill -9 $PORT_PID 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
+# Install/update systemd service if template exists, then start via systemd
+if [[ -f "$FLEET_DIR/systemd/openclaw-fleet-gateway.service.template" ]]; then
+    bash "$FLEET_DIR/scripts/install-service.sh" 2>&1 | sed 's/^/  /'
+    echo "  Starting via systemd..."
+    systemctl --user start openclaw-fleet-gateway.service
+else
+    # Fallback: start directly if no systemd template
+    export NODE_OPTIONS="--max-old-space-size=4096"
+    nohup openclaw gateway run --port "$GW_PORT" > "$FLEET_DIR/.gateway.log" 2>&1 &
+    disown
+fi
 
 # Wait for it to be ready
 echo "  Waiting for gateway..."
 for i in $(seq 1 30); do
-    if curl -sf http://localhost:18789/ >/dev/null 2>&1; then
-        echo "  Gateway ready (PID: $GATEWAY_PID)"
+    if curl -sf "http://localhost:${GW_PORT}/" >/dev/null 2>&1; then
+        echo "  Gateway ready on port $GW_PORT"
         exit 0
     fi
     sleep 2
 done
 
 echo "  ERROR: Gateway failed to start within 60 seconds."
-echo "  Check logs: tail -50 $FLEET_DIR/.gateway.log"
+if systemctl --user is-active openclaw-fleet-gateway.service >/dev/null 2>&1; then
+    echo "  Check logs: journalctl --user -u openclaw-fleet-gateway -n 50"
+else
+    echo "  Check logs: tail -50 $FLEET_DIR/.gateway.log"
+fi
 exit 1

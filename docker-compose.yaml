@@ -118,22 +118,22 @@ services:
 
   # --- Text Embeddings (TEI — dedicated, faster than LocalAI for embeddings) ---
 
-  tei:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
-    command: --model-id nomic-ai/nomic-embed-text-v1.5 --port 8085
-    ports:
-      - "127.0.0.1:${TEI_PORT:-8085}:8085"
-    volumes:
-      - tei_models:/data
-    environment:
-      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "cat < /dev/tcp/localhost/8085 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 120s
+  #tei:
+  #  image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+  #  command: --model-id nomic-ai/nomic-embed-text-v1.5 --port 8085
+  #  ports:
+  #    - "127.0.0.1:${TEI_PORT:-8085}:8085"
+  #  volumes:
+  #    - tei_models:/data
+  #  environment:
+  #    HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+  #  restart: unless-stopped
+  #  healthcheck:
+  #    test: ["CMD-SHELL", "cat < /dev/tcp/localhost/8085 || exit 1"]
+  #    interval: 10s
+  #    timeout: 5s
+  #    retries: 30
+  #    start_period: 120s
 
   # --- Knowledge Graph (LightRAG) ---
 
@@ -241,4 +241,4 @@ volumes:
   postgres_data:
   lounge_data:
   lightrag_storage:
-  tei_models:
+  #tei_models:

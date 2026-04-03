@@ -1,70 +1,93 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Start Mission Control and configure it
-echo "=== Setting Up Mission Control ==="
+# Start Mission Control and configure it.
+#
+# Usage:
+#   setup-mc.sh                  # Full setup (containers + registration)
+#   setup-mc.sh --containers-only  # Start containers + wait for health (no gateway needed)
+#   setup-mc.sh --register         # Register gateway/board/agents (gateway must be running)
 
 FLEET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$FLEET_DIR"
 
-# Check .env
-if [[ ! -f .env ]]; then
-    echo "Creating .env from .env.example..."
-    cp .env.example .env
-    # Generate auth token
-    TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
-    sed -i "s/LOCAL_AUTH_TOKEN=.*/LOCAL_AUTH_TOKEN=${TOKEN}/" .env
-    echo "Generated LOCAL_AUTH_TOKEN"
-    # Ensure Postgres port doesn't conflict with Plane (5432)
-    if ! grep -q "POSTGRES_PORT" .env; then
-        echo "POSTGRES_PORT=5433" >> .env
+MODE="${1:-full}"
+
+# --- Phase 1: Containers (always runs unless --register only) ---
+if [[ "$MODE" != "--register" ]]; then
+    echo "=== Setting Up Mission Control ==="
+
+    # Check .env
+    if [[ ! -f .env ]]; then
+        echo "Creating .env from .env.example..."
+        cp .env.example .env
+        # Generate auth token
+        TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+        sed -i "s/LOCAL_AUTH_TOKEN=.*/LOCAL_AUTH_TOKEN=${TOKEN}/" .env
+        echo "Generated LOCAL_AUTH_TOKEN"
+        # Ensure Postgres port doesn't conflict with Plane (5432)
+        if ! grep -q "POSTGRES_PORT" .env; then
+            echo "POSTGRES_PORT=5433" >> .env
+        fi
+    fi
+
+    # Ensure Postgres port is 5433 (Plane uses 5432)
+    if grep -q "POSTGRES_PORT=5432" .env 2>/dev/null; then
+        sed -i 's/POSTGRES_PORT=5432/POSTGRES_PORT=5433/' .env
+        echo "Fixed POSTGRES_PORT: 5432 → 5433 (avoid Plane conflict)"
+    fi
+
+    # Clone vendor if needed
+    if [[ ! -d vendor/openclaw-mission-control ]]; then
+        echo "Cloning Mission Control..."
+        mkdir -p vendor
+        git clone https://github.com/abhi1693/openclaw-mission-control.git vendor/openclaw-mission-control
+    fi
+
+    # Apply fleet patches to vendor
+    bash scripts/apply-patches.sh
+    bash scripts/apply-fleet-ui.sh
+
+    # Start Docker services
+    echo "Starting Mission Control services..."
+    docker compose up -d --build 2>&1 | tail -5
+
+    # Wait for backend
+    echo "Waiting for backend..."
+    for i in $(seq 1 20); do
+        if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+            echo "Mission Control backend ready"
+            break
+        fi
+        if [[ "$i" -eq 20 ]]; then
+            echo "ERROR: Mission Control backend failed to start"
+            exit 1
+        fi
+        echo "  waiting... ($i/20)"
+        sleep 3
+    done
+
+    # If containers-only, stop here
+    if [[ "$MODE" == "--containers-only" ]]; then
+        exit 0
     fi
 fi
 
-# Ensure Postgres port is 5433 (Plane uses 5432)
-if grep -q "POSTGRES_PORT=5432" .env 2>/dev/null; then
-    sed -i 's/POSTGRES_PORT=5432/POSTGRES_PORT=5433/' .env
-    echo "Fixed POSTGRES_PORT: 5432 → 5433 (avoid Plane conflict)"
-fi
-
-# Clone vendor if needed
-if [[ ! -d vendor/openclaw-mission-control ]]; then
-    echo "Cloning Mission Control..."
-    mkdir -p vendor
-    git clone https://github.com/abhi1693/openclaw-mission-control.git vendor/openclaw-mission-control
-fi
-
-# Apply fleet patches to vendor
-bash scripts/apply-patches.sh
-bash scripts/apply-fleet-ui.sh
-
-# Start Docker services
-echo "Starting Mission Control services..."
-docker compose up -d --build 2>&1 | tail -5
-
-# Wait for backend
-echo "Waiting for backend..."
-for i in $(seq 1 20); do
-    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-        echo "Mission Control backend ready"
-        break
-    fi
-    echo "  waiting... ($i/20)"
-    sleep 3
-done
-
-# Run fleet setup (registers gateway, board, agents in MC)
+# --- Phase 2: Registration (requires both MC and gateway running) ---
 echo ""
 echo "Running fleet setup..."
+set -a
 source .env 2>/dev/null || true
-python3 -m gateway.setup
+set +a
+# Skip template sync during registration — setup.sh handles it after
+# seeding gateway config (avoids SIGUSR1 restart storm).
+FLEET_SKIP_TEMPLATE_SYNC=1 python3 -m gateway.setup
 
 # Configure board custom fields and tags
 echo ""
 bash scripts/configure-board.sh
 
-# Template sync already handled by gateway.setup (step 7 above).
-# If it timed out there, retry once with a 180s timeout.
+# Template sync — retry if agents are offline
 echo ""
 source .env 2>/dev/null || true
 if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
@@ -93,7 +116,7 @@ print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'OpenClaw' in 
             RESULT=$(curl -sf -m 180 -X POST \
                 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
                 -H "Content-Type: application/json" \
-                "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync?rotate_tokens=true&force_bootstrap=true" \
+                "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync?rotate_tokens=true" \
                 -d '{}' 2>&1 || echo '{"agents_updated":"?","errors":[]}')
             UPDATED=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('agents_updated',0))" 2>/dev/null || echo "?")
             echo "Retry result: $UPDATED agents updated"

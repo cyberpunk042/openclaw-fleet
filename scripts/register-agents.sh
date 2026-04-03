@@ -25,6 +25,17 @@ with open("$IDENTITIES") as f:
 agents = cfg.get("agents", {})
 registered = 0
 
+# Get existing agents ONCE (not per-agent — openclaw CLI is slow to start)
+existing_agents = ""
+try:
+    result = subprocess.run(
+        ["openclaw", "agents", "list"],
+        capture_output=True, text=True, timeout=15
+    )
+    existing_agents = result.stdout
+except Exception as e:
+    print(f"  WARN: Could not list agents — {e}")
+
 for agent_name, info in agents.items():
     display = info.get("display_name", agent_name)
     workspace = os.path.join(fleet_dir, "agents", agent_name)
@@ -33,27 +44,22 @@ for agent_name, info in agents.items():
         print(f"  SKIP: {agent_name} — no workspace dir")
         continue
 
-    # Check if already registered
-    try:
-        result = subprocess.run(
-            ["openclaw", "agents", "list"],
-            capture_output=True, text=True, timeout=10
-        )
-        if agent_name in result.stdout:
-            print(f"  EXISTS: {agent_name}")
-            continue
-    except Exception:
-        pass
+    # Check if already registered (using cached list)
+    if agent_name in existing_agents:
+        print(f"  EXISTS: {agent_name}")
+        continue
 
     # Register
     try:
         subprocess.run(
             ["openclaw", "agents", "add", agent_name,
              "--workspace", workspace],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=60
         )
         print(f"  REGISTERED: {agent_name} ({display})")
         registered += 1
+    except subprocess.TimeoutExpired:
+        print(f"  TIMEOUT: {agent_name} — openclaw CLI hung (60s), skipping")
     except Exception as e:
         print(f"  ERROR: {agent_name} — {e}")
 
