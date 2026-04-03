@@ -148,7 +148,32 @@ class Navigator:
             if graph_context:
                 ctx.sections.append(graph_context)
 
+        # 5. Enforce gateway character limit (8000 chars per context file)
+        self._enforce_limit(ctx, max_chars=7500)  # margin for separators + gateway overhead
+
         return ctx
+
+    def _enforce_limit(self, ctx: NavigatorContext, max_chars: int = 7800) -> None:
+        """Truncate sections to fit gateway's per-file character limit.
+
+        Preserves priority order — earlier sections (agent manual, methodology)
+        are kept over later ones (graph context, notes).
+        """
+        separators = max(0, len(ctx.sections) - 1) * 2  # "\n\n" between sections
+        total = sum(len(s) for s in ctx.sections) + separators
+        if total <= max_chars:
+            return
+
+        # Trim from the end (lowest priority sections)
+        while ctx.sections and (sum(len(s) for s in ctx.sections) + max(0, len(ctx.sections) - 1) * 2) > max_chars:
+            last = ctx.sections[-1]
+            excess = sum(len(s) for s in ctx.sections) - max_chars
+            if excess >= len(last):
+                ctx.sections.pop()
+            else:
+                # Truncate the last section
+                ctx.sections[-1] = last[:len(last) - excess] + "\n...(truncated)"
+                break
 
     # ── Profile selection ──────────────────────────────────────────
 
