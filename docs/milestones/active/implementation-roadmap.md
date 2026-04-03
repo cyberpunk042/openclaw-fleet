@@ -246,18 +246,45 @@ safe autonomous operation.
 
 ---
 
-## Integration with Fleet Elevation
+## Integration with Fleet Elevation + Unified Plan
 
-The 31 Fleet Elevation design documents describe the target state.
-The new milestones provide the **infrastructure** that makes elevation
-possible:
+Two parallel tracks. Both needed. Different dependencies.
+
+**Waves 1-5 (this doc): INFRASTRUCTURE**
+Storm prevention, budget modes, labor stamps, routing, challenge, models.
+CODE that makes the fleet safe, observable, and cost-controlled.
+
+**Unified Plan U-01–U-38: AGENTS**
+Identity, heartbeats, self-knowledge, contributions, autonomy, RAG.
+FILES + BRAIN LOGIC that makes agents intelligent and synergistic.
+
+**Relationship:**
+
+| Unified Phase | Depends on Waves? | Can Parallel? |
+|---------------|-------------------|---------------|
+| A: Agent Foundation (B1-B4, U-01–U-03) | NO — file writing only | YES — parallel with Waves 1-2 |
+| B: Heartbeat Rewrites (U-04–U-08) | NO — file writing only | YES — parallel with Waves 1-2 |
+| C: Self-Knowledge (U-09–U-12) | NO — file generation + config | YES — parallel with Waves 1-3 |
+| D: Data Integration (U-13–U-16) | PARTIAL — pre-embed uses storm/budget data | Mostly parallel |
+| E: Autonomy (U-17–U-20) | YES — session mgmt needs budget data | After Wave 1-2 |
+| H: Live Tests (U-26–U-31) | YES — need storm protection | After Wave 1 |
+| I: Model & Cost (U-32–U-38) | YES — needs routing + budget | After Wave 2 |
+
+**Critical insight:** Agent file writing (B1-B4, Phases A-C) can proceed
+NOW while Waves 1-5 infrastructure is built. Live testing needs Wave 1.
+Session management (U-18) needs budget monitor data from Wave 1-2.
+
+**Quality gate (NEW 2026-04-01):** Per-type standards in
+`docs/milestones/active/standards/` gate ALL agent file work. Standard
+FIRST, then build. See `agent-file-standards.md` master index.
 
 | Elevation Doc | Enabled By |
 |---------------|-----------|
-| Doc 4: The Brain | M-SP (storm checks in cycle), M-BM (budget-aware dispatch) |
+| Doc 4: The Brain | M-SP (storm checks in cycle), M-BM (budget-aware dispatch), session_manager.py (Step 10) |
 | Doc 17: Standards | M-LA (labor stamp is a new artifact standard) |
 | Doc 19: Flow Validation | M-IV (challenge loops are new quality gates) |
-| Doc 23: Agent Lifecycle | M-BM (budget mode affects sleep/wake), M-LA (stamps track cost-per-state) |
+| Doc 23: Agent Lifecycle | M-BM (budget mode affects sleep/wake), M-LA (stamps track cost-per-state), session_manager.py (rollover awareness) |
+| Doc 20: AI Behavior | Per-type standards (anti-corruption in SOUL.md, stage protocol in CLAUDE.md) |
 
 ---
 
@@ -265,7 +292,7 @@ possible:
 
 ### Wave 1 is DONE when:
 - [ ] Storm monitor detects session bursts and fast-climb
-- [ ] Automatic response de-escalates to survival mode on 3+ indicators
+- [ ] Automatic response limits dispatch on 3+ indicators
 - [ ] Per-agent circuit breakers isolate void-session agents
 - [ ] Gateway duplication detected and cleaned automatically
 - [ ] Every fleet_task_complete produces a LaborStamp

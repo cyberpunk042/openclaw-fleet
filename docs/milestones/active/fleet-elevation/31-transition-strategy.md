@@ -101,7 +101,7 @@ one agent at a time — and doesn't need to wait for contributions.
 ```
 Phase A  (foundation)     — data model, config
     ↓
-Phase A+ (quick wins)     — lifecycle DROWSY state, smart_chains wiring
+Phase A+ (quick wins)     — lifecycle IDLE state, smart_chains wiring
     ↓
 Phase B  (brain core)     — chain registry, logic engine
     ↓
@@ -124,14 +124,37 @@ Phase K  (change mgmt)    — requirement evolution, config versioning
 Phase H  (validation)     — end-to-end flows, live testing
 ```
 
-### Phase A+ (Quick Wins) — NEW
-Before the heavy brain work, grab easy wins:
-- Add DROWSY state to agent_lifecycle.py (small code change,
+### Phase A+ (Quick Wins + Critical Fix) — UPDATED 2026-04-01
+
+Before the heavy brain work, grab easy wins and fix a critical gap:
+
+- **B0.7: Fix gateway injection order** — CRITICAL. Gateway currently
+  reads ONLY CLAUDE.md + context/. Must be modified to read ALL 8 files
+  in order: IDENTITY→SOUL→CLAUDE→TOOLS→AGENTS→context→HEARTBEAT.
+  Also fix ws_server.py truncation (2000→4000 for CLAUDE.md, 1000→8000
+  for context files). Without this, all agent file work is useless.
+  See: gateway/executor.py:94-119, gateway/ws_server.py:335-353.
+- Add IDLE state to agent_lifecycle.py (small code change,
   immediate cost reduction for idle agents)
 - Wire smart_chains.py into the orchestrator (it's already written
   and tested, just never imported)
 - Prepare config sections for new elevation features
 - These are LOW RISK changes to existing, tested modules
+
+### Quality Gate — Per-Type Standards (NEW 2026-04-01)
+
+All agent file work (Phase D) must follow per-type standards:
+`docs/milestones/active/standards/` (8 docs, master index at
+`agent-file-standards.md`). Standard FIRST, then build. Validate
+with `scripts/validate-agents.sh` AFTER writing.
+
+### Brain Session Management (NEW 2026-04-01)
+
+Phase I (lifecycle full) now includes brain Step 10: session management.
+Two parallel countdowns (context remaining + rate limit session),
+aggregate fleet context math, force compact near rollover, context
+need evaluation per agent. See System 22 §4.7, brain spec Step 10,
+`standards/brain-modules-standard.md` (session_manager.py spec).
 
 ---
 
@@ -241,7 +264,7 @@ Full rewrite is safe — the old content is just tool names.
 | Phase | Risk | Mitigation |
 |-------|------|-----------|
 | A (foundation) | New fields break _parse_task | Default values on new fields, test parse roundtrip |
-| A+ (quick wins) | DROWSY state transitions wrong | Test all transition paths before deploying |
+| A+ (quick wins) | IDLE state transitions wrong | Test all transition paths before deploying |
 | B (brain core) | Chain registry breaks orchestrator cycle | Test cycle completes with registry wired in |
 | J (tool trees) | Extended chains break MCP tools | Test each tool individually before deploying |
 | C (contributions) | Contribution tasks flood the board | Config: max contributions per cycle, test with limits |
@@ -289,13 +312,10 @@ daemon, investigate, fix, redeploy.
 
 ## The Conservative Profile
 
-The fleet is currently on CONSERVATIVE profile:
+Current fleet config:
 ```yaml
-effort_profile: conservative
-# Budget-conscious — drivers only, sonnet only, less frequent
-# max_dispatch_per_cycle: 1
-# allow_opus: false
-# active_agents: [project-manager, fleet-ops, devsecops-expert]
+budget_mode: turbo
+max_dispatch_per_cycle: 2
 ```
 
 This means during elevation implementation:

@@ -292,7 +292,7 @@ how agents operate during validation testing.
 Per document 23. Evolves existing infrastructure.
 
 **I1: Content-aware lifecycle transitions**
-- Add DROWSY status to agent_lifecycle.py
+- Add IDLE status to agent_lifecycle.py
 - Add consecutive_heartbeat_ok counter
 - Add last_heartbeat_data_hash for content comparison
 - Transition from time-based to content-aware sleep

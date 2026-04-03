@@ -1,12 +1,101 @@
 # Agent Lifecycle & Roles — States, Authority, and Cost Control
 
-> **2 files. 423 lines. Manages agent states (ACTIVE→SLEEPING) and PR authority per role.**
+> **2 files. 423 lines. Manages agent states (ACTIVE→IDLE→SLEEPING→OFFLINE) and PR authority per role.**
 >
-> Agent lifecycle tracks what each agent is doing and how often to check
-> on them. Content-aware: agents that report HEARTBEAT_OK 2-3 times
-> transition to DROWSY/SLEEPING, reducing Claude calls to zero for idle
-> agents. Agent roles define PR authority — who can reject, who can close,
+> Agent lifecycle tracks what each agent is doing. After 1 HEARTBEAT_OK
+> the brain takes over evaluation — cron still fires, brain intercepts,
+> silent OK if nothing for this agent ($0). States (IDLE, SLEEPING,
+> OFFLINE) are visibility labels — all respond to wake triggers identically.
+> Agent roles define PR authority — who can reject, who can close,
 > who can set security holds. Fleet-ops is the final authority.
+
+---
+
+## 0. Silent Heartbeat Architecture — Cron Never Stops (2026-04-01)
+
+### PO Requirement (Verbatim)
+
+> "the agent need to be able to do silent heartbeat when they deem
+> after a while that there is nothing new from the heartbeat, (2-3..)
+> then it relay the work to the brain to actually do a compare and an
+> automated work of the heartbeat in order to determine if it require
+> a real heartbeat."
+
+> "Like any good employee on call who know he can relax a bit reduce
+> cost and let the automated systems take the relay while there is
+> nothing particular to work on anyway."
+
+### The Key Insight: We Never Stop
+
+The gateway cron (`~/.openclaw/cron/jobs.json`) fires heartbeats at
+a fixed interval per agent. **This never stops.** The agent is always
+"on call." What changes is what HAPPENS when the cron fires:
+
+```
+Gateway cron fires for agent (every 10 min or configured interval)
+  │
+  ├── Brain intercepts BEFORE Claude call
+  │   ├── Read agent lifecycle state
+  │   ├── If ACTIVE/IDLE: proceed → real Claude heartbeat
+  │   └── If IDLE/SLEEPING: brain evaluates deterministically (FREE)
+  │       │
+  │       ├── Check: mentions? tasks? contributions? directives?
+  │       │   role triggers? board activity?
+  │       │
+  │       ├── Wake trigger found → fire REAL heartbeat
+  │       │   (strategic config: model, effort, session strategy)
+  │       │
+  │       └── Nothing found → SILENT HEARTBEAT OK
+  │           Log: "silent heartbeat OK for {agent}"
+  │           Cost: $0
+  │
+  └── The agent never stopped. The cron never stopped.
+      The brain is the FILTER between cron and Claude call.
+```
+
+### Current Gap
+
+The brain interception layer does NOT exist yet. Currently:
+- Gateway cron fires → Claude call happens immediately
+- No lifecycle check between cron and Claude call
+- SLEEPING agents still get expensive Claude calls
+
+**What's needed:**
+- Brain Step 8 (driver management) or a pre-heartbeat hook
+  intercepts the cron firing and checks lifecycle state
+- If sleeping: `_evaluate_sleeping_agent()` (fleet-elevation/23)
+  runs deterministically, returns WakeDecision
+- If WakeDecision.should_wake: brain fires real heartbeat with
+  `decide_claude_call()` strategic config
+- If not: brain responds "silent heartbeat OK" — no Claude call
+
+**The cron interval itself may also adapt:**
+- ACTIVE: 10 min (or per agent config)
+- IDLE: could stay 10 min (brain filters cheap)
+- IDLE/SLEEPING: could increase to 30min/60min
+  (fewer cron fires = fewer brain evaluations, but brain eval is
+  free so this is optimization, not requirement)
+
+**Cron jobs.json structure (per agent):**
+```json
+{
+  "id": "...",
+  "agentId": "mc-{uuid}",
+  "name": "{role}-heartbeat",
+  "enabled": true,
+  "schedule": {"kind": "every", "everyMs": 600000}
+}
+```
+
+**Per-agent cron control exists partially:**
+- `disable_gateway_cron_jobs()` — all-or-nothing (fleet pause)
+- `enable_gateway_cron_jobs()` — all-or-nothing (fleet resume)
+- No per-agent enable/disable yet
+- No per-agent interval change yet
+- Per-agent functions needed for interval adaptation (optional optimization)
+
+**Cross-ref:** fleet-elevation/23 (lifecycle spec), brain-modules-standard.md,
+agent-autonomy.yaml, System 22 §4.7 (session management)
 
 ---
 
@@ -16,16 +105,21 @@
 
 Without lifecycle management, every agent heartbeats at the same
 frequency regardless of whether they have work. 10 agents × 30-second
-heartbeats × Claude calls = expensive. With lifecycle:
+heartbeats × Claude calls = expensive. With lifecycle + silent heartbeats:
 
 ```
 ACTIVE agent: working on task, full sessions          → $$$
-IDLE agent: nothing to do, checks every 30 min        → $$
-DROWSY agent: 2 HEARTBEAT_OK, checks every 60 min     → $
-SLEEPING agent: 3 HEARTBEAT_OK, brain evaluates (free) → $0
+IDLE agent: nothing to do, real heartbeat every 30 min → $$
+IDLE agent (1 HEARTBEAT_OK): brain intercepts, silent OK ($0) → $0
+SLEEPING agent: 3+ HEARTBEAT_OK, brain evaluates ($0) → $0
 ```
 
 **10 agents, 7 sleeping = ~70% cost reduction on idle agents.**
+
+The savings come from the brain FILTERING the cron — not from stopping
+it. The cron fires, the brain decides "nothing for this agent," no
+Claude call happens, $0 cost. The agent is still on call — if a mention
+or task arrives, the brain detects it and fires a real heartbeat.
 
 ### Roles: Authority Structure
 
@@ -65,7 +159,7 @@ Without role definitions, any agent could reject any PR. With roles:
      │ 2 consecutive HEARTBEAT_OK (or idle for 30 min)
      ▼
 ┌──────────┐
-│  DROWSY  │ Brain CAN evaluate instead of Claude.
+│  IDLE       │ 1 HEARTBEAT_OK → brain takes over. Silent OK.
 │          │ Heartbeat: every 60 minutes
 │          │ Cost: minimal
 └────┬─────┘
@@ -84,7 +178,7 @@ Without role definitions, any agent could reject any PR. With roles:
 │          │ Cost: $0
 └──────────┘
 
-WAKE triggers (any sleeping/drowsy/offline agent):
+WAKE triggers (any sleeping/idle/offline agent):
   ├── Task assigned to agent     → wake immediately
   ├── @mention in board memory   → wake immediately
   ├── Contribution task created  → wake immediately
@@ -98,13 +192,13 @@ Two transition mechanisms, content-aware has priority:
 **Content-aware (from HEARTBEAT_OK count):**
 ```python
 consecutive_heartbeat_ok >= 3  →  SLEEPING
-consecutive_heartbeat_ok >= 2  →  DROWSY
+consecutive_heartbeat_ok >= 1  →  brain_evaluates = True
 ```
 
 **Time-based (fallback when count isn't tracked):**
 ```python
 idle < 10 min          →  IDLE
-idle < 30 min          →  DROWSY (if not already DROWSY → SLEEPING)
+idle < 30 min          →  IDLE
 idle < 4 hours         →  SLEEPING
 idle >= 4 hours        →  OFFLINE
 ```
@@ -176,13 +270,13 @@ Total: **423 lines** across 2 modules.
 
 | Name | Type | Value |
 |------|------|-------|
-| `AgentStatus` | Enum | ACTIVE, IDLE, DROWSY, SLEEPING, OFFLINE |
+| `AgentStatus` | Enum | ACTIVE, IDLE, SLEEPING, OFFLINE |
 | `IDLE_AFTER` | int | 600 (10 min) |
 | `SLEEPING_AFTER` | int | 1800 (30 min) |
 | `OFFLINE_AFTER` | int | 14400 (4 hours) |
-| `DROWSY_AFTER_HEARTBEAT_OK` | int | 2 |
+| `IDLE_AFTER_HEARTBEAT_OK` | int | 1 |
 | `SLEEPING_AFTER_HEARTBEAT_OK` | int | 3 |
-| `HEARTBEAT_INTERVALS` | dict | ACTIVE=0, IDLE=1800, DROWSY=3600, SLEEPING=7200, OFFLINE=7200 |
+| `HEARTBEAT_INTERVALS` | dict | ACTIVE=0, IDLE=600, SLEEPING=1800, OFFLINE=3600 |
 
 #### AgentState Class (lines 64-157)
 
@@ -194,7 +288,7 @@ Total: **423 lines** across 2 modules.
 | `needs_heartbeat(now)` | 130-142 | Check if enough time has passed since last heartbeat per status interval. ACTIVE agents never need heartbeat (they drive own work). |
 | `mark_heartbeat_sent(now)` | 144-146 | Record heartbeat timestamp. |
 | `wake(now)` | 148-152 | Explicitly wake agent → IDLE, reset counter. |
-| `should_wake_for_task()` | 154-156 | True if DROWSY, SLEEPING, or OFFLINE. |
+| `should_wake_for_task()` | — | True if IDLE, SLEEPING, or OFFLINE. |
 
 Fields: name, status, last_active_at, last_heartbeat_at, last_task_completed_at, current_task_id, consecutive_heartbeat_ok, last_heartbeat_data_hash.
 
@@ -266,11 +360,11 @@ but report HEARTBEAT_OK in between. Content-aware (counting consecutive
 HEARTBEAT_OK responses) detects when the agent ITSELF says "nothing for
 me" — which is more accurate than timer-based idle detection.
 
-### Why DROWSY before SLEEPING?
+### Why brain_evaluates after 1 HEARTBEAT_OK?
 
-DROWSY is the "transition" state. It signals: "agent is probably idle,
+After 1 proper heartbeat with nothing to do, the brain takes over. It signals: "agent is idle,
 but let's give one more check." If the brain can evaluate deterministically
-during DROWSY (not yet implemented), it avoids the Claude call entirely.
+the brain intercepts the cron and avoids the Claude call entirely.
 Going directly from IDLE to SLEEPING would miss the gradual transition.
 
 ### Why is fleet-ops the only final authority?
@@ -302,12 +396,12 @@ verbatim requirement.
 Agent Status    Heartbeat Interval    Claude Calls/Hour    Cost
 ACTIVE          0 (own work)          1-4 (per task)       $$$
 IDLE            30 min                2                    $$
-DROWSY          60 min                1                    $
+IDLE          60 min                1                    $
 SLEEPING        2 hours               0.5                  ¢
 OFFLINE         2 hours               0.5                  ¢
 
 Fleet of 10 agents:
-  3 ACTIVE + 2 IDLE + 2 DROWSY + 3 SLEEPING
+  3 ACTIVE + 2 IDLE + 2 IDLE + 3 SLEEPING
   = 12 + 4 + 2 + 1.5 = 19.5 calls/hour
 
   vs. without lifecycle (all at 2/hour):
@@ -328,7 +422,7 @@ Lifecycle reduces calls by 99% compared to naive polling.
 ```python
 AgentState(
     name="software-engineer",
-    status=AgentStatus.DROWSY,
+    status=AgentStatus.IDLE,
     last_active_at=datetime(2026, 3, 31, 14, 0),
     last_heartbeat_at=datetime(2026, 3, 31, 15, 0),
     current_task_id=None,
@@ -343,7 +437,7 @@ AgentState(
 {
     "active": ["software-engineer", "architect"],
     "idle": ["project-manager"],
-    "drowsy": ["qa-engineer"],
+    "idle": ["qa-engineer"],
     "sleeping": ["devops", "technical-writer", "ux-designer",
                  "accountability-generator"],
     "offline": [],
@@ -376,12 +470,12 @@ AgentRole(
 
 ### Brain-Evaluated Heartbeats (Not Implemented)
 
-The lifecycle data structures exist (DROWSY state, consecutive_heartbeat_ok,
+The lifecycle data structures exist (IDLE state, consecutive_heartbeat_ok,
 last_heartbeat_data_hash) but the brain evaluation logic is NOT in the
-orchestrator. Currently, even DROWSY agents get real Claude heartbeats.
+orchestrator. Currently, even IDLE agents get real Claude heartbeats.
 
 What needs building:
-1. Orchestrator checks: is agent DROWSY or SLEEPING?
+1. Orchestrator checks: is agent IDLE or SLEEPING?
 2. Instead of gateway heartbeat, brain evaluates deterministically:
    - Has the pre-embed data hash changed since last heartbeat?
    - Are there new tasks assigned to this agent?
@@ -402,7 +496,7 @@ What would make each agent care:
 - DevSecOps: PRs needing security review
 
 These are role-specific wake triggers that the brain should evaluate
-during DROWSY/SLEEPING. Currently hardcoded only for PM and fleet-ops
+during IDLE/SLEEPING. Currently hardcoded only for PM and fleet-ops
 in the orchestrator's `_wake_drivers()`.
 
 ### Test Coverage

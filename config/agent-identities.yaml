@@ -7,6 +7,16 @@
 # All agents should have both. Display name appears in IRC and reports.
 # Agent name appears in git branches (fleet/<agent_name>/<task>)
 # and conventional commits (fleet(<agent_name>): ...).
+#
+# TODO (B4): Extend per agent-yaml-standard.md. Each agent needs:
+#   fleet_id, fleet_number, model, mission, capabilities (4-8),
+#   roles.primary, roles.contributes_to, heartbeat_config.every
+# See: docs/milestones/active/standards/agent-yaml-standard.md
+
+fleet:
+  id: "alpha"
+  name: "Fleet Alpha"
+  number: 1
 
 agents:
   architect:

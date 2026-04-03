@@ -266,9 +266,9 @@ with the right model, effort, and session configuration.
 - Configuration matters: right model, right effort, right session
   strategy, right max_turns
 - Deterministic work should NEVER go to Claude (the brain handles it)
-- The lifecycle (ACTIVE → IDLE → DROWSY → SLEEPING) reduces cost by
+- The lifecycle (ACTIVE → IDLE → IDLE → SLEEPING) reduces cost by
   ~70% for idle agents
-- The existing infrastructure (model_selection.py, effort_profiles.py,
+- The existing infrastructure (model_selection.py, fleet_mode.py,
   budget_monitor.py) already supports this — it needs integration
 
 ### What to Encode in the Fleet
@@ -320,7 +320,7 @@ content, log formatting.
 - Knowing WHICH pattern fits WHICH problem is expertise
 - Industry standards exist — use them (CloudEvents, OpenAPI, etc.)
 - The fleet already uses established patterns: Observer (events),
-  Strategy (effort profiles, model selection), Factory (event creation),
+  Strategy (fleet control, model selection), Factory (event creation),
   Adapter (API clients), Chain of Responsibility (chain runner)
 - TDD with pessimistic tests catches real defects
 - Smart assertions test BEHAVIOR not implementation wiring

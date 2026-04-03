@@ -26,6 +26,31 @@ We researched a massive ecosystem. We deployed almost none of it.
 
 This document turns research into a deployment plan.
 
+### Cross-Reference to Unified Plan (2026-04-01)
+
+Most ecosystem items map to unified milestones or work backlog items:
+
+| Ecosystem | Unified Plan / Backlog | Notes |
+|-----------|----------------------|-------|
+| E-01 Prompt Caching | U-38, H6 | Cost optimization |
+| E-02 Claude-Mem | U-38, H6 | Cross-session memory |
+| E-03 Context7 | U-09, H6 | Agent self-knowledge |
+| E-04 Filesystem MCP | U-09, H6 | Per-agent MCP servers |
+| E-05 GitHub MCP | U-09 | Per-agent MCP servers |
+| E-06 Playwright MCP | U-09 | Per-agent MCP servers |
+| E-07 Docker MCP | U-09 | Per-agent MCP servers |
+| E-08 Per-Agent Skills | U-09 | Skill assignments from config/agent-tooling.yaml |
+| E-09 LocalAI RAG | U-21 | Connect AICP RAG to fleet |
+| E-10 Batch API | U-38 | Cost optimization |
+| E-11 Agent Teams | L9 | Evaluation, complement not replace |
+| E-12 AICP Bridge | U-36 | router_unification.py |
+| E-13 LocalAI Agents | Independent | Needs architecture review |
+| E-14 OpenRouter | L2 | Free model client |
+| E-15 Multi-Fleet | L7 | Needs second machine |
+
+This document provides IMPLEMENTATION DETAILS for the unified milestones.
+The unified plan provides the ORDER and DEPENDENCIES.
+
 ---
 
 ## 2. Deployment Tiers
@@ -249,7 +274,7 @@ Results available within 24 hours (usually faster).
 - Challenge reviews (cross-model) — batch multiple challenges
 
 **Implementation:** API parameter on request: `batch: true`.
-Budget mode determines: blitz/standard → real-time. Economic/frugal → batch.
+Batch vs real-time is TBD — separate from budget mode (tempo setting).
 
 ---
 

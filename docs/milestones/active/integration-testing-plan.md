@@ -39,9 +39,9 @@ Each system works in isolation. The design docs specify how they connect, but th
 
 | # | From | To | Design Doc Reference | What's Needed |
 |---|------|-----|---------------------|---------------|
-| W1 | **Budget Modes** | **Challenge Engine** | `iterative-validation` Part 7: Budget-Aware Challenges | `challenge_deferred.py` should import `budget_modes` instead of hardcoding constants |
+| W1 | **Challenge Engine** | **Deferred Queue** | `iterative-validation` Part 7: Deferred Challenges | `challenge_deferred.py` manages deferred challenge queue |
 | W2 | **Labor Stamp** | **Challenge Engine** | `iterative-validation` Part 7: `challenge_skipped: true` in stamp | `labor_stamp.py` needs challenge fields; challenge engine writes to stamp |
-| W3 | **Storm Integration** | **Budget Modes** | `storm-prevention` Part 7: CRITICAL→blackout, STORM→survival | `storm_integration.py` should import `budget_modes` to force mode transitions |
+| W3 | **Storm Integration** | **Dispatch Control** | `storm-prevention` Part 7: CRITICAL→halt, STORM→dispatch=0 | `storm_integration.py` controls dispatch and alerts based on severity |
 | W4 | **Shadow Routing** | **Model Promotion** | `model-upgrade-path`: shadow results feed promotion | `model_promotion.py` should consume `ShadowRouter` reports |
 | W5 | **Backend Health** | **Backend Router** | `multi-backend-routing`: health determines routing options | `backend_router.py` should import `backend_health` to check before routing |
 | W6 | **Model Promotion** | **Backend Router** | `model-upgrade-path`: promoted model enters routing table | Router should read from promotion manager's active model |
@@ -54,7 +54,7 @@ Claude Code exposes JSON session data on every turn (visible to IDE/statusline).
 
 | Session JSON Field | Target Module | Existing Intake | Currently |
 |---|---|---|---|
-| `cost.total_cost_usd` | `CostTicker.add_cost()` | `add_cost(cost_usd: float)` | Estimated |
+| `cost.total_cost_usd` | `to_cost_delta()` | Cost delta between snapshots | Estimated |
 | `cost.total_duration_ms` | `LaborStamp.duration_seconds` | `assemble_stamp(duration_seconds=)` | Estimated |
 | `cost.total_lines_added` | `LaborStamp` | **No field yet** | N/A |
 | `cost.total_lines_removed` | `LaborStamp` | **No field yet** | N/A |
@@ -73,7 +73,7 @@ Claude Code exposes JSON session data on every turn (visible to IDE/statusline).
   - `to_labor_fields() → dict` — fields to merge into LaborStamp assembly
   - `to_claude_health() → dict` — fields to update ClaudeHealth
   - `to_storm_indicators() → list[tuple[str, str]]` — context pressure indicators
-  - `to_cost_event() → float` — cost delta for CostTicker
+  - `to_cost_delta() → float` — cost delta between snapshots
 
 **New fields needed on existing modules:**
 - `LaborStamp`: `lines_added: int = 0`, `lines_removed: int = 0`, `cache_read_tokens: int = 0`
@@ -116,20 +116,17 @@ Once wired, test the 4 critical end-to-end flows.
 
 ```
 Order arrives with budget_mode="economic"
-  → budget_modes constrains allowed models (no opus)
-  → backend_router selects cheapest capable backend
+  → model_selection selects model by task complexity
+  → backend_router selects cheapest capable enabled backend
   → labor_stamp records: model, backend, cost, tier
-  → challenge_engine checks: budget_mode="economic" → automated only
-  → challenge runs (or defers if frugal/survival)
+  → challenge_engine checks confidence tier → challenge or skip
   → stamp updated: challenge_passed=true OR challenge_skipped=true
 ```
 
 **Tests needed:**
-- `test_dispatch_blitz` — opus allowed, full challenge, stamp records everything
-- `test_dispatch_economic` — opus blocked, automated challenge only
-- `test_dispatch_frugal` — free backends only, challenge deferred, stamp marks skipped
-- `test_dispatch_survival` — LocalAI only, no challenge, stamp marks skipped with reason
-- `test_dispatch_blackout` — no dispatch at all
+- `test_dispatch_complex_task` — opus selected, routed to Claude
+- `test_dispatch_simple_task` — sonnet/localai, cheapest capable
+- `test_dispatch_security_agent` — never routed to free/trainee
 
 ### Flow 2: Model Upgrade (Shadow → Compare → Promote → Route)
 
@@ -155,38 +152,30 @@ Shadow router runs task on production + candidate
 ```
 Storm indicators accumulate (void sessions, budget climb, dispatch failures)
   → storm_monitor.evaluate() → severity=WARNING
-  → storm_integration forces budget_mode → "economic"
+  → storm_integration limits dispatch
   → backend_router respects circuit breakers (open = skip backend)
-  → dispatch limited to 1 concurrent
-  → severity escalates to STORM → budget forced to "survival"
-  → severity escalates to CRITICAL → budget forced to "blackout"
-  → cooldown → breakers reset → budget relaxes → recovery
+  → WARNING: dispatch limited to 1
+  → STORM: dispatch = 0, alert PO
+  → CRITICAL: halt cycle, alert PO urgent
+  → cooldown → breakers reset → recovery
 ```
 
 **Tests needed:**
-- `test_storm_warning_forces_economic` — WARNING → budget=economic, dispatch=1
-- `test_storm_escalation` — WARNING → STORM → CRITICAL progression, budget follows
+- `test_storm_warning_limits_dispatch` — WARNING → dispatch=1
+- `test_storm_escalation` — WARNING → STORM → CRITICAL progression
 - `test_storm_circuit_breaker_routing` — open breaker → router skips backend → fallback
-- `test_storm_recovery_cycle` — CRITICAL → cooldown → HALF_OPEN → success → CLOSED → budget relaxes
-- `test_storm_cost_tracking` — storm analytics records cost during incident
+- `test_storm_recovery_cycle` — CRITICAL → cooldown → HALF_OPEN → success → CLOSED
 
-### Flow 4: Cost Control (Budget Envelope → Mode Transition → Routing Change)
+### Flow 4: Budget Override Management
 
 ```
-CostTicker tracks daily spend
-  → cost_used_pct crosses 80% → auto-transition to economic
-  → cost_used_pct crosses 95% → auto-transition to survival
-  → budget_constraints.py blocks expensive dispatches
-  → router shifts to free backends (LocalAI, OpenRouter)
-  → challenge depth reduces (automated only → skip)
-  → labor stamps show cost reduction in per-mode breakdown
+PO sets per-order budget mode override
+  → BudgetOverrideManager stores override
+  → effective_mode() returns override for that order
 ```
 
 **Tests needed:**
-- `test_cost_pressure_transition` — spending triggers automatic mode downgrade
-- `test_cost_recovery_transition` — daily reset → mode can upgrade again
-- `test_cost_override` — PO override keeps blitz despite pressure
-- `test_cost_stamps` — labor analytics shows cost distribution by budget mode
+- `test_override_effective_mode` — PO override applies to specific order
 
 ### Flow 5: Session Telemetry (Session JSON → All Systems)
 
@@ -196,16 +185,16 @@ Claude Code session produces JSON with real metrics
   → to_labor_fields() → LaborStamp gets real duration, lines, cost, cache stats
   → to_claude_health() → ClaudeHealth gets live quota %, latency, context window size
   → to_storm_indicators() → StormMonitor gets context_pressure indicator
-  → to_cost_event() → CostTicker gets real cost delta
-  → Cross-check: context at 90% + quota at 80% → storm WARNING + budget pressure
+  → to_cost_delta() → incremental cost tracking
+  → Cross-check: context at 90% + quota at 80% → storm WARNING
 ```
 
 **Tests needed:**
 - `test_telemetry_ingest` — parse real session JSON, verify all fields extracted
-- `test_telemetry_to_labor` — session data populates LaborStamp with real values instead of estimates
+- `test_telemetry_to_labor` — session data populates LaborStamp with real values
 - `test_telemetry_to_health` — session quota feeds ClaudeHealth, triggers quota_warning at 80%
-- `test_telemetry_context_storm` — context at 90% triggers storm indicator, combined with quota pressure escalates severity
-- `test_telemetry_cost_feed` — session cost feeds CostTicker, crosses envelope threshold, triggers mode transition
+- `test_telemetry_context_storm` — context at 90% triggers storm indicator
+- `test_telemetry_cost_delta` — session cost delta computed correctly
 
 ---
 

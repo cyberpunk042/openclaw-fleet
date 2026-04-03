@@ -134,7 +134,6 @@ def _format_labor_table(stamp: "LaborStamp") -> str:
         f"| **Model** | `{stamp.model}` |",
         f"| **Effort** | {stamp.effort} |",
         f"| **Confidence** | {emoji} {stamp.confidence_tier} |",
-        f"| **Budget Mode** | {stamp.budget_mode} |",
     ]
     if duration_str:
         lines.append(f"| **Duration** | {duration_str} |")

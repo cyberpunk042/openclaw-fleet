@@ -1,11 +1,11 @@
 """Deferred challenge queue (M-IV07).
 
-Manages challenges that were skipped due to budget constraints.
-When budget mode improves, deferred challenges are processed FIFO.
+Manages challenges that were deferred. When conditions improve,
+deferred challenges are processed FIFO.
 
 Flow:
-  1. Challenge required but budget too tight → defer (tag task)
-  2. Budget mode improves (e.g., frugal → standard) → drain queue
+  1. Challenge required but conditions prevent it → defer (tag task)
+  2. Conditions improve → drain queue
   3. Process oldest deferred challenges first (FIFO)
   4. Alert if deferred queue grows too large
 
@@ -22,41 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from fleet.core.budget_modes import MODE_ORDER
-
 logger = logging.getLogger(__name__)
-
-
-# ─── Budget Mode Ordering ────────────────────────────────────────
-# Derived from budget_modes.MODE_ORDER — single source of truth.
-
-# Budget modes that defer challenges (too tight to afford)
-DEFERRAL_MODES = {"frugal", "survival", "blackout"}
-
-# Budget modes that can process deferred challenges
-PROCESSING_MODES = {"blitz", "standard", "economic"}
-
-# Budget mode strictness (higher = tighter budget)
-MODE_STRICTNESS: dict[str, int] = {
-    mode: idx for idx, mode in enumerate(MODE_ORDER)
-}
-
-
-def should_defer_challenge(budget_mode: str) -> bool:
-    """Whether the current budget mode requires deferring challenges."""
-    return budget_mode in DEFERRAL_MODES
-
-
-def can_process_deferred(budget_mode: str) -> bool:
-    """Whether the current budget mode allows processing deferred challenges."""
-    return budget_mode in PROCESSING_MODES
-
-
-def budget_improved(old_mode: str, new_mode: str) -> bool:
-    """Whether the budget mode has improved (less strict)."""
-    old = MODE_STRICTNESS.get(old_mode, 1)
-    new = MODE_STRICTNESS.get(new_mode, 1)
-    return new < old
 
 
 # ─── Deferred Challenge Entry ────────────────────────────────────
@@ -72,7 +38,6 @@ class DeferredChallenge:
     confidence_tier: str
     deferred_at: float = 0.0        # Unix timestamp
     reason: str = ""                 # Why it was deferred
-    original_budget_mode: str = ""   # Budget mode when deferred
     challenge_type: str = ""         # What type of challenge was planned
     priority: int = 0               # Higher = more important (SP-based)
 
@@ -111,7 +76,6 @@ class DeferredChallenge:
             "confidence_tier": self.confidence_tier,
             "deferred_at": self.deferred_at,
             "reason": self.reason,
-            "original_budget_mode": self.original_budget_mode,
             "challenge_type": self.challenge_type,
             "priority": self.priority,
         }
@@ -125,7 +89,6 @@ class DeferredChallenge:
             confidence_tier=data.get("confidence_tier", "standard"),
             deferred_at=data.get("deferred_at", 0.0),
             reason=data.get("reason", ""),
-            original_budget_mode=data.get("original_budget_mode", ""),
             challenge_type=data.get("challenge_type", ""),
             priority=data.get("priority", 0),
         )
@@ -311,28 +274,18 @@ class DeferredChallengeQueue:
 
 
 def compute_drain_batch_size(
-    budget_mode: str,
     queue_size: int,
+    max_per_cycle: int = 3,
 ) -> int:
     """Compute how many deferred challenges to process per cycle.
 
-    More aggressive draining when budget is generous.
-
     Args:
-        budget_mode: Current budget mode.
         queue_size: Current queue size.
+        max_per_cycle: Maximum to process per cycle.
 
     Returns:
         Number of challenges to process this cycle.
     """
-    if not can_process_deferred(budget_mode) or queue_size == 0:
+    if queue_size == 0:
         return 0
-
-    if budget_mode == "blitz":
-        return min(5, queue_size)  # Aggressive: 5 per cycle
-    if budget_mode == "standard":
-        return min(3, queue_size)  # Moderate: 3 per cycle
-    if budget_mode == "economic":
-        return min(1, queue_size)  # Conservative: 1 per cycle
-
-    return 0
+    return min(max_per_cycle, queue_size)

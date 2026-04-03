@@ -1,4 +1,4 @@
-"""Tests for fleet budget CLI command (M-BM04)."""
+"""Tests for fleet budget CLI command."""
 
 import json
 import os
@@ -14,13 +14,10 @@ def test_show_current_returns_zero(capsys):
     assert "Budget Mode" in captured.out
 
 
-def test_list_modes_shows_all(capsys):
-    """list_modes displays all 6 modes."""
+def test_list_modes_no_modes(capsys):
+    """list_modes handles empty BUDGET_MODES (TBD)."""
     result = list_modes()
     assert result == 0
-    captured = capsys.readouterr()
-    for mode in ["blitz", "standard", "economic", "frugal", "survival", "blackout"]:
-        assert mode in captured.out
 
 
 def test_set_mode_valid(tmp_path, capsys):
@@ -40,14 +37,6 @@ def test_set_mode_valid(tmp_path, capsys):
     assert cfg["orchestrator"]["budget_mode"] == "economic"
 
 
-def test_set_mode_invalid(capsys):
-    """set_mode rejects unknown modes."""
-    result = set_mode("turbo")
-    assert result == 1
-    captured = capsys.readouterr()
-    assert "Unknown mode" in captured.out
-
-
 def test_set_mode_creates_section(tmp_path):
     """set_mode creates orchestrator section if missing."""
     import yaml
@@ -57,12 +46,12 @@ def test_set_mode_creates_section(tmp_path):
     config_file = config_dir / "fleet.yaml"
     config_file.write_text("{}\n")
 
-    result = set_mode("frugal", fleet_dir=str(tmp_path))
+    result = set_mode("turbo", fleet_dir=str(tmp_path))
     assert result == 0
 
     with open(config_file) as f:
         cfg = yaml.safe_load(f)
-    assert cfg["orchestrator"]["budget_mode"] == "frugal"
+    assert cfg["orchestrator"]["budget_mode"] == "turbo"
 
 
 def test_show_report_no_records(capsys):
@@ -78,16 +67,15 @@ def test_show_report_with_records(tmp_path, capsys):
     records_dir = tmp_path / "state" / "dispatch_records"
     records_dir.mkdir(parents=True)
 
-    for i, (model, agent, mode) in enumerate([
-        ("sonnet", "worker", "standard"),
-        ("opus", "architect", "standard"),
-        ("sonnet", "worker", "economic"),
+    for i, (model, agent) in enumerate([
+        ("sonnet", "worker"),
+        ("opus", "architect"),
+        ("sonnet", "worker"),
     ]):
         with open(records_dir / f"t{i}.json", "w") as f:
             json.dump({
                 "model": model,
                 "agent_name": agent,
-                "budget_mode": mode,
                 "backend": "claude-code",
             }, f)
 

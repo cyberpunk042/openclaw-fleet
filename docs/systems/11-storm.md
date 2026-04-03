@@ -40,9 +40,9 @@ Confirmation window (sustained, not spike)
 Severity evaluated: WATCH → WARNING → STORM → CRITICAL
   ↓
 Automatic graduated response:
-  ├── WARNING → economic mode, dispatch ≤ 1, diagnostic snapshot
-  ├── STORM → survival mode, dispatch = 0, alert PO
-  └── CRITICAL → blackout mode, halt cycle, urgent alert PO
+  ├── WARNING → dispatch ≤ 1, diagnostic snapshot
+  ├── STORM → dispatch = 0, alert PO
+  └── CRITICAL → halt cycle, urgent alert PO
   ↓
 De-escalation (slower than escalation)
   ↓
@@ -68,6 +68,8 @@ Post-incident report generated
 │  7. error_storm      — error surge                       │
 │  8. gateway_duplication — March root cause (IMMEDIATE)   │
 │  9. context_pressure — context at 70%+ (from W8 telemetry)│
+│  10. aggregate_context — fleet-wide context vs remaining   │
+│      quota near rollover (from session_manager, 2026-04-01)│
 │                                                          │
 │  Each indicator:                                         │
 │    - Reported via report_indicator(name, value)           │
@@ -101,27 +103,28 @@ Post-incident report generated
      ▼
 ┌──────────┐
 │  STORM   │ Fleet is in trouble.
-│          │ Response: survival mode, dispatch = 0
+│          │ Response: dispatch = 0, alert PO
 │          │ Alert: IRC #alerts + ntfy PO
 └────┬─────┘
      │ Cascade detected OR gateway duplication
      ▼
 ┌──────────┐
 │ CRITICAL │ Fleet emergency.
-│          │ Response: blackout mode, HALT cycle
+│          │ Response: HALT cycle, urgent alert PO
 │          │ Alert: IRC #alerts + ntfy PO URGENT
 └──────────┘
 ```
 
-### 2.3 Storm → Budget Forcing (W3 Wiring)
+### 2.3 Storm → Dispatch Control (W3 Wiring)
 
-```python
-STORM_BUDGET_FORCING = {
-    StormSeverity.CRITICAL: "blackout",   # $0/day, fleet frozen
-    StormSeverity.STORM: "survival",      # $1/day, LocalAI only
-    StormSeverity.WARNING: "economic",    # $10/day, sonnet only
-}
-# Validated against budget_modes.MODE_ORDER at import time
+Storm controls dispatch and alerts, NOT budget mode. Budget mode is a
+separate tempo setting controlled by the PO.
+
+```
+Storm severity → dispatch response:
+  WARNING  → max_dispatch = 1, diagnostic snapshot, alert IRC
+  STORM    → max_dispatch = 0, alert PO via ntfy
+  CRITICAL → HALT cycle, alert PO URGENT
 ```
 
 ### 2.4 Circuit Breakers
@@ -174,7 +177,6 @@ IncidentReport:
     indicators (what triggered)
     root_cause (if identifiable)
     responses (timeline of automatic actions)
-    budget_mode_before → budget_mode_after
     estimated_cost_usd
     void_sessions / total_sessions
     prevention_recommendations
@@ -235,14 +237,14 @@ Total: **1440 lines** across 4 modules.
 
 | Class | Lines | Purpose |
 |-------|-------|---------|
-| `StormResponse` | 27-55 | What orchestrator should do: severity, max_dispatch, force_budget_mode, halt_cycle, should_alert_po/irc, alert_message, notes. |
+| `StormResponse` | 27-55 | What orchestrator should do: severity, max_dispatch, halt_cycle, should_alert_po/irc, alert_message, notes. |
 | `StormEventTracker` | 121-265 | Tracks active/completed storm events. Methods: process_cycle(), get_active_event(), get_completed_incidents(), force_close(). |
 
 #### Key Functions
 
 | Function | Lines | What It Does |
 |----------|-------|-------------|
-| `evaluate_storm_response(monitor, current_budget, current_max_dispatch)` | 58-115 | Evaluate severity → build StormResponse. CRITICAL=halt+blackout. STORM=survival+0 dispatch. WARNING=economic+1 dispatch. Uses STORM_BUDGET_FORCING validated against budget_modes.MODE_ORDER. |
+| `evaluate_storm_response(monitor, current_max_dispatch)` | 58-115 | Evaluate severity → build StormResponse. CRITICAL=halt. STORM=0 dispatch + alert PO. WARNING=1 dispatch + alert IRC. Controls dispatch and alerts only. |
 
 ### 4.3 `storm_analytics.py` — Historical Analysis (249 lines)
 
@@ -268,7 +270,6 @@ storm_monitor.py         ← standalone (time, datetime, dataclasses, enum)
     ↑
 storm_integration.py     ← imports StormMonitor, StormSeverity, severity_index
                             imports IncidentReport, StormEvent
-                            imports budget_modes.MODE_ORDER (W3 wiring)
     ↑
 storm_analytics.py       ← imports IncidentReport
     ↑
@@ -277,16 +278,14 @@ incident_report.py       ← imports severity_index from storm_monitor (optional
 
 ### External Connections (W3 Wiring)
 
-```python
-# storm_integration.py
-from fleet.core.budget_modes import MODE_ORDER
+Storm integration controls dispatch and alerts. Budget mode is a
+separate PO-controlled tempo setting (not forced by storm).
 
-STORM_BUDGET_FORCING = {
-    StormSeverity.CRITICAL: "blackout",
-    StormSeverity.STORM: "survival",
-    StormSeverity.WARNING: "economic",
-}
-# Validated at import: assert mode in MODE_ORDER for each
+```
+# storm_integration.py controls:
+#   - max_dispatch (how many tasks per cycle)
+#   - halt_cycle (stop the cycle entirely)
+#   - alert routing (IRC, ntfy PO)
 ```
 
 ---
@@ -361,7 +360,6 @@ If WARNING+:
        ↓
        StormResponse:
          severity=WARNING
-         force_budget_mode="economic"
          max_dispatch=1
          should_alert_irc=True
   ↓
@@ -400,7 +398,6 @@ StormAnalytics records for trend analysis
 StormResponse(
     severity=StormSeverity.WARNING,
     max_dispatch=1,
-    force_budget_mode="economic",
     should_capture_diagnostic=True,
     should_alert_irc=True,
     should_alert_po=False,
@@ -437,11 +434,9 @@ IncidentReport(
     indicators=["void_sessions:62%", "fast_climb:8%/5min", "session_burst:15/min"],
     root_cause="Gateway duplication spawned 3 instances",
     responses=[
-        ResponseEntry(timestamp=..., action="force_economic", detail="WARNING detected"),
-        ResponseEntry(timestamp=..., action="force_survival", detail="STORM escalation"),
+        ResponseEntry(timestamp=..., action="limit_dispatch_1", detail="WARNING detected"),
+        ResponseEntry(timestamp=..., action="halt_dispatch", detail="STORM escalation"),
     ],
-    budget_mode_before="standard",
-    budget_mode_after="survival",
     estimated_cost_usd=45.20,
     void_sessions=42,
     total_sessions=68,
@@ -468,6 +463,12 @@ IncidentReport(
 
 ### Missing Functionality
 
+- **Indicator #10: aggregate_context** — sum of all agent context
+  sizes vs remaining rate limit quota. Multiple heavy-context agents
+  near rollover = compound spike risk. Source: session_manager.py
+  (brain Step 10). PO requirement (2026-04-01): "imagine you room
+  over 5 x 200 000 or 2 x 1m... this makes no sense on a pro x5
+  that will take 50% of the whole 5 hours"
 - **Post-incident auto-report** — IncidentReport structure exists,
   generation logic exists in StormEventTracker, but reports not
   automatically posted to board memory on storm end

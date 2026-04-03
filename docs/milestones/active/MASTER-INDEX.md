@@ -75,6 +75,22 @@
 | `fleet-autonomy-milestones.md` | Hierarchical task management design |
 | `strategic-vision-localai-independence.md` | 5-stage LocalAI offload vision |
 
+### Standards Documents (Quality Gates) ✅
+
+| Document | Gates | Key Content |
+|----------|-------|-------------|
+| `standards/claude-md-standard.md` | B1 | 8 sections, 4000 chars, per-role content, example |
+| `standards/heartbeat-md-standard.md` | B2 | 5 types, priority protocol, per-role variations |
+| `standards/agent-yaml-standard.md` | B4 | 14 fields, per-role values, model rationale |
+| `standards/identity-soul-standard.md` | U-01 | Top-tier, 10 anti-corruption, per-role values |
+| `standards/tools-agents-standard.md` | U-09 | Chain-aware (GENERATED), synergy (GENERATED) |
+| `standards/context-files-standard.md` | H3 | Autocomplete chain (10 sections), NEVER compressed |
+| `standards/iac-mcp-standard.md` | B3 | 6 scripts, idempotent, config-driven |
+| `standards/brain-modules-standard.md` | H1,H5,U-18 | 8 modules, 13-step orchestrator, session mgmt |
+| `agent-file-standards.md` | ALL | Master index linking to all per-type standards |
+
+Created 2026-04-01. Rule: standard FIRST, then build.
+
 ### Subdirectories
 
 | Directory | Files | Content | Status |
@@ -85,6 +101,7 @@
 | `fleet-elevation/` | 31 docs | Complete agent architecture redesign | 📐 Design only |
 | `agent-rework/` | 14 docs | Pre-embed, waking, per-role heartbeats | 📐 Design only |
 | `context-system/` | 8 docs | Context bundles, MCP upgrade, heartbeat pre-embed | 📐 Design only |
+| `standards/` | 8 docs | Per-type quality standards for agent files + brain | ✅ Created |
 
 ---
 

@@ -36,21 +36,12 @@ Task arrives with budget_mode
   ↓
 Assess complexity: simple / medium / complex / critical
   ↓
-Budget mode constrains available backends/models:
-  blitz    → Claude only (opus + sonnet)
-  standard → LocalAI for simple, Claude for rest
-  economic → sonnet only (no opus)
-  frugal   → LocalAI + OpenRouter free
-  survival → LocalAI + direct only
-  blackout → direct only (fleet frozen)
+backend_mode (from FleetControlState) determines enabled backends:
+  7 possible combos of Claude / LocalAI / OpenRouter
   ↓
-Route by mode + complexity:
-  ├── blackout → direct (no LLM)
-  ├── survival → _route_survival()
-  ├── frugal   → _route_frugal()
-  ├── economic → _route_economic()
-  ├── blitz    → _route_blitz()
-  └── standard → _route_standard()
+Route by complexity + enabled backends:
+  Cheapest capable enabled backend wins
+  Security/architecture agents never go to free/trainee
   ↓
 Health check (W5 wiring):
   Backend DOWN? → execute_fallback()
@@ -100,7 +91,7 @@ Security and architecture agents NEVER go to free/trainee backends:
 force_claude = agent_name in _SECURITY_AGENTS or agent_name in _ARCHITECTURE_AGENTS
 ```
 
-This overrides budget mode — even in frugal, security reviews use Claude.
+Security/architecture agents always use Claude regardless of backend_mode.
 
 ### 2.4 Fallback Chain
 
@@ -182,19 +173,14 @@ Metrics: swap_frequency(), model_load_count(), avg_duration()
 ### 2.8 Codex Review (Tier-Driven)
 
 ```
-should_trigger_review(confidence_tier, budget_mode)
+should_trigger_review(confidence_tier)
   ↓
 REVIEW_TIERS = {"trainee", "trainee-validated", "community", "hybrid"}
   ↓
-Tier in REVIEW_TIERS AND budget_mode allows review?
-  ├── blitz/standard/economic → codex-plugin review (paid)
-  ├── frugal/survival → localai review (free)
-  └── blackout → no review
+Tier in REVIEW_TIERS? → trigger review
   ↓
-review_command():
-  budget blitz/standard → "/codex:adversarial-review"
-  budget economic → "/codex:review"
-  budget frugal/survival → "" (free mode, LocalAI reviews)
+review_command(adversarial=True/False)
+  → "/codex:adversarial-review" or "/codex:review"
 ```
 
 W7 wiring: imports `VALID_TIERS` from tier_progression.py. `trainee-validated` added to REVIEW_TIERS.
@@ -224,13 +210,9 @@ Total: **1611 lines** across 5 modules.
 
 | Function | Lines | What It Does |
 |----------|-------|-------------|
-| `route_task(task, agent, budget_mode, localai_available, localai_model, storm_monitor, health_dashboard)` | 201-272 | Main routing: assess complexity → route by budget mode → health check (W5) → circuit breaker check. Returns RoutingDecision. |
+| `route_task(task, agent, backend_mode, localai_available, localai_model, storm_monitor, health_dashboard)` | 201-272 | Main routing: assess complexity → filter by enabled backends (backend_mode) → cheapest capable wins → health check (W5) → circuit breaker check. Returns RoutingDecision. |
+| `backends_for_mode(backend_mode)` | — | Map backend_mode to list of enabled backend names (7 combos). |
 | `_assess_complexity(task)` | — | Map story points/type to simple/medium/complex/critical. |
-| `_route_survival()` | — | LocalAI only. Force_claude agents get sonnet. |
-| `_route_frugal()` | — | LocalAI + OpenRouter free. Claude sonnet as fallback. |
-| `_route_economic()` | — | Sonnet only (no opus). LocalAI for simple. |
-| `_route_standard()` | — | LocalAI for simple, Claude for complex. |
-| `_route_blitz()` | — | Claude opus for everything. |
 | `_apply_health_check(decision, dashboard)` | — | W5: check backend DOWN → fallback or queue. |
 | `_apply_circuit_breakers(decision, storm_monitor)` | 273-330 | Check breaker OPEN → fallback. Both OPEN → queue. |
 | `execute_fallback(decision, reason)` | 479-511 | Execute fallback: check registry → derive tier → return new decision. |
@@ -362,7 +344,7 @@ RoutingDecision(
     backend="localai",
     model="hermes-3b",
     effort="low",
-    reason="frugal mode: LocalAI for simple structured task",
+    reason="trivial task → localai/hermes-3b (cheapest capable)",
     confidence_tier="trainee",
     estimated_cost=0.0,
     fallback_backend="openrouter-free",

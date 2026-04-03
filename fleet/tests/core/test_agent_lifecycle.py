@@ -1,4 +1,9 @@
-"""Tests for agent lifecycle — smart status management."""
+"""Tests for agent lifecycle — smart status management.
+
+Rectified 2026-04-01: No DROWSY state. After 1 HEARTBEAT_OK the brain
+takes over. States: ACTIVE → IDLE → SLEEPING → OFFLINE.
+States are visibility labels — all respond to wake triggers identically.
+"""
 
 from datetime import datetime, timedelta
 
@@ -6,10 +11,9 @@ from fleet.core.agent_lifecycle import (
     AgentState,
     AgentStatus,
     FleetLifecycle,
-    IDLE_AFTER,
     SLEEPING_AFTER,
-    DROWSY_AFTER_HEARTBEAT_OK,
-    SLEEPING_AFTER_HEARTBEAT_OK,
+    OFFLINE_AFTER,
+    IDLE_AFTER_HEARTBEAT_OK,
 )
 
 
@@ -32,7 +36,7 @@ def test_idle_after_task_completes():
     state.update_activity(now, has_active_task=True, task_id="t1")
     assert state.status == AgentStatus.ACTIVE
 
-    # Task completes, but still within idle threshold
+    # Task completes
     state.update_activity(now, has_active_task=False)
     assert state.status == AgentStatus.IDLE
 
@@ -41,8 +45,18 @@ def test_sleeping_after_idle_timeout():
     state = AgentState(name="test")
     now = datetime.now()
     state.last_active_at = now - timedelta(seconds=SLEEPING_AFTER + 1)
+    state.consecutive_heartbeat_ok = 1  # brain has taken over
     state.update_activity(now, has_active_task=False)
     assert state.status == AgentStatus.SLEEPING
+
+
+def test_offline_after_long_idle():
+    state = AgentState(name="test")
+    now = datetime.now()
+    state.last_active_at = now - timedelta(seconds=OFFLINE_AFTER + 1)
+    state.consecutive_heartbeat_ok = 1  # brain has taken over
+    state.update_activity(now, has_active_task=False)
+    assert state.status == AgentStatus.OFFLINE
 
 
 def test_active_agent_no_heartbeat_needed():
@@ -72,7 +86,7 @@ def test_sleeping_agent_needs_heartbeat_after_interval():
     state = AgentState(name="test")
     now = datetime.now()
     state.status = AgentStatus.SLEEPING
-    state.last_heartbeat_at = now - timedelta(hours=3)  # Over 2-hour sleeping interval
+    state.last_heartbeat_at = now - timedelta(minutes=31)  # Over 30-min sleeping interval
     assert state.needs_heartbeat(now) is True
 
 
@@ -85,10 +99,15 @@ def test_wake_transitions_to_idle():
 
 
 def test_should_wake_for_task():
+    """All non-active states should wake for task assignment."""
     state = AgentState(name="test")
     state.status = AgentStatus.SLEEPING
     assert state.should_wake_for_task() is True
     state.status = AgentStatus.IDLE
+    assert state.should_wake_for_task() is True
+    state.status = AgentStatus.OFFLINE
+    assert state.should_wake_for_task() is True
+    state.status = AgentStatus.ACTIVE
     assert state.should_wake_for_task() is False
 
 
@@ -133,38 +152,29 @@ def test_fleet_not_idle_when_active():
     assert lifecycle.is_fleet_idle() is False
 
 
-# ─── DROWSY / Content-Aware Lifecycle ────────────────────────────────
+# ─── Brain Takes Over After 1 HEARTBEAT_OK ────────────────────────────
 
 
-def test_drowsy_status_exists():
-    assert AgentStatus.DROWSY == "drowsy"
+def test_brain_evaluates_after_one_heartbeat_ok():
+    """After 1 HEARTBEAT_OK, brain_evaluates should be True."""
+    state = AgentState(name="test")
+    assert state.brain_evaluates is False
+
+    state.record_heartbeat_ok()
+    assert state.consecutive_heartbeat_ok == IDLE_AFTER_HEARTBEAT_OK
+    assert state.brain_evaluates is True
 
 
-def test_drowsy_after_consecutive_heartbeat_ok():
+def test_idle_after_one_heartbeat_ok():
+    """1 HEARTBEAT_OK → agent stays IDLE, brain takes over."""
     state = AgentState(name="test")
     now = datetime.now()
     state.last_active_at = now
 
-    # Record 2 HEARTBEAT_OK → should become DROWSY
     state.record_heartbeat_ok()
-    state.record_heartbeat_ok()
-    assert state.consecutive_heartbeat_ok == DROWSY_AFTER_HEARTBEAT_OK
-
     state.update_activity(now, has_active_task=False)
-    assert state.status == AgentStatus.DROWSY
-
-
-def test_sleeping_after_more_heartbeat_ok():
-    state = AgentState(name="test")
-    now = datetime.now()
-    state.last_active_at = now
-
-    # Record 3 HEARTBEAT_OK → should become SLEEPING
-    for _ in range(SLEEPING_AFTER_HEARTBEAT_OK):
-        state.record_heartbeat_ok()
-
-    state.update_activity(now, has_active_task=False)
-    assert state.status == AgentStatus.SLEEPING
+    assert state.status == AgentStatus.IDLE
+    assert state.brain_evaluates is True
 
 
 def test_heartbeat_ok_resets_on_active():
@@ -172,13 +182,13 @@ def test_heartbeat_ok_resets_on_active():
     now = datetime.now()
 
     state.record_heartbeat_ok()
-    state.record_heartbeat_ok()
-    assert state.consecutive_heartbeat_ok == 2
+    assert state.consecutive_heartbeat_ok == 1
 
     # Agent gets work → counter resets
     state.update_activity(now, has_active_task=True, task_id="t1")
     assert state.consecutive_heartbeat_ok == 0
     assert state.status == AgentStatus.ACTIVE
+    assert state.brain_evaluates is False
 
 
 def test_heartbeat_ok_resets_on_wake():
@@ -190,41 +200,22 @@ def test_heartbeat_ok_resets_on_wake():
     state.wake(now)
     assert state.consecutive_heartbeat_ok == 0
     assert state.status == AgentStatus.IDLE
+    assert state.brain_evaluates is False
 
 
 def test_record_heartbeat_work_resets_counter():
     state = AgentState(name="test")
     state.record_heartbeat_ok()
-    state.record_heartbeat_ok()
-    assert state.consecutive_heartbeat_ok == 2
+    assert state.consecutive_heartbeat_ok == 1
 
     state.record_heartbeat_work()
     assert state.consecutive_heartbeat_ok == 0
+    assert state.brain_evaluates is False
 
 
-def test_drowsy_agent_should_wake_for_task():
-    state = AgentState(name="test")
-    state.status = AgentStatus.DROWSY
-    assert state.should_wake_for_task() is True
-
-
-def test_drowsy_heartbeat_interval():
-    from fleet.core.agent_lifecycle import HEARTBEAT_INTERVALS
-    # DROWSY interval should be between IDLE and SLEEPING
-    idle_interval = HEARTBEAT_INTERVALS[AgentStatus.IDLE]
-    drowsy_interval = HEARTBEAT_INTERVALS[AgentStatus.DROWSY]
-    sleeping_interval = HEARTBEAT_INTERVALS[AgentStatus.SLEEPING]
-    assert idle_interval < drowsy_interval < sleeping_interval
-
-
-def test_fleet_status_summary_includes_drowsy():
-    lifecycle = FleetLifecycle()
-    lifecycle.get_or_create("a").status = AgentStatus.DROWSY
-    summary = lifecycle.get_status_summary()
-    assert "drowsy" in summary
-    assert "a" in summary["drowsy"]
-
-
-def test_data_hash_default():
-    state = AgentState(name="test")
-    assert state.last_heartbeat_data_hash == ""
+def test_no_drowsy_state():
+    """DROWSY state does not exist — rectified 2026-04-01."""
+    assert not hasattr(AgentStatus, "DROWSY")
+    valid_states = [s.value for s in AgentStatus]
+    assert "drowsy" not in valid_states
+    assert set(valid_states) == {"active", "idle", "sleeping", "offline"}

@@ -303,21 +303,13 @@ Challenge findings are **contributions** with type `challenge_review`:
 
 ## Part 7: Budget-Aware Challenge Decisions
 
-Challenges cost tokens. The brain must balance thoroughness with cost:
+Challenge depth is determined by confidence tier and task complexity.
+Budget mode (tempo) does not control challenge strategy.
 
-| Budget Mode | Challenge Strategy |
-|------------|-------------------|
-| blitz | Full challenges: agent + cross-model for SP ≥ 5, automated for rest |
-| standard | Agent challenge for SP ≥ 5 or trainee tier, automated for rest |
-| economic | Automated challenge only (free), agent challenge for security tasks |
-| frugal | Automated challenge only, skip agent challenges entirely |
-| survival | No challenges — cost of challenge exceeds value. Flag for later review. |
-| blackout | No work, no challenges |
-
-When a challenge is skipped due to budget:
-- Labor stamp records: `challenge_skipped: true, reason: "frugal mode"`
+When a challenge is deferred:
+- Labor stamp records: `challenge_skipped: true, reason`
 - Task is tagged: `needs-deferred-challenge`
-- When budget mode improves → brain queues deferred challenges
+- Brain drains deferred queue when conditions improve
 
 ---
 

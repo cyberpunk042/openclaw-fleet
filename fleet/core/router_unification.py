@@ -28,7 +28,6 @@ class UnifiedRoutingRequest:
     source: str                    # "aicp" or "fleet"
     task_type: str
     complexity: str = "medium"     # low, medium, high, critical
-    budget_mode: str = "standard"
     required_capabilities: list[str] = field(default_factory=list)
     preferred_backend: Optional[str] = None
 
@@ -37,7 +36,6 @@ class UnifiedRoutingRequest:
             "source": self.source,
             "task_type": self.task_type,
             "complexity": self.complexity,
-            "budget_mode": self.budget_mode,
             "required_capabilities": self.required_capabilities,
             "preferred_backend": self.preferred_backend,
         }

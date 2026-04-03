@@ -38,7 +38,7 @@ trust in a multi-model, multi-backend fleet.
 | `comment.py` templates | Posts `<sub>agent_name</sub>` footer | Zero model/effort/backend metadata |
 | `pr.py` templates | Lists `Agent: {agent_name}` in refs | No model, skills, confidence, duration |
 | `artifact_tracker.py` | Tracks completeness against standards | No provenance — who produced it, how |
-| `effort_profiles.py` | Controls what's allowed (full/minimal) | Not recorded on output artifacts |
+| `fleet_mode.py` | Controls work_mode/backend_mode | Not recorded on output artifacts |
 | `budget_monitor.py` | Reads Claude quota % | Not linked to per-task cost recording |
 
 ### The Broken Chain

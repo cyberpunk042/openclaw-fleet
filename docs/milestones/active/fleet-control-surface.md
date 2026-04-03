@@ -465,7 +465,7 @@ Color-coded by type: dispatches (blue), completions (green), approvals
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Effort profiles | Built | `fleet/core/effort_profiles.py` |
+| Budget mode (tempo) | Built | `fleet/core/budget_modes.py` |
 | Fleet pause/resume | Built | `fleet/cli/pause.py` |
 | Board memory read/write | Built | `fleet/infra/mc_client.py` |
 | Agent heartbeat context | Built | `fleet/core/heartbeat_context.py` |

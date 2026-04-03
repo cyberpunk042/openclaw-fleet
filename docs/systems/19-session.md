@@ -140,7 +140,7 @@ Key behaviors:
 - Plane data only for PM and fleet-ops (not workers)
 - Domain events filtered by agent capabilities
 - ACTION directive tells agent what to do (or to do nothing)
-- "Do NOT call any tools" for idle → drives HEARTBEAT_OK → DROWSY → SLEEPING
+- "Do NOT call any tools" for idle → drives HEARTBEAT_OK → brain takes over (silent)
 
 ### 2.4 Session Telemetry (W8 Adapter)
 
@@ -152,7 +152,7 @@ SessionSnapshot = ingest(json_data)
 to_labor_fields()    → LaborStamp: real cost, duration, lines, cache
 to_claude_health()   → ClaudeHealth: real quota (5h+7d), latency, context size
 to_storm_indicators() → StormMonitor: context_pressure, quota_pressure, cache_miss
-to_cost_delta()      → CostTicker: incremental real cost
+to_cost_delta()      → incremental cost between snapshots
 ```
 
 Properties: context_label ("1M"/"200K"), context_pressure ("critical"/"high"/"moderate"/"low"), cache_hit_rate (0.0-1.0).

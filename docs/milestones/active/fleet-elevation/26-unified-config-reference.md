@@ -50,7 +50,7 @@ orchestrator:
   max_concurrent_per_agent: 1
   max_dispatch_per_cycle: 2
   dry_run: false
-  effort_profile: conservative
+  budget_mode: turbo
 ```
 
 ---
@@ -125,7 +125,7 @@ orchestrator:
   max_concurrent_per_agent: 1
   max_dispatch_per_cycle: 2
   dry_run: false
-  effort_profile: conservative
+  budget_mode: turbo
 
   driver_agents:
     - project-manager
@@ -269,18 +269,18 @@ contributions:
 
 lifecycle:
   defaults:
-    drowsy_after_heartbeat_ok: 2   # consecutive HEARTBEAT_OK → drowsy
+    idle_after_heartbeat_ok: 2   # consecutive HEARTBEAT_OK → idle
     sleeping_after_heartbeat_ok: 3  # consecutive HEARTBEAT_OK → sleeping
     offline_after_hours: 4         # hours sleeping → offline
     wake_sensitivity: medium       # low, medium, high
 
   overrides:
     project-manager:
-      drowsy_after_heartbeat_ok: 4
+      idle_after_heartbeat_ok: 4
       sleeping_after_heartbeat_ok: 6
       wake_sensitivity: high
     fleet-ops:
-      drowsy_after_heartbeat_ok: 4
+      idle_after_heartbeat_ok: 4
       sleeping_after_heartbeat_ok: 6
       wake_sensitivity: high
     architect:
@@ -314,7 +314,7 @@ call_strategy:
   session:
     sleeping_prompt_wake: fresh
     sleeping_gradual_wake: compact
-    drowsy_check: compact
+    idle_check: compact
     active_progressive: continue
     active_new_task: fresh
     active_bloated: compact

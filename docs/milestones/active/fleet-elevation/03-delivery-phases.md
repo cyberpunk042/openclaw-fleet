@@ -403,9 +403,9 @@ Phase affects what contributions are required:
 - staging: architect + QA + DevSecOps security review required
 - production: all contributions required + accountability compliance check
 
-### Phase-Aware Effort Profiles
-POC work should use lighter effort profiles (less expensive, faster).
-Production work uses full effort profiles (thorough, more expensive).
+### Phase-Aware Tempo
+POC work should use faster tempo (iterate quickly).
+Production work uses standard tempo (thorough).
 The brain routes accordingly.
 
 ---

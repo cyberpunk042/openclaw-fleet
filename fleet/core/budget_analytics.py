@@ -30,7 +30,7 @@ class BudgetEvent:
     """A single task's budget data point for analytics."""
 
     task_id: str
-    budget_mode: str                   # blitz/standard/economic/frugal/survival
+    budget_mode: str                   # Fleet tempo mode
     task_type: str = "task"            # task, story, bug, subtask, epic
     story_points: int = 0
     cost_usd: float = 0.0

@@ -1,102 +1,15 @@
-"""Budget mode UI data provider (M-BM05).
+"""Budget mode UI data provider.
 
-Provides the data that the OCMC header bar budget controls display:
-- Current budget mode
-- Cost envelope usage percentage
-- Real-time cost ticker
+Provides data for the OCMC header bar budget controls:
+- Current budget mode (tempo setting)
 - Per-order budget mode overrides
-
-This module computes the data. The FleetControlBar TSX component
-(patches/0005-FleetControlBar.tsx) renders it.
-
-Design doc requirement:
-> Display current budget mode in MC header bar (control surface).
-> Mode selector dropdown with descriptions.
-> Per-order budget mode override.
-> Cost envelope progress bar.
-> Real-time cost ticker.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
-
-
-# ─── Cost Envelope ─────────────────────────────────────────────
-
-
-# Default daily cost envelopes per budget mode (USD)
-COST_ENVELOPES: dict[str, float] = {
-    "blitz": 50.0,
-    "standard": 20.0,
-    "economic": 10.0,
-    "frugal": 5.0,
-    "survival": 1.0,
-    "blackout": 0.0,
-}
-
-
-@dataclass
-class CostTicker:
-    """Real-time cost tracking for the UI cost bar."""
-
-    budget_mode: str = "standard"
-    cost_today_usd: float = 0.0
-    cost_this_hour_usd: float = 0.0
-    tasks_today: int = 0
-    last_updated: float = 0.0
-
-    def __post_init__(self) -> None:
-        if not self.last_updated:
-            self.last_updated = time.time()
-
-    @property
-    def envelope_usd(self) -> float:
-        return COST_ENVELOPES.get(self.budget_mode, 20.0)
-
-    @property
-    def cost_used_pct(self) -> float:
-        if self.envelope_usd <= 0:
-            return 100.0 if self.cost_today_usd > 0 else 0.0
-        return min((self.cost_today_usd / self.envelope_usd) * 100, 100.0)
-
-    @property
-    def remaining_usd(self) -> float:
-        return max(self.envelope_usd - self.cost_today_usd, 0.0)
-
-    @property
-    def over_budget(self) -> bool:
-        return self.cost_today_usd > self.envelope_usd and self.envelope_usd > 0
-
-    def add_cost(self, cost_usd: float) -> None:
-        self.cost_today_usd += cost_usd
-        self.cost_this_hour_usd += cost_usd
-        self.tasks_today += 1
-        self.last_updated = time.time()
-
-    def reset_daily(self) -> None:
-        self.cost_today_usd = 0.0
-        self.cost_this_hour_usd = 0.0
-        self.tasks_today = 0
-        self.last_updated = time.time()
-
-    def reset_hourly(self) -> None:
-        self.cost_this_hour_usd = 0.0
-        self.last_updated = time.time()
-
-    def to_dict(self) -> dict:
-        return {
-            "budget_mode": self.budget_mode,
-            "cost_today_usd": round(self.cost_today_usd, 4),
-            "cost_this_hour_usd": round(self.cost_this_hour_usd, 4),
-            "envelope_usd": self.envelope_usd,
-            "cost_used_pct": round(self.cost_used_pct, 1),
-            "remaining_usd": round(self.remaining_usd, 4),
-            "over_budget": self.over_budget,
-            "tasks_today": self.tasks_today,
-        }
 
 
 # ─── Per-Order Budget Override ─────────────────────────────────
@@ -129,8 +42,7 @@ class BudgetOverrideManager:
     """Manages per-order budget mode overrides.
 
     Fleet-wide budget mode is the default. Individual orders
-    can override it (e.g., "this urgent task uses blitz mode
-    even though fleet is in economic mode").
+    can override it.
     """
 
     def __init__(self) -> None:
@@ -178,21 +90,12 @@ class BudgetOverrideManager:
 
 
 def budget_ui_payload(
-    ticker: CostTicker,
+    budget_mode: str,
     override_mgr: Optional[BudgetOverrideManager] = None,
 ) -> dict:
-    """Build the payload to PATCH into board.fleet_config.
-
-    This is what the FleetControlBar reads to render budget state.
-    """
+    """Build the payload to PATCH into board.fleet_config."""
     payload = {
-        "budget_mode": ticker.budget_mode,
-        "cost_used_pct": round(ticker.cost_used_pct, 1),
-        "cost_today_usd": round(ticker.cost_today_usd, 4),
-        "envelope_usd": ticker.envelope_usd,
-        "remaining_usd": round(ticker.remaining_usd, 4),
-        "over_budget": ticker.over_budget,
-        "tasks_today": ticker.tasks_today,
+        "budget_mode": budget_mode,
     }
     if override_mgr:
         payload["budget_overrides"] = override_mgr.to_dict()

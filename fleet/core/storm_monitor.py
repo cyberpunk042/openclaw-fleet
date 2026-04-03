@@ -2,15 +2,14 @@
 
 Monitors 9 indicators for storm conditions. When indicators exceed
 thresholds, automatically escalates severity and triggers protective
-responses (budget mode de-escalation, heartbeat disabling, dispatch
-limiting, PO alerting).
+responses (dispatch limiting, PO alerting).
 
 Severity levels:
   CLEAR    — 0 indicators, normal operation
   WATCH    — 1 indicator, logging + monitoring
-  WARNING  — 2 indicators or 1 sustained, force economic mode
-  STORM    — 3+ indicators, force survival mode, alert PO
-  CRITICAL — fast climb + burst, force blackout, kill sessions
+  WARNING  — 2 indicators or 1 sustained
+  STORM    — 3+ indicators, alert PO
+  CRITICAL — fast climb + burst, halt fleet
 
 De-escalation is slower than escalation (prevent oscillation).
 """
@@ -77,14 +76,12 @@ class StormDiagnostic:
     timestamp: str = ""
     severity: str = ""
     indicators: list[str] = field(default_factory=list)
-    budget_reading: Optional[dict] = None
     active_sessions: int = 0
     sessions_last_hour: int = 0
     dispatches_last_hour: int = 0
     void_session_pct: float = 0.0
     agent_states: dict = field(default_factory=dict)
     error_count_last_20: int = 0
-    budget_mode: str = ""
 
     def __post_init__(self) -> None:
         if not self.timestamp:
@@ -100,7 +97,6 @@ class StormDiagnostic:
             "dispatches_last_hour": self.dispatches_last_hour,
             "void_session_pct": self.void_session_pct,
             "error_count_last_20": self.error_count_last_20,
-            "budget_mode": self.budget_mode,
         }
 
     def format_summary(self) -> str:
@@ -109,8 +105,7 @@ class StormDiagnostic:
         return (
             f"Storm {self.severity}: {indicator_str} | "
             f"Sessions/hr: {self.sessions_last_hour} | "
-            f"Void: {self.void_session_pct:.0f}% | "
-            f"Mode: {self.budget_mode}"
+            f"Void: {self.void_session_pct:.0f}%"
         )
 
 
@@ -385,7 +380,7 @@ class StormMonitor:
 
     # ─── Diagnostics ────────────────────────────────────────────────
 
-    def capture_diagnostic(self, budget_mode: str = "") -> StormDiagnostic:
+    def capture_diagnostic(self) -> StormDiagnostic:
         """Capture a diagnostic snapshot."""
         diag = StormDiagnostic(
             severity=self._severity,
@@ -395,7 +390,6 @@ class StormMonitor:
             dispatches_last_hour=self.dispatches_last_hour,
             void_session_pct=self.void_session_pct,
             error_count_last_20=self._error_count,
-            budget_mode=budget_mode,
         )
         self._diagnostics.append(diag)
         if len(self._diagnostics) > 20:

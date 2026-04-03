@@ -93,9 +93,9 @@ progressively tightens controls before it becomes catastrophic.
 |-------|------------------|----------|
 | **CLEAR** | 0 indicators | Normal operation |
 | **WATCH** | 1 indicator | Log + monitor, no action yet |
-| **WARNING** | 2 indicators | Reduce: drop to economic mode |
-| **STORM** | 3+ indicators | Contain: drop to survival mode, alert PO |
-| **CRITICAL** | Fast climb + session burst | Blackout: stop everything, alert PO urgently |
+| **WARNING** | 2 indicators | Reduce: dispatch ≤ 1, alert IRC |
+| **STORM** | 3+ indicators | Contain: dispatch = 0, alert PO |
+| **CRITICAL** | Fast climb + session burst | Halt cycle, alert PO urgently |
 
 ---
 
@@ -108,20 +108,15 @@ CLEAR → normal operation
   ↓ (1 indicator triggers)
 WATCH → log, increase monitoring frequency (30s → 15s)
   ↓ (2 indicators, or 1 persists > 5 min)
-WARNING → force economic budget mode
-        → reduce heartbeat intervals 2x
+WARNING → dispatch ≤ 1
         → alert fleet-ops (IRC + ntfy)
-        → start recording session traces
+        → diagnostic snapshot
   ↓ (3+ indicators, or warning persists > 10 min)
-STORM → force survival budget mode
-      → disable all heartbeats except fleet-ops
-      → max dispatch = 0 (no new work)
+STORM → dispatch = 0 (no new work)
       → alert PO (ntfy URGENT)
-      → dump diagnostic snapshot
+      → diagnostic snapshot
   ↓ (fast climb + burst, or storm persists > 15 min)
-CRITICAL → force blackout
-         → kill all agent sessions
-         → disable gateway heartbeats
+CRITICAL → HALT cycle
          → alert PO (ntfy MAX PRIORITY + IRC)
          → write incident report
          → fleet requires manual restart (fleet resume)
@@ -176,8 +171,6 @@ class StormDiagnostic:
     gateway_process_count: int      # How many gateway processes running
     agent_states: dict              # Per-agent: state, last heartbeat, session count
     error_log: list[str]            # Last 20 errors
-    budget_mode: str                # Current budget mode
-    effort_profile: str             # Current effort profile
 ```
 
 Snapshot is:
@@ -277,16 +270,11 @@ The orchestrator checks storm level at the START of every cycle:
 
 ```python
 # In orchestrator cycle:
-storm_level = storm_monitor.evaluate()
-if storm_level == "CRITICAL":
-    _execute_blackout()
-    return  # stop cycle
-if storm_level == "STORM":
-    _force_survival_mode()
-    state.max_dispatch = 0  # no new work
-if storm_level == "WARNING":
-    _force_economic_mode()
-    state.max_dispatch = 1
+response = evaluate_storm_response(monitor, current_max_dispatch)
+if response.halt_cycle:
+    return  # CRITICAL — stop cycle
+if response.max_dispatch is not None:
+    state.max_dispatch = response.max_dispatch
 ```
 
 ### Gateway Enhancement
@@ -334,11 +322,11 @@ All agents had nothing to do → void sessions.
 ### Automatic Response
 1. 14:23 — WATCH detected (session burst)
 2. 14:24 — WARNING triggered (session burst + void sessions)
-3. 14:24 — Budget mode forced to economic
-4. 14:24 — Heartbeat intervals doubled
+3. 14:24 — Dispatch limited to 1
+4. 14:24 — Alert sent to IRC
 5. 14:26 — Void sessions continued → STORM
-6. 14:26 — Budget mode forced to survival
-7. 14:26 — All heartbeats disabled except fleet-ops
+6. 14:26 — Dispatch disabled (max_dispatch=0)
+7. 14:26 — Alert PO via ntfy
 8. 14:26 — PO alerted via ntfy
 9. 14:31 — Indicators cleared → de-escalation began
 
@@ -432,7 +420,7 @@ All agents had nothing to do → void sessions.
 | Multi-Backend Router | Backend circuit breakers feed into routing decisions |
 | Iterative Validation | Storms often caused by insufficiently validated fixes |
 | Catastrophic Drain Investigation | This system prevents the category of problems found there |
-| Effort Profiles | Storm response overrides effort profiles |
+| Fleet Control | Storm response controls dispatch limits |
 | Agent Lifecycle | Circuit breakers interact with agent sleep/wake |
 | Fleet Elevation Doc 4 | The brain executes storm response (deterministic, zero cost) |
 | Fleet Elevation Doc 23 | Agent lifecycle states change during storms |
@@ -447,9 +435,9 @@ time the human noticed, 20% of the weekly budget was gone in 5 seconds.
 
 With the storm prevention system:
 - **5 seconds:** Session burst detected, WATCH triggered
-- **65 seconds:** Sustained burst confirmed, WARNING triggered, economic mode forced
-- **2-3 minutes:** If not improving, STORM triggered, survival mode forced
-- **5 minutes:** If still not improving, CRITICAL triggered, blackout
+- **65 seconds:** Sustained burst confirmed, WARNING triggered, dispatch limited
+- **2-3 minutes:** If not improving, STORM triggered, dispatch disabled
+- **5 minutes:** If still not improving, CRITICAL triggered, cycle halted
 
 Total cost of that 5-minute storm with prevention: ~$0.50 instead of 20%
 of the weekly plan.

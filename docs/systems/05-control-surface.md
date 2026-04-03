@@ -4,10 +4,9 @@
 >
 > Three independent control axes determine fleet behavior: Work Mode
 > (where work comes from), Cycle Phase (what kind of work agents do),
-> and Backend Mode (which AI processes requests). Plus effort profiles
-> that throttle intensity, and directives that route PO commands to
-> specific agents. Read from the OCMC board's fleet_config JSON field
-> every orchestrator cycle.
+> and Backend Mode (which AI processes requests). Plus directives that
+> route PO commands to specific agents. Read from the OCMC board's
+> fleet_config JSON field every orchestrator cycle.
 
 ---
 
@@ -93,19 +92,6 @@ Phase filtering applied by orchestrator at dispatch time:
 
 ### 2.4 Effort Profiles — Throttle Intensity
 
-| Profile | Dispatch | Driver HB | Worker HB | Opus? | Active Agents |
-|---------|----------|-----------|-----------|-------|---------------|
-| `full` | 2/cycle | 30min | 60min | Yes | all |
-| `conservative` | 1/cycle | 60min | 120min | No | PM, fleet-ops, devsecops |
-| `minimal` | 0 | 120min | disabled | No | fleet-ops only |
-| `paused` | 0 | disabled | disabled | No | none |
-
-Active profile read from `config/fleet.yaml`:
-```yaml
-orchestrator:
-  effort_profile: "conservative"  # currently set after March drain
-```
-
 ### 2.5 Directives — PO Commands to Agents
 
 PO posts to board memory with tags:
@@ -144,14 +130,10 @@ Orchestrator checks:
 ```
 fleet/core/
 ├── fleet_mode.py       Work mode, cycle phase, backend mode  (99 lines)
-├── effort_profiles.py  4 throttle profiles                   (116 lines)
 └── directives.py       PO command parsing and formatting     (90 lines)
-
-config/
-└── fleet.yaml          Active effort profile                 (references)
 ```
 
-Total: **305 lines** across 3 focused modules.
+Total: **189 lines** across 2 focused modules.
 
 ---
 
@@ -182,30 +164,7 @@ Total: **305 lines** across 3 focused modules.
 | `should_pull_from_plane(state)` | 78-84 | Returns False if local-work-only, work-paused, or finish-current-work. |
 | `get_active_agents_for_phase(state)` | 87-100 | Returns agent filter list per phase. None = all agents active. Crisis = fleet-ops + devsecops only. Planning = PM + architect. Review = fleet-ops only. |
 
-### 4.2 `effort_profiles.py` — Throttle Profiles (116 lines)
-
-#### Classes
-
-| Class | Lines | Purpose |
-|-------|-------|---------|
-| `EffortProfile` | 20-31 | Dataclass: name, description, max_dispatch_per_cycle, heartbeat_drivers_min, heartbeat_workers_min, allow_opus, allow_dispatch, allow_heartbeats, active_agents |
-
-#### Constants
-
-| Name | Type | Purpose |
-|------|------|---------|
-| `PROFILES` | dict[str, EffortProfile] | 4 profiles: full, conservative, minimal, paused |
-
-#### Functions
-
-| Function | Lines | What It Does |
-|----------|-------|-------------|
-| `get_profile(name)` | 82-84 | Get profile by name. Returns None if not found. |
-| `get_active_profile_name(fleet_dir)` | 87-105 | Read active profile from config/fleet.yaml → orchestrator.effort_profile. Default: "full". |
-| `should_dispatch(profile)` | 108-110 | Check if dispatching allowed (allow_dispatch AND max_dispatch > 0). |
-| `is_agent_active(profile, agent_name)` | 113-116 | Check if agent allowed under profile. "all" in active_agents = everyone allowed. |
-
-### 4.3 `directives.py` — PO Commands (90 lines)
+### 4.2 `directives.py` — PO Commands (90 lines)
 
 #### Classes
 
@@ -227,12 +186,10 @@ Total: **305 lines** across 3 focused modules.
 ```
 fleet_mode.py       ← standalone (dataclasses only)
 
-effort_profiles.py  ← standalone (reads config/fleet.yaml via yaml)
-
 directives.py       ← standalone (dataclasses, logging)
 ```
 
-All three modules are independent. No circular dependencies.
+Both modules are independent. No circular dependencies.
 No imports from each other. All consumed by the orchestrator.
 
 ---
@@ -242,7 +199,6 @@ No imports from each other. All consumed by the orchestrator.
 | Layer | Module | What It Imports | How It Uses It |
 |-------|--------|----------------|---------------|
 | **Orchestrator** | `orchestrator.py` | `FleetControlState, read_fleet_control, should_dispatch, get_active_agents_for_phase` | Reads state every cycle. Gates dispatch. Filters agents by phase. Detects mode changes → emits events. |
-| **Orchestrator** | `orchestrator.py` | `get_active_profile_name, get_profile` | Reads active profile. Applies dispatch rate limit. Overrides max_dispatch. |
 | **Orchestrator** | `orchestrator.py` | `parse_directives, format_directive_for_agent` | Step 6: parses PO directives from board memory. Step 0: includes in agent heartbeat context. |
 | **Context Assembly** | `context_assembly.py` | `parse_directives` | Includes directives in heartbeat context assembly. |
 | **Storm Integration** | `storm_integration.py` | — (indirect) | Storm forces budget mode, which is stored in fleet_config alongside control state. |
@@ -263,13 +219,11 @@ run in planning mode with Claude (PM + architect design with full
 power) or in crisis mode with LocalAI (fleet-ops + devsecops respond
 using free backend). Coupling them would reduce flexibility.
 
-### Why effort profiles separate from work mode?
+### Why budget_mode separate from work_mode?
 
-Work mode is about WHAT happens. Effort profiles are about HOW MUCH.
-"Full autonomous" with "conservative" profile = all agents active
-but slower heartbeats and no opus. "Local work only" with "full"
-profile = only OCMC tasks but maximum power. Different controls
-for different needs.
+Work mode is about WHAT happens. Budget mode is about TEMPO (how fast).
+Backend mode is about WHICH backends process requests.
+Three independent axes for maximum flexibility.
 
 ### Why directives via board memory, not a special API?
 
@@ -339,22 +293,6 @@ FleetControlState(
 )
 ```
 
-### EffortProfile
-
-```python
-EffortProfile(
-    name="conservative",
-    description="Budget-conscious — drivers only, sonnet only, less frequent",
-    max_dispatch_per_cycle=1,
-    heartbeat_drivers_min=60,
-    heartbeat_workers_min=120,
-    allow_opus=False,
-    allow_dispatch=True,
-    allow_heartbeats=True,
-    active_agents=["project-manager", "fleet-ops", "devsecops-expert"],
-)
-```
-
 ### Directive
 
 ```python
@@ -410,6 +348,5 @@ not — the PO currently changes modes via config or API, not UI.
 | File | Tests | Coverage |
 |------|-------|---------|
 | `test_fleet_mode.py` | 15+ | Modes, phases, dispatch gates, agent filters |
-| `test_effort_profiles.py` | 10+ | Profiles, dispatch checks, agent active checks |
 | `test_directives.py` | 10+ | Parsing, formatting, tag extraction |
 | **Total** | **35+** | Core logic covered. Missing: mode change event flow |

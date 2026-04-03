@@ -49,7 +49,6 @@ def test_response_clear():
     r = evaluate_storm_response(m)
     assert r.severity == StormSeverity.CLEAR
     assert r.max_dispatch is None
-    assert r.force_budget_mode is None
     assert not r.halt_cycle
     assert not r.should_alert_po
 
@@ -68,7 +67,6 @@ def test_response_warning():
     r = evaluate_storm_response(m, current_max_dispatch=3)
     assert r.severity == StormSeverity.WARNING
     assert r.max_dispatch == 1
-    assert r.force_budget_mode == "economic"
     assert r.should_capture_diagnostic
     assert r.should_alert_irc
     assert not r.should_alert_po
@@ -87,7 +85,6 @@ def test_response_storm():
     r = evaluate_storm_response(m)
     assert r.severity == StormSeverity.STORM
     assert r.max_dispatch == 0
-    assert r.force_budget_mode == "survival"
     assert r.should_capture_diagnostic
     assert r.should_alert_irc
     assert r.should_alert_po
@@ -99,7 +96,6 @@ def test_response_critical():
     r = evaluate_storm_response(m)
     assert r.severity == StormSeverity.CRITICAL
     assert r.max_dispatch == 0
-    assert r.force_budget_mode == "blackout"
     assert r.halt_cycle
     assert r.should_alert_po
 
@@ -110,7 +106,6 @@ def test_response_to_dict():
     d = r.to_dict()
     assert d["severity"] == StormSeverity.STORM
     assert d["halt_cycle"] is False
-    assert d["force_budget_mode"] == "survival"
 
 
 def test_response_alert_message():
@@ -130,12 +125,11 @@ def test_tracker_starts_empty():
 
 def test_tracker_creates_event_on_warning():
     t = StormEventTracker()
-    r = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+    r = StormResponse(severity=StormSeverity.WARNING)
     report = t.process_cycle(
         severity=StormSeverity.WARNING,
         indicators=["session_burst"],
         response=r,
-        budget_mode="standard",
     )
     assert t.has_active_event
     assert report is None  # No report yet — storm still active
@@ -145,12 +139,11 @@ def test_tracker_closes_event_on_clear():
     t = StormEventTracker()
 
     # Start storm
-    r_warn = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+    r_warn = StormResponse(severity=StormSeverity.WARNING)
     t.process_cycle(
         severity=StormSeverity.WARNING,
         indicators=["session_burst"],
         response=r_warn,
-        budget_mode="standard",
     )
     assert t.has_active_event
 
@@ -160,15 +153,12 @@ def test_tracker_closes_event_on_clear():
         severity=StormSeverity.CLEAR,
         indicators=[],
         response=r_clear,
-        budget_mode="economic",
         void_sessions=5,
         total_sessions=10,
     )
     assert not t.has_active_event
     assert report is not None
     assert report.peak_severity == "WARNING"
-    assert report.budget_mode_before == "standard"
-    assert report.budget_mode_after == "economic"
     assert report.void_sessions == 5
 
 
@@ -176,24 +166,22 @@ def test_tracker_escalation_updates_peak():
     t = StormEventTracker()
 
     # WARNING
-    r_warn = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+    r_warn = StormResponse(severity=StormSeverity.WARNING)
     t.process_cycle(
         severity=StormSeverity.WARNING,
         indicators=["session_burst"],
         response=r_warn,
-        budget_mode="standard",
     )
 
     # Escalate to STORM
     r_storm = StormResponse(
-        severity=StormSeverity.STORM, force_budget_mode="survival",
+        severity=StormSeverity.STORM,
         should_alert_po=True,
     )
     t.process_cycle(
         severity=StormSeverity.STORM,
         indicators=["session_burst", "void_sessions"],
         response=r_storm,
-        budget_mode="economic",
     )
 
     assert t.active_event.peak_severity == "STORM"
@@ -229,7 +217,6 @@ def test_tracker_records_responses():
 
     r = StormResponse(
         severity=StormSeverity.STORM,
-        force_budget_mode="survival",
         should_alert_po=True,
         max_dispatch=0,
         halt_cycle=False,
@@ -238,11 +225,9 @@ def test_tracker_records_responses():
         severity=StormSeverity.STORM,
         indicators=["a", "b", "c"],
         response=r,
-        budget_mode="standard",
     )
 
     event = t.active_event
-    assert any("survival" in resp.action for resp in event.responses)
     assert any("alert PO" in resp.action for resp in event.responses)
     assert any("dispatch" in resp.action for resp in event.responses)
 
@@ -251,12 +236,11 @@ def test_tracker_completed_reports():
     t = StormEventTracker()
 
     # Run a full storm cycle
-    r_warn = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+    r_warn = StormResponse(severity=StormSeverity.WARNING)
     t.process_cycle(
         severity=StormSeverity.WARNING,
         indicators=["burst"],
         response=r_warn,
-        budget_mode="standard",
     )
 
     r_clear = StormResponse(severity=StormSeverity.CLEAR)
@@ -264,7 +248,6 @@ def test_tracker_completed_reports():
         severity=StormSeverity.CLEAR,
         indicators=[],
         response=r_clear,
-        budget_mode="economic",
     )
 
     assert t.total_incidents == 1
@@ -276,19 +259,17 @@ def test_tracker_multiple_storms():
     t = StormEventTracker()
 
     for i in range(3):
-        r_warn = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+        r_warn = StormResponse(severity=StormSeverity.WARNING)
         t.process_cycle(
             severity=StormSeverity.WARNING,
             indicators=[f"indicator_{i}"],
             response=r_warn,
-            budget_mode="standard",
         )
         r_clear = StormResponse(severity=StormSeverity.CLEAR)
         t.process_cycle(
             severity=StormSeverity.CLEAR,
             indicators=[],
             response=r_clear,
-            budget_mode="standard",
         )
 
     assert t.total_incidents == 3
@@ -299,7 +280,7 @@ def test_tracker_caps_reports():
     t._max_reports = 5
 
     for i in range(8):
-        r_warn = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+        r_warn = StormResponse(severity=StormSeverity.WARNING)
         t.process_cycle(
             severity=StormSeverity.WARNING,
             indicators=[f"ind_{i}"],
@@ -318,17 +299,15 @@ def test_tracker_caps_reports():
 def test_tracker_force_close():
     t = StormEventTracker()
 
-    r = StormResponse(severity=StormSeverity.STORM, force_budget_mode="survival")
+    r = StormResponse(severity=StormSeverity.STORM)
     t.process_cycle(
         severity=StormSeverity.STORM,
         indicators=["burst", "void", "errors"],
         response=r,
-        budget_mode="standard",
     )
     assert t.has_active_event
 
     report = t.force_close(
-        budget_mode_after="survival",
         void_sessions=10,
         total_sessions=15,
         root_cause="manual PO intervention",
@@ -352,7 +331,7 @@ def test_tracker_status():
     assert s["active_event"] is False
     assert s["total_incidents"] == 0
 
-    r = StormResponse(severity=StormSeverity.WARNING, force_budget_mode="economic")
+    r = StormResponse(severity=StormSeverity.WARNING)
     t.process_cycle(
         severity=StormSeverity.WARNING,
         indicators=["test"],
@@ -473,7 +452,6 @@ def test_full_storm_cycle():
     r = evaluate_storm_response(m)
     report = tracker.process_cycle(
         severity=r.severity, indicators=[], response=r,
-        budget_mode="standard",
     )
     assert r.severity == StormSeverity.CLEAR
     assert report is None
@@ -484,31 +462,27 @@ def test_full_storm_cycle():
     m._indicators["void_sessions"] = _confirmed("void_sessions", past)
 
     # Cycle 2: WARNING
-    r = evaluate_storm_response(m, current_budget_mode="standard")
+    r = evaluate_storm_response(m)
     assert r.severity == StormSeverity.WARNING
-    assert r.force_budget_mode == "economic"
     report = tracker.process_cycle(
         severity=r.severity,
         indicators=["session_burst", "void_sessions"],
         response=r,
-        budget_mode="standard",
     )
     assert tracker.has_active_event
     assert report is None
 
-    # Add another indicator → STORM
+    # Add another indicator -> STORM
     m._indicators["error_storm"] = _confirmed("error_storm", past)
 
     # Cycle 3: STORM
     r = evaluate_storm_response(m)
     assert r.severity == StormSeverity.STORM
-    assert r.force_budget_mode == "survival"
     assert r.should_alert_po
     report = tracker.process_cycle(
         severity=r.severity,
         indicators=["session_burst", "void_sessions", "error_storm"],
         response=r,
-        budget_mode="economic",
     )
     assert report is None
     assert tracker.active_event.peak_severity == "STORM"
@@ -527,7 +501,6 @@ def test_full_storm_cycle():
     # Force close the storm event to get the report (simulates PO intervention
     # or passage of time sufficient for de-escalation)
     report = tracker.force_close(
-        budget_mode_after="survival",
         void_sessions=8,
         total_sessions=10,
     )

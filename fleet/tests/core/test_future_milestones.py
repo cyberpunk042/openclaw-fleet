@@ -184,11 +184,11 @@ def test_cluster_peering_to_dict():
 def test_unified_request():
     r = UnifiedRoutingRequest(
         source="fleet", task_type="heartbeat",
-        complexity="low", budget_mode="economic",
+        complexity="low",
     )
     d = r.to_dict()
     assert d["source"] == "fleet"
-    assert d["budget_mode"] == "economic"
+    assert d["complexity"] == "low"
 
 
 def test_unified_result():

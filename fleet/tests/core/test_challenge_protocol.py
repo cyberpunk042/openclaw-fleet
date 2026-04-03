@@ -90,6 +90,7 @@ def test_decision_to_dict():
 
 
 # ─── evaluate_challenge ──────────────────────────────────────────
+# evaluate_challenge no longer takes budget_mode.
 
 
 def test_evaluate_heartbeat_not_required():
@@ -110,7 +111,7 @@ def test_evaluate_trainee_gets_agent_challenge():
     task = _task(task_type="task", sp=1)
     decision = evaluate_challenge(task, confidence_tier="trainee")
     assert decision.required
-    assert decision.challenge_type == ChallengeType.AGENT
+    assert decision.challenge_type == ChallengeType.CROSS_MODEL
     assert decision.max_rounds == 3
 
 
@@ -121,25 +122,10 @@ def test_evaluate_bug_fix_gets_scenario():
     assert decision.challenge_type == ChallengeType.SCENARIO
 
 
-def test_evaluate_economic_gets_automated():
-    task = _task(task_type="story", sp=5)
-    decision = evaluate_challenge(task, budget_mode="economic")
-    assert decision.required
-    assert decision.challenge_type == ChallengeType.AUTOMATED
-    assert decision.challenger == "automated"
-
-
 def test_evaluate_simple_task_not_required():
     task = _task(task_type="task", sp=1)
     decision = evaluate_challenge(task)
     assert not decision.required
-
-
-def test_evaluate_frugal_trainee_deferred():
-    task = _task(task_type="task", sp=1)
-    decision = evaluate_challenge(task, confidence_tier="trainee", budget_mode="frugal")
-    assert not decision.required
-    assert decision.deferred
 
 
 def test_evaluate_epic_gets_agent():
@@ -156,6 +142,14 @@ def test_evaluate_qa_author_gets_different_challenger():
         task, confidence_tier="trainee", author_agent="qa-engineer",
     )
     assert decision.challenger == "software-engineer"
+
+
+def test_evaluate_complex_story_gets_agent():
+    """Complex story (SP>=5) gets agent challenge."""
+    task = _task(task_type="story", sp=5)
+    decision = evaluate_challenge(task)
+    assert decision.required
+    assert decision.challenge_type == ChallengeType.AGENT
 
 
 # ─── ChallengeContext ────────────────────────────────────────────
@@ -466,13 +460,23 @@ def test_apply_failed_challenge():
 
 
 def test_full_automated_flow():
-    """End-to-end: evaluate → start → process → outcome → apply."""
-    task = _task(task_type="story", sp=5)
-    decision = evaluate_challenge(task, budget_mode="economic")
-    assert decision.required
-    assert decision.is_automated
+    """End-to-end: evaluate → start → process → outcome → apply.
 
-    record, challenges = start_challenge(task, decision, diff=SAMPLE_DIFF)
+    Complex story requires challenge, gets agent type (SP>=5).
+    We manually create an automated decision to test the automated flow.
+    """
+    task = _task(task_type="story", sp=5)
+    # Story SP=5 requires challenge — verify
+    decision = evaluate_challenge(task)
+    assert decision.required
+
+    # Force automated for this test path
+    auto_decision = ChallengeDecision(
+        required=True, reason="test automated flow",
+        challenge_type="automated", challenger="automated", max_rounds=2,
+    )
+
+    record, challenges = start_challenge(task, auto_decision, diff=SAMPLE_DIFF)
     assert len(challenges) >= 1
 
     # Simulate all passing

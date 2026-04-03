@@ -1,7 +1,7 @@
 """Session telemetry adapter (W8).
 
 Parses Claude Code JSON session data and distributes real values
-to existing fleet modules: LaborStamp, CostTicker, ClaudeHealth,
+to existing fleet modules: LaborStamp, ClaudeHealth,
 StormMonitor.
 
 The JSON is the same data exposed to the IDE statusline on every turn.
@@ -247,7 +247,7 @@ def to_storm_indicators(snap: SessionSnapshot) -> list[tuple[str, str]]:
 
 
 def to_cost_delta(snap: SessionSnapshot, previous_cost: float = 0.0) -> float:
-    """Cost delta for CostTicker.add_cost().
+    """Cost delta between session snapshots.
 
     Pass the previous snapshot's total_cost_usd to get the incremental cost.
     On first call, pass 0.0 to get the full session cost.

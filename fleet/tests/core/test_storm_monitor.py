@@ -152,9 +152,8 @@ def test_dispatch_counting():
 
 def test_diagnostic_capture():
     m = StormMonitor()
-    diag = m.capture_diagnostic(budget_mode="standard")
+    diag = m.capture_diagnostic()
     assert diag.severity == StormSeverity.CLEAR
-    assert diag.budget_mode == "standard"
     assert diag.timestamp != ""
 
 
@@ -163,7 +162,6 @@ def test_diagnostic_to_dict():
         severity="WARNING",
         indicators=["session_burst: 15/min"],
         sessions_last_hour=20,
-        budget_mode="economic",
     )
     d = diag.to_dict()
     assert d["severity"] == "WARNING"
@@ -176,11 +174,9 @@ def test_diagnostic_format_summary():
         indicators=["session_burst", "fast_climb"],
         sessions_last_hour=50,
         void_session_pct=40.0,
-        budget_mode="economic",
     )
     summary = diag.format_summary()
     assert "STORM" in summary
-    assert "economic" in summary
 
 
 # ─── Circuit Breaker ────────────────────────────────────────────────
@@ -311,7 +307,7 @@ def test_diagnostic_persistence(tmp_path):
     from fleet.cli.orchestrator import _persist_diagnostic
 
     m = StormMonitor()
-    diag = m.capture_diagnostic(budget_mode="economic")
+    diag = m.capture_diagnostic()
     fleet_dir = str(tmp_path)
 
     _persist_diagnostic(diag, fleet_dir)
@@ -324,7 +320,6 @@ def test_diagnostic_persistence(tmp_path):
     with open(files[0]) as f:
         data = json.load(f)
     assert data["severity"] == "CLEAR"
-    assert data["budget_mode"] == "economic"
 
 
 def test_diagnostic_persistence_caps_at_50(tmp_path):
@@ -335,7 +330,7 @@ def test_diagnostic_persistence_caps_at_50(tmp_path):
     fleet_dir = str(tmp_path)
 
     for i in range(55):
-        diag = m.capture_diagnostic(budget_mode="standard")
+        diag = m.capture_diagnostic()
         # Fake unique timestamps
         diag.timestamp = f"2026-03-31T00:{i:02d}:00"
         _persist_diagnostic(diag, fleet_dir)

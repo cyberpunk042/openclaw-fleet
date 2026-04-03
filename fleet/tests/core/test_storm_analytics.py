@@ -90,7 +90,6 @@ def test_record_from_report():
         started_at=now - 300,
         ended_at=now,
         duration_seconds=300,
-        estimated_cost_usd=0.50,
     )
     a.record_from_report(report)
     assert a.total_storms == 1

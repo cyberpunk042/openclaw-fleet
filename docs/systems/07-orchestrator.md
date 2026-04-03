@@ -195,7 +195,7 @@ The message contains FULL task details (not just count).
 
 ```
 fleet/cli/
-└── orchestrator.py       Main cycle, 9 steps, pre-checks          (1378 lines)
+└── orchestrator.py       Main cycle, 9 steps (target: 13), pre-checks (1378 lines)
 
 fleet/core/
 ├── driver.py             Driver agent model, product roadmaps       (155 lines)
@@ -216,7 +216,9 @@ Total: **2595 lines** across 8 modules.
 ### 4.1 `orchestrator.py` — The Main Loop (1378 lines)
 
 The largest module in the fleet. Contains the 30-second cycle,
-all 9 steps, pre-checks, and persistent state.
+all 9 steps (target: 13 per brain spec fleet-elevation/04), pre-checks,
+and persistent state. New steps: event queue, gates, contributions,
+propagation, session management (see brain-modules-standard.md).
 
 #### Persistent State (module-level)
 
@@ -344,7 +346,7 @@ Tracks what changed between orchestrator cycles.
 orchestrator.py  ← imports from ALL other modules in this system
     ↑               + agent_lifecycle, change_detector, notification_router
     │               + budget_monitor, doctor, directives, fleet_mode, teaching
-    │               + storm_monitor, gateway_guard, effort_profiles, behavioral_security
+    │               + storm_monitor, gateway_guard, behavioral_security
     │               + self_healing, health
     │
     ├── context_assembly.py ← methodology, stage_context, transpose, artifact_tracker,
@@ -379,7 +381,7 @@ daemon and calls into every other system:
 | StormMonitor | Storm Prevention | Evaluate severity, gate dispatch |
 | BudgetMonitor | Budget | Track quota, inform effort decisions |
 | FleetControlState | Control Surface | Read mode/phase/backend from board |
-| EffortProfile | Control Surface | Apply dispatch limits |
+| FleetControlState | Control Surface | Work mode gates dispatch |
 | ChangeDetector | (self) | Identify what changed since last cycle |
 | DoctorReport | Immune System | Detect diseases, skip/block agents |
 | scan_task | Behavioral Security | Scan new tasks for threats |
@@ -551,11 +553,11 @@ ChangeSet(
 
 ### Brain-Evaluated Heartbeats (Largest Gap)
 
-Currently, even DROWSY/SLEEPING agents get real heartbeats (Claude calls)
+Currently, even IDLE/SLEEPING (brain-evaluated) agents get real heartbeats (Claude calls)
 when their interval fires. The brain should evaluate deterministically:
 
 ```
-Agent is DROWSY/SLEEPING:
+Agent is IDLE/SLEEPING (brain-evaluated):
   1. Has pre-embed data hash changed? → wake
   2. New task assigned? → wake
   3. @mention in board memory? → wake

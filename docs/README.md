@@ -19,7 +19,7 @@
 │  milestones/active/MASTER-INDEX.md — milestone status         │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 2: SYSTEM REFERENCE (how each system works)           │
-│  docs/systems/01-22 — per-system docs (10,138 lines)         │
+│  docs/systems/01-22 — per-system docs (10,000+ lines)        │
 │  Each: purpose, modules, functions, connections, gaps        │
 ├─────────────────────────────────────────────────────────────┤
 │  Layer 3: DESIGN SPECIFICATIONS (what to build)              │
@@ -28,15 +28,22 @@
 │  milestones/active/{immune,teaching,methodology,context}/    │
 │  milestones/active/{budget,labor,router,challenge,storm,...}  │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 4: PLANS (when + how to deploy)                       │
+│  Layer 4: STANDARDS (quality gates for implementation)        │
+│  milestones/active/standards/ (8 per-type standard docs)     │
+│  milestones/active/agent-file-standards.md (master index)    │
+│  Every file type: structure, validation, IaC, integration    │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 5: PLANS (when + how to deploy)                       │
 │  milestones/active/path-to-live.md — 10-step ordered path    │
 │  milestones/active/ecosystem-deployment-plan.md — 15 items   │
 │  milestones/active/unified-implementation-plan.md — 38 items │
 ├─────────────────────────────────────────────────────────────┤
-│  Layer 5: VERIFICATION (did we actually do it)               │
+│  Layer 6: VERIFICATION (did we actually do it)               │
 │  milestones/active/VERIFICATION-MATRIX.md — 69/69 verified   │
 │  (Only covers foundation systems. Strategic + agent = 0 live)│
 └─────────────────────────────────────────────────────────────┘
+
+~100+ documents. ~55,000+ lines. 6 layers.
 
 READING ORDER for new context:
   1. This README (orientation)
@@ -45,7 +52,8 @@ READING ORDER for new context:
   4. MASTER-INDEX.md (what exists, honest status)
   5. Specific system doc for the area you're working on
   6. Design spec for the feature you're implementing
-  7. Path-to-live for deployment order
+  7. Per-type standard for the file you're writing
+  8. Path-to-live for deployment order
 ```
 
 ---
@@ -75,7 +83,7 @@ purpose, modules, key functions, dependencies, consumers, design decisions, data
 | 2 | [Immune System](systems/02-immune-system.md) | 566 | Doctor, 11 diseases, 3 lines of defense |
 | 3 | [Teaching](systems/03-teaching-system.md) | 395 | Adapted lessons, exercises, comprehension |
 | 4 | [Event Bus](systems/04-event-bus.md) | 536 | 47 event types, 6 surfaces, chains, routing |
-| 5 | [Control Surface](systems/05-control-surface.md) | 415 | 3 axes, effort profiles, PO directives |
+| 5 | [Control Surface](systems/05-control-surface.md) | 415 | 3 axes (work_mode, budget_mode, backend_mode), PO directives |
 | 6 | [Agent Lifecycle](systems/06-agent-lifecycle.md) | 414 | 5 states, PR authority, cost model |
 | 7 | [Orchestrator](systems/07-orchestrator.md) | 610 | 9-step cycle, context refresh, wake drivers |
 | 8 | [MCP Tools](systems/08-mcp-tools.md) | 379 | 25 tools, stage gating, review gates |
@@ -124,7 +132,7 @@ docs/milestones/active/fleet-elevation/
 ├── 20-ai-behavior.md          Anti-corruption rules, disease prevention
 ├── 21-task-lifecycle.md        PRE → PROGRESS → POST
 ├── 22-milestones.md           Milestone tracking
-├── 23-agent-lifecycle.md      ACTIVE→DROWSY→SLEEPING, strategic calls
+├── 23-agent-lifecycle.md      ACTIVE→IDLE→SLEEPING, silent heartbeats
 ├── 24-tool-call-tree.md       Tool chains catalog
 ├── 25-diagrams.md             Architecture diagrams
 ├── 26-unified-config.md       Config reference
@@ -177,7 +185,30 @@ storm-prevention.md            9 indicators (M-SP01-09)
 
 ---
 
-## 5. Layer 4 — Plans
+## 5. Layer 4 — Standards (Quality Gates)
+
+Per-type standards that every agent file, module, and script must meet.
+Created 2026-04-01. Located in `docs/milestones/active/standards/`.
+
+| Standard | What It Gates | Key Content |
+|----------|-------------|-------------|
+| [claude-md-standard.md](milestones/active/standards/claude-md-standard.md) | B1: CLAUDE.md ×10 | 8 sections, 4000 char limit, per-role content map, annotated example |
+| [heartbeat-md-standard.md](milestones/active/standards/heartbeat-md-standard.md) | B2: HEARTBEAT.md ×5 | 5 heartbeat types, priority protocol, per-role work variations |
+| [agent-yaml-standard.md](milestones/active/standards/agent-yaml-standard.md) | B4: agent.yaml ×10 | 14 required fields, per-role values, model rationale |
+| [identity-soul-standard.md](milestones/active/standards/identity-soul-standard.md) | U-01: Agent identity | Top-tier expert, 10 anti-corruption rules, per-role values |
+| [tools-agents-standard.md](milestones/active/standards/tools-agents-standard.md) | U-09: Self-knowledge | Chain-aware tools (GENERATED), synergy (GENERATED) |
+| [context-files-standard.md](milestones/active/standards/context-files-standard.md) | H3: Pre-embed | Autocomplete chain (10 sections in order), NEVER compressed |
+| [iac-mcp-standard.md](milestones/active/standards/iac-mcp-standard.md) | B3: IaC scripts | 6 scripts, idempotent, config-driven, Makefile |
+| [brain-modules-standard.md](milestones/active/standards/brain-modules-standard.md) | H1, H5, U-18 | 8 new modules, 13-step orchestrator, session management |
+
+**Master index:** [agent-file-standards.md](milestones/active/agent-file-standards.md)
+
+**Rule:** Read the per-type standard BEFORE writing any file of that type.
+Validate with `scripts/validate-agents.sh` AFTER writing.
+
+---
+
+## 6. Layer 5 — Plans
 
 | Document | Lines | What It Plans |
 |----------|-------|-------------|
@@ -189,7 +220,7 @@ storm-prevention.md            9 indicators (M-SP01-09)
 
 ---
 
-## 6. Layer 5 — Verification
+## 7. Layer 6 — Verification
 
 | Document | What It Proves |
 |----------|---------------|
@@ -199,7 +230,7 @@ storm-prevention.md            9 indicators (M-SP01-09)
 
 ---
 
-## 7. How Documents Reference Each Other
+## 8. How Documents Reference Each Other
 
 ```
 ARCHITECTURE.md

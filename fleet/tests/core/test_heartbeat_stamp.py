@@ -31,11 +31,6 @@ def test_heartbeat_stamp_cost():
     assert s.duration_seconds == 5
 
 
-def test_heartbeat_stamp_budget_mode():
-    s = create_heartbeat_stamp(agent_name="dev", budget_mode="survival")
-    assert s.budget_mode == "survival"
-
-
 def test_heartbeat_stamp_is_labor_stamp():
     s = create_heartbeat_stamp(agent_name="dev")
     assert isinstance(s, LaborStamp)

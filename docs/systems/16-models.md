@@ -98,10 +98,6 @@ model_selection.py evaluates:
   ├── architect/devsecops agent → higher tier (quality critical)
   └── Explicit model override on task → use that model
   ↓
-Budget constrains (constrain_model_by_budget from budget_modes):
-  economic → blocks opus → falls back to sonnet
-  frugal/survival → blocks ALL Claude → caller routes to LocalAI
-  ↓
 Returns ModelConfig(model, effort, reason)
   ↓
 Recorded in labor stamp → provenance chain
@@ -218,7 +214,7 @@ Total: **1767 lines** across 9 modules (6 active + 3 future).
 
 | Function | What It Does |
 |----------|-------------|
-| `select_model(task, budget_mode, agent)` | Pick model by SP + type + agent role. Budget constrains via `constrain_model_by_budget()`. |
+| `select_model_for_task(task, agent)` | Pick model by SP + type + agent role. |
 | `ModelConfig` | Dataclass: model name, effort level, selection reason. |
 
 ### 4.2 `model_configs.py` (225 lines)
@@ -279,7 +275,7 @@ Total: **1767 lines** across 9 modules (6 active + 3 future).
 ## 5. Dependency Graph
 
 ```
-model_selection.py    ← budget_modes (constrain_model_by_budget)
+model_selection.py    ← standalone (models.Task)
 model_configs.py      ← standalone
 model_benchmark.py    ← standalone
 shadow_routing.py     ← standalone

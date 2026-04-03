@@ -287,13 +287,106 @@ This section directly addresses CW-06: *"quote back in a document that prove we 
 
 ---
 
-## 7. Relationship to Fleet Systems
+## 7. Rate Limit Session Rollover — Cost Spike Discovery
+
+### PO Observation (2026-04-01, Verbatim)
+
+> "passing a high context through a curent session reset... seem to
+> spike the usage very very highly, as if we need to syn with that too
+> in our brain to agent communication, that its not just about waiting
+> when the current session limite is use at 90% but also preparing at
+> 85%, in a similar fasion as the end game strategy to not lose work
+> but at the same time to compact not to create huge spike of cost.."
+
+> "Its not like all context were going to be at 1M, especially not all
+> the time but in a 1M case this is certainly true, and possibly even a
+> little true for smaller context even if less impactfull a bit. (But I
+> saw a spike of 20% instantly earlier, as soon as I did my first message
+> in a conversation I was waiting after the reset of the current session.)"
+
+> "exactly and when I tried again with compact before 'rollover', I do
+> not have this spike."
+
+### What Happened
+
+1. Rate limit usage window hit ~90%+. PO waited for reset.
+2. Rate limit window rolled over (fresh quota).
+3. First message in the SAME high-context conversation → **20% of fresh quota consumed instantly**.
+4. PO tested with compaction BEFORE rollover → **no spike**.
+
+### Why This Happens
+
+Claude Code sends the **full conversation context** as input tokens on every API call (8-12 calls per message). A 1M-context session's first message in a fresh window re-sends the entire payload at full price. The previous window absorbed the cost of building that context gradually. The new window gets hit with the FULL accumulated weight in one shot.
+
+### Impact on Fleet
+
+With 10 agents, if multiple are holding heavy-context sessions when a rate limit window rolls over and they all heartbeat in the new window:
+
+- Each agent's first action re-sends its full context
+- 10 agents × heavy context = massive compound spike
+- Even at 200K per agent, this is significant
+- At 1M per agent, this could consume a large fraction of the fresh window immediately
+
+### PO Direction: Controlled Transition — Force Compact Near Rollover
+
+> "the trigger compact is the last resort... the goal is to do a
+> controlled transition like we discussed for the context endgame"
+
+> "at some point its force compact lol...the agent can only prepare
+> or declare with a till that its ready but we have to be sure that
+> it doesn't do it prematuraly either"
+
+> "if we reach the end of the reset I can surely tell you that we
+> will force compact all conversation that are too last and will cause
+> a spike, this is why we are aware and will not display a 1m context
+> big quest when approaching that time for example"
+
+> "imagine you room over 5 x 200 000 or 2 x 1m and whatnot this
+> makes no sense on a pro x5 that will take 50% of the whole 5 hours"
+
+> "if you are over 40 to 80 000 tokens or that you do not need to
+> persist your session context (useless predicted cost for the sole
+> purpose of being ready for a next job later...), dump (as smart
+> artifacts) it for a synthesised re-injection later if needed and/or
+> simply a new task if not related. Only smart things."
+
+The brain applies progressive awareness to rate limit windows:
+- **85% rate limit used** = start preparing (like 7% context remaining)
+- **90% rate limit used** = actively managing (like 5% context remaining)
+
+But near rollover with heavy contexts, **force compact IS appropriate**:
+- Allow going over 90% budget specifically for compacting (saves more)
+- Don't dispatch 1M context quests near rollover
+- Agents over ~40-80K with no predicted upcoming work → dump to artifacts
+- Aggregate math: 5×200K = 1M on rollover ≈ 50% of x5 Pro window
+- After rollover: fresh sessions or synthesised re-injection as needed
+
+### New Requirements
+
+| ID | Requirement | Source |
+|----|-------------|--------|
+| CW-07 | **Rate limit rollover awareness** — brain must track distance to rate limit window reset and factor agent context sizes | "we need to syn with that too in our brain to agent communication" |
+| CW-08 | **Pre-rollover preparation** — controlled context management before window resets, not after | "preparing at 85%... compact not to create huge spike of cost" |
+| CW-09 | **Context-size-proportional awareness** — 1M sessions need more aggressive preparation than 200K | "in a 1M case this is certainly true, and possibly even a little true for smaller context" |
+| CW-10 | **Multi-agent rollover coordination** — brain must stagger or manage multiple agents crossing rollover | "with multiple agent we need to be mindful" |
+
+### Cross-Cutting Impact
+
+> "for every milestones remain we will need to ask ourselves these kind
+> of question and revise everything of the logic that will make this
+> fleet amazing and unstopable with good outputs."
+
+This is not a standalone milestone. It is a lens applied to every remaining milestone. Full analysis in System 22 §4.7.
+
+---
+
+## 8. Relationship to Fleet Systems
 
 This awareness feeds directly into existing fleet milestones:
 
 | System | Connection |
 |--------|------------|
-| **Budget Mode (M-BM)** | Budget modes (blitz/standard/economic/frugal/survival/blackout) already model cost envelopes — context size is a hidden cost driver within each mode |
+| **Budget Mode (M-BM)** | Budget mode is a tempo setting — context size is a separate concern managed by session management |
 | **Multi-Backend Router (M-BR)** | Router should consider context cost when choosing backends — LocalAI has no context cost, Claude's context is the primary cost lever |
 | **Backend Health (M-BR07)** | Claude health tracking includes `quota_used_pct` — context burn rate directly affects this. JSON session data provides actual numbers. |
 | **Storm Prevention (M-SP)** | Context exhaustion can trigger storm conditions — an agent in a re-read loop after compaction is a cost storm |
@@ -305,7 +398,7 @@ The same JSON data that feeds the statusline also feeds our fleet systems. A new
 
 | Session Field | Fleet Module | Replaces |
 |---|---|---|
-| `cost.total_cost_usd` | `CostTicker.add_cost()` | Estimated cost |
+| `cost.total_cost_usd` | `to_cost_delta()` | Estimated cost |
 | `cost.total_duration_ms` | `LaborStamp.duration_seconds` | Estimated duration |
 | `cost.total_lines_added/removed` | `LaborStamp` (new fields) | No measurement |
 | `rate_limits.five_hour.used_percentage` | `ClaudeHealth.quota_used_pct` | Manual input |
@@ -327,7 +420,7 @@ This bridges the gap between our context awareness document and the fleet's oper
 
 ---
 
-## 8. Checklist
+## 9. Checklist
 
 - [x] Research subscription tiers and context access — verified, documented
 - [x] Research context visibility APIs — found JSON session data fields
@@ -343,3 +436,7 @@ This bridges the gap between our context awareness document and the fleet's oper
 - [ ] Add new fields to ClaudeHealth (weekly_quota_used_pct, context_window_size)
 - [ ] Add context_pressure as storm indicator
 - [ ] Implement agent compaction protocol (future milestone)
+- [ ] CW-07: Rate limit rollover awareness in brain/orchestrator
+- [ ] CW-08: Pre-rollover preparation logic (85%/90% thresholds)
+- [ ] CW-09: Context-size-proportional preparation (1M vs 200K)
+- [ ] CW-10: Multi-agent rollover coordination

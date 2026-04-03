@@ -50,7 +50,7 @@ class StormRecord:
             incident_id=report.incident_id,
             peak_severity=report.peak_severity,
             duration_seconds=report.duration_seconds,
-            estimated_cost_usd=report.estimated_cost_usd,
+            estimated_cost_usd=getattr(report, "estimated_cost_usd", 0.0),
             indicators=[i.split(":")[0].strip() for i in report.indicators],
             void_sessions=report.void_sessions,
             total_sessions=report.total_sessions,

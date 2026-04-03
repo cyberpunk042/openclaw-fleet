@@ -4,10 +4,19 @@ Tracks agent activity and manages transitions between states:
   ACTIVE → IDLE → SLEEPING → OFFLINE
 
 Agents wake on: task assignment, tag reference, @mention, explicit wake.
-Agents sleep when idle too long. Heartbeat frequency adapts to status.
+After 1 HEARTBEAT_OK, the brain takes over evaluation (silent heartbeat).
+The cron never stops — the brain intercepts and evaluates for free.
 
-This module is used by the orchestrator to decide WHEN to wake agents
-and HOW OFTEN to check on them.
+PO requirement (verbatim):
+> "the agent need to be able to do silent heartbeat when they deem
+> after a while that there is nothing new from the heartbeat, (2-3..)
+> then it relay the work to the brain to actually do a compare and an
+> automated work of the heartbeat in order to determine if it require
+> a real heartbeat."
+
+Refined (2026-04-01): 1 HEARTBEAT_OK is enough if done properly.
+No intermediate "drowsy" state — after one heartbeat with nothing,
+the brain takes the relay immediately.
 """
 
 from __future__ import annotations
@@ -19,45 +28,41 @@ from typing import Optional
 
 
 class AgentStatus(str, Enum):
-    """Smart agent status — drives heartbeat frequency and wake behavior.
+    """Agent status — drives heartbeat behavior and cost.
 
-    ACTIVE → IDLE → DROWSY → SLEEPING → OFFLINE
+    ACTIVE → IDLE → SLEEPING → OFFLINE
 
-    DROWSY is content-aware: after 2-3 consecutive HEARTBEAT_OK responses,
-    the agent signals "nothing for me" and the brain can evaluate
-    deterministically instead of making a Claude call.
+    After 1 HEARTBEAT_OK, agent transitions to IDLE and the brain
+    takes over heartbeat evaluation. The cron still fires, but the
+    brain intercepts — if nothing for this agent, silent OK ($0).
+    If wake trigger found, brain fires real heartbeat with strategic config.
 
-    > "the agent need to be able to do silent heartbeat when they deem
-    > after a while that there is nothing new from the heartbeat, (2-3..)
-    > then it relay the work to the brain to actually do a compare and an
-    > automated work of the heartbeat in order to determine if it require
-    > a real heartbeat."
+    The agent never stops. The brain is the filter between cron and Claude call.
     """
 
     ACTIVE = "active"       # Working on a task right now
-    IDLE = "idle"           # Awake, watching for work (no active task)
-    DROWSY = "drowsy"       # 2-3 HEARTBEAT_OK — brain can evaluate instead
-    SLEEPING = "sleeping"   # Dormant, brain evaluates for free (no Claude calls)
-    OFFLINE = "offline"     # Extended sleep, longer wake time
+    IDLE = "idle"           # 1 HEARTBEAT_OK — brain evaluates, cron still fires
+    SLEEPING = "sleeping"   # Extended idle, brain evaluates, longer intervals
+    OFFLINE = "offline"     # Very extended, slow wake
 
 
-# Transition thresholds (seconds) — time-based fallbacks
-IDLE_AFTER = 10 * 60          # 10 minutes without work → idle
+# Transition thresholds (seconds) — time-based
 SLEEPING_AFTER = 30 * 60      # 30 minutes idle → sleeping
 OFFLINE_AFTER = 4 * 60 * 60   # 4 hours sleeping → offline
 
-# Content-aware thresholds — HEARTBEAT_OK count based
-DROWSY_AFTER_HEARTBEAT_OK = 2   # consecutive HEARTBEAT_OK → drowsy
-SLEEPING_AFTER_HEARTBEAT_OK = 3  # consecutive HEARTBEAT_OK → sleeping
+# Content-aware threshold — 1 HEARTBEAT_OK = brain takes over
+IDLE_AFTER_HEARTBEAT_OK = 1   # 1 proper heartbeat with nothing → brain relay
 
 # Heartbeat intervals by status (seconds)
-# IMPORTANT: keep these long enough to avoid flooding the board
+# These control how often the CRON fires. The brain intercepts every fire.
+# ACTIVE: no cron needed, agent drives its own work via Claude session
+# IDLE: cron fires, brain evaluates (free), fires real heartbeat only if needed
+# SLEEPING: longer interval, brain still evaluates on each fire
 HEARTBEAT_INTERVALS = {
-    AgentStatus.ACTIVE: 0,              # No heartbeat — agent drives its own work
-    AgentStatus.IDLE: 30 * 60,          # 30 minutes — normal monitoring
-    AgentStatus.DROWSY: 60 * 60,        # 60 minutes — reduced, brain evaluates between
-    AgentStatus.SLEEPING: 2 * 60 * 60,  # 2 hours — rare check
-    AgentStatus.OFFLINE: 2 * 60 * 60,   # 2 hours — minimal check
+    AgentStatus.ACTIVE: 0,              # No cron — agent drives its own work
+    AgentStatus.IDLE: 10 * 60,          # 10 minutes — brain intercepts each fire
+    AgentStatus.SLEEPING: 30 * 60,      # 30 minutes — brain intercepts each fire
+    AgentStatus.OFFLINE: 60 * 60,       # 60 minutes — minimal checking
 }
 
 
@@ -72,7 +77,7 @@ class AgentState:
     last_task_completed_at: Optional[datetime] = None
     current_task_id: Optional[str] = None
     # Content-aware lifecycle fields
-    consecutive_heartbeat_ok: int = 0             # HEARTBEAT_OK count → drowsy/sleeping
+    consecutive_heartbeat_ok: int = 0             # HEARTBEAT_OK count
     last_heartbeat_data_hash: str = ""            # Hash of pre-embed data at last heartbeat
 
     def update_activity(self, now: datetime, has_active_task: bool, task_id: str = "") -> None:
@@ -84,39 +89,31 @@ class AgentState:
             self.consecutive_heartbeat_ok = 0  # reset — agent is working
             return
 
-        # No active task — transition based on HEARTBEAT_OK count
-        # (content-aware) with time-based fallback
+        # No active task — transition based on idle duration
         if self.last_active_at is None:
             self.last_active_at = now
 
         idle_seconds = (now - self.last_active_at).total_seconds()
 
-        # Content-aware transitions take priority over time-based
-        if self.consecutive_heartbeat_ok >= SLEEPING_AFTER_HEARTBEAT_OK:
-            self.status = AgentStatus.SLEEPING
-        elif self.consecutive_heartbeat_ok >= DROWSY_AFTER_HEARTBEAT_OK:
-            self.status = AgentStatus.DROWSY
-        # Time-based fallback (if heartbeat_ok counting isn't happening)
-        elif idle_seconds < IDLE_AFTER:
-            self.status = AgentStatus.IDLE
-        elif idle_seconds < SLEEPING_AFTER:
-            # Use DROWSY as intermediate before SLEEPING
-            if self.status != AgentStatus.DROWSY:
-                self.status = AgentStatus.DROWSY
-            else:
+        # After 1 HEARTBEAT_OK → IDLE (brain takes over)
+        if self.consecutive_heartbeat_ok >= IDLE_AFTER_HEARTBEAT_OK:
+            if idle_seconds >= OFFLINE_AFTER:
+                self.status = AgentStatus.OFFLINE
+            elif idle_seconds >= SLEEPING_AFTER:
                 self.status = AgentStatus.SLEEPING
-        elif idle_seconds < OFFLINE_AFTER:
-            self.status = AgentStatus.SLEEPING
+            else:
+                self.status = AgentStatus.IDLE
         else:
-            self.status = AgentStatus.OFFLINE
+            # Haven't had a HEARTBEAT_OK yet — still fresh idle
+            self.status = AgentStatus.IDLE
 
         self.current_task_id = None
 
     def record_heartbeat_ok(self) -> None:
         """Record that the agent's heartbeat returned HEARTBEAT_OK.
 
-        Called by the orchestrator when an agent heartbeat produces
-        no work. Drives content-aware sleep transitions.
+        After 1 HEARTBEAT_OK, the brain takes over evaluation.
+        The cron still fires, brain intercepts for free.
         """
         self.consecutive_heartbeat_ok += 1
 
@@ -128,11 +125,15 @@ class AgentState:
         self.consecutive_heartbeat_ok = 0
 
     def needs_heartbeat(self, now: datetime) -> bool:
-        """Check if this agent needs a heartbeat based on status and interval."""
+        """Check if this agent needs a heartbeat based on status and interval.
+
+        Note: this determines if the CRON should fire. The brain's
+        HeartbeatGate then decides if it's a real Claude call or silent OK.
+        """
         if self.status == AgentStatus.ACTIVE:
             return False  # Active agents drive their own work
 
-        interval = HEARTBEAT_INTERVALS.get(self.status, 300)
+        interval = HEARTBEAT_INTERVALS.get(self.status, 600)
         if interval == 0:
             return False
 
@@ -153,7 +154,16 @@ class AgentState:
 
     def should_wake_for_task(self) -> bool:
         """Check if agent should be woken for a task assignment."""
-        return self.status in (AgentStatus.DROWSY, AgentStatus.SLEEPING, AgentStatus.OFFLINE)
+        return self.status in (AgentStatus.IDLE, AgentStatus.SLEEPING, AgentStatus.OFFLINE)
+
+    @property
+    def brain_evaluates(self) -> bool:
+        """Whether the brain should intercept this agent's heartbeat.
+
+        After 1 HEARTBEAT_OK, the brain evaluates deterministically
+        instead of making a Claude call. The cron still fires.
+        """
+        return self.consecutive_heartbeat_ok >= IDLE_AFTER_HEARTBEAT_OK
 
 
 class FleetLifecycle:
@@ -162,8 +172,8 @@ class FleetLifecycle:
     Used by the orchestrator to make smart decisions about:
     - When to send heartbeats (status-based intervals)
     - When to wake agents (task assignment, triggers)
-    - When to let agents sleep (no work available)
-    - Fleet resource optimization (don't cycle idle agents)
+    - When the brain should intercept (brain_evaluates property)
+    - Fleet resource optimization (idle agents cost $0)
     """
 
     def __init__(self) -> None:
@@ -202,7 +212,6 @@ class FleetLifecycle:
         summary: dict[str, list[str]] = {
             "active": [],
             "idle": [],
-            "drowsy": [],
             "sleeping": [],
             "offline": [],
         }

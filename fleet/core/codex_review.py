@@ -43,11 +43,6 @@ REVIEW_TIERS = {"trainee", "trainee-validated", "community", "hybrid"}
 assert "trainee" in VALID_TIERS
 assert "trainee-validated" in VALID_TIERS
 
-# Budget modes where Codex review is allowed (costs OpenAI tokens)
-REVIEW_BUDGET_MODES = {"blitz", "standard", "economic"}
-
-# Budget modes where we use LocalAI instead of Codex (free)
-FREE_REVIEW_MODES = {"frugal", "survival"}
 
 # Plugin slash commands
 CODEX_REVIEW_CMD = "/codex:review"
@@ -57,57 +52,25 @@ CODEX_RESCUE_CMD = "/codex:rescue"
 
 def should_trigger_review(
     confidence_tier: str,
-    budget_mode: str,
     task_type: str = "",
     force: bool = False,
 ) -> tuple[bool, str]:
     """Decide whether to trigger a Codex adversarial review.
 
+    Based on confidence tier — lower-tier work gets reviewed.
     Returns (should_review, reason).
     """
     if force:
         return True, "forced by caller"
 
-    if budget_mode == "blackout":
-        return False, "blackout mode — no reviews allowed"
-
     if confidence_tier not in REVIEW_TIERS:
         return False, f"tier '{confidence_tier}' does not require adversarial review"
 
-    if budget_mode in FREE_REVIEW_MODES:
-        return True, (
-            f"review needed (tier={confidence_tier}), "
-            f"will use LocalAI (free, mode={budget_mode})"
-        )
-
-    if budget_mode in REVIEW_BUDGET_MODES:
-        return True, (
-            f"review needed (tier={confidence_tier}), "
-            f"will use Codex plugin (mode={budget_mode})"
-        )
-
-    return False, f"budget mode '{budget_mode}' not configured for reviews"
+    return True, f"review needed (tier={confidence_tier})"
 
 
-def review_backend(budget_mode: str) -> str:
-    """Which backend to use for adversarial review.
-
-    In frugal/survival modes, point at LocalAI for free review.
-    Otherwise, use Codex plugin (which uses OpenAI API).
-    """
-    if budget_mode in FREE_REVIEW_MODES:
-        return "localai"
-    return "codex-plugin"
-
-
-def review_command(budget_mode: str, adversarial: bool = True) -> str:
-    """Which plugin slash command to use.
-
-    Returns the slash command string that an agent would invoke.
-    """
-    if budget_mode in FREE_REVIEW_MODES:
-        # Free mode: no Codex, use LocalAI challenge system instead
-        return ""
+def review_command(adversarial: bool = True) -> str:
+    """Which plugin slash command to use."""
     if adversarial:
         return CODEX_ADVERSARIAL_CMD
     return CODEX_REVIEW_CMD
@@ -123,36 +86,17 @@ class CodexReviewRequest:
     pr_number: int
     repo: str                    # owner/repo
     confidence_tier: str
-    budget_mode: str
     task_type: str = ""
     files_changed: list[str] = field(default_factory=list)
     adversarial: bool = True     # Use adversarial-review vs standard review
     instructions: str = ""       # Custom review instructions
 
     @property
-    def backend(self) -> str:
-        return review_backend(self.budget_mode)
-
-    @property
     def command(self) -> str:
-        return review_command(self.budget_mode, self.adversarial)
-
-    @property
-    def uses_codex(self) -> bool:
-        return self.backend == "codex-plugin"
+        return review_command(self.adversarial)
 
     def to_agent_instruction(self) -> str:
-        """Build the instruction an agent would receive to trigger the review.
-
-        This is what gets injected into an agent's task context so it
-        knows to invoke the Codex plugin for adversarial review.
-        """
-        if not self.uses_codex:
-            return (
-                f"Review PR #{self.pr_number} in {self.repo} using "
-                f"the local challenge system (budget mode: {self.budget_mode})."
-            )
-
+        """Build the instruction an agent would receive to trigger the review."""
         parts = [
             f"Run `{self.command}` on PR #{self.pr_number} in {self.repo}.",
         ]
@@ -171,8 +115,6 @@ class CodexReviewRequest:
             "pr_number": self.pr_number,
             "repo": self.repo,
             "confidence_tier": self.confidence_tier,
-            "budget_mode": self.budget_mode,
-            "backend": self.backend,
             "command": self.command,
             "adversarial": self.adversarial,
             "task_type": self.task_type,

@@ -244,7 +244,6 @@ def is_challenge_required(
     task_type: str,
     story_points: int,
     confidence_tier: str,
-    budget_mode: str,
 ) -> tuple[bool, str]:
     """Determine if a challenge is required for this task.
 
@@ -254,18 +253,12 @@ def is_challenge_required(
     if task_type == "heartbeat":
         return False, "heartbeats never challenged"
 
-    # Budget mode overrides
-    if budget_mode in ("survival", "blackout"):
-        return False, f"{budget_mode} mode: challenges disabled"
-
     # Security and architecture: always mandatory
     if task_type in ("blocker", "concern"):
         return True, "security/blocker tasks always require challenge"
 
-    # Trainee/community tier: always mandatory (if budget allows)
+    # Trainee/community tier: always mandatory
     if confidence_tier in ("trainee", "community"):
-        if budget_mode in ("frugal",):
-            return False, "frugal mode: challenge deferred for trainee work"
         return True, f"{confidence_tier} tier work requires adversarial validation"
 
     # Bug fixes with significant complexity
@@ -291,7 +284,6 @@ def select_challenge_type(
     task_type: str,
     story_points: int,
     confidence_tier: str,
-    budget_mode: str,
     is_bug_fix: bool = False,
 ) -> str:
     """Select the appropriate challenge type based on context.
@@ -302,21 +294,15 @@ def select_challenge_type(
     if is_bug_fix and story_points >= 3:
         return ChallengeType.SCENARIO
 
-    # Budget-constrained: automated only
-    if budget_mode in ("economic", "frugal"):
-        return ChallengeType.AUTOMATED
-
     # Trainee/community: cross-model (verify with stronger model)
     if confidence_tier in ("trainee", "community"):
-        if budget_mode == "blitz":
-            return ChallengeType.CROSS_MODEL
-        return ChallengeType.AGENT  # Standard mode: agent challenge
+        return ChallengeType.CROSS_MODEL
 
     # Complex work: agent challenge
     if story_points >= 5 or task_type in ("epic", "blocker"):
         return ChallengeType.AGENT
 
-    # Default: automated (free)
+    # Default: automated
     return ChallengeType.AUTOMATED
 
 

@@ -40,11 +40,11 @@
 
 Agent lifecycle (docs/systems/06) defines 5 states with thresholds:
 ```
-ACTIVE (working) → IDLE (10min) → DROWSY (2 HEARTBEAT_OK) →
+ACTIVE (working) → IDLE (10min) → IDLE (2 HEARTBEAT_OK) →
 SLEEPING (3 HEARTBEAT_OK) → OFFLINE (4h)
 ```
 
-Heartbeat intervals: ACTIVE=0, IDLE=30min, DROWSY=60min, SLEEPING=2h.
+Heartbeat intervals: ACTIVE=0, IDLE=30min, IDLE=60min, SLEEPING=2h.
 
 Effort profiles (docs/systems/05) define 4 throttle levels:
 full, conservative, minimal, paused.
@@ -60,13 +60,13 @@ CURRENT: Every agent, same thresholds
 
 NEEDED: Per-agent, per-role, adaptive thresholds
   PM: faster wake (tasks queue up), slower sleep (always monitoring)
-    idle_after: 5 min, drowsy_ok: 1, sleeping_ok: 2
+    idle_after: 5 min, idle_ok: 1, sleeping_ok: 2
   fleet-ops: moderate (reviews come in bursts)
-    idle_after: 10 min, drowsy_ok: 2, sleeping_ok: 3
+    idle_after: 10 min, idle_ok: 2, sleeping_ok: 3
   workers: slower wake (work is dispatched), faster sleep (idle is expensive)
-    idle_after: 15 min, drowsy_ok: 2, sleeping_ok: 3
+    idle_after: 15 min, idle_ok: 2, sleeping_ok: 3
   devsecops: fast wake on security events, slow sleep otherwise
-    idle_after: 10 min, drowsy_ok: 3, sleeping_ok: 4
+    idle_after: 10 min, idle_ok: 3, sleeping_ok: 4
     wake_on: ["security_alert", "pr_ready_for_review"]
 ```
 
@@ -76,14 +76,14 @@ NEEDED: Per-agent, per-role, adaptive thresholds
 # config/agent-autonomy.yaml
 defaults:
   idle_after_seconds: 600
-  drowsy_after_heartbeat_ok: 2
+  idle_after_heartbeat_ok: 2
   sleeping_after_heartbeat_ok: 3
   offline_after_seconds: 14400
 
 overrides:
   project-manager:
     idle_after_seconds: 300      # faster to notice work
-    drowsy_after_heartbeat_ok: 1 # goes drowsy quickly when idle
+    idle_after_heartbeat_ok: 1 # goes idle quickly when idle
     wake_triggers:
       - unassigned_inbox          # always wake for this
       - po_directive              # PO commands are urgent
@@ -167,23 +167,16 @@ These scale INDEPENDENTLY based on signals.
 
 ```
 Task complexity signals:
-  SP ≥ 8                    → opus, high effort, 25 turns
-  SP ≥ 5                    → sonnet, high effort, 15 turns
-  SP < 5                    → sonnet, medium effort, 10 turns
-  SP = 1, simple subtask    → hermes-3b (localai), low effort, 5 turns
+  SP ≥ 8                    → opus, high effort
+  SP ≥ 5                    → sonnet, high effort
+  SP < 5                    → sonnet, medium effort
+  SP = 1, simple subtask    → hermes-3b (localai), low effort
 
 Agent confidence signals:
   confidence_tier = expert  → can use lower effort (work is reliable)
   confidence_tier = trainee → MUST use higher effort (work needs quality)
   correction_count ≥ 2      → escalate to opus (model might be wrong)
   
-Budget pressure signals:
-  blitz mode               → opus allowed, max effort, 30 turns
-  standard mode            → opus for complex only
-  economic mode            → sonnet only, medium effort
-  frugal mode              → localai only, low effort, 5 turns
-  survival mode            → localai, minimal, skip if possible
-
 Outcome signals:
   task rejected by fleet-ops → escalate effort on retry
   challenge failed           → escalate model tier on re-attempt
@@ -192,60 +185,34 @@ Outcome signals:
 Context signals:
   context at 70%+           → compact before next heavy work
   context at 90%+           → extract artifacts to memory, prepare for compact
-  agent in DROWSY           → if waking, use compact session (not fresh)
+  agent in IDLE           → if waking, use compact session (not fresh)
 ```
 
-### 2.3 Strategic Claude Call Matrix (from fleet-elevation/23)
+### 2.3 Strategic Claude Call Decisions
 
-| Situation | Model | Effort | Session | Turns |
-|-----------|-------|--------|---------|-------|
-| Sleeping, nothing new | NO CALL | — | — | — |
-| Sleeping, gradual wake | sonnet | medium | compact | 5 |
-| Sleeping, prompt wake (task) | Per complexity | high | fresh | 15 |
-| Active, heartbeat | sonnet | medium | continue | 5 |
-| Active, complex work | opus | high | continue | 25 |
-| Active, simple contribution | sonnet | medium | fresh | 10 |
-| Bloated context | sonnet | high | compact then continue | 15 |
-| Planning | opus | high | plan mode | 20 |
-| Crisis | opus | max | fresh | 30 |
-| Budget 80%+ | sonnet | medium | compact | 5 |
-| Budget 90%+ | NO CALL | — | — | — |
+Model and effort are selected by `model_selection.py` based on task
+complexity (SP) and agent role. Session strategy depends on context
+state, not lifecycle state. Turn counts are TBD — need PO definition
+or live testing data.
+
+Key decisions:
+- Sleeping + nothing new → NO CALL (brain handles silently)
+- Task assigned → model by complexity (model_selection.py)
+- Budget 90%+ → pause dispatch (budget_monitor.py)
+- Context bloated → compact before next work (session management)
 
 ### 2.4 Implementation Location
 
 Escalation logic belongs in the orchestrator's dispatch decision:
 
+Model selection is in `model_selection.py` — selects opus/sonnet by
+task complexity and agent role. Budget mode (tempo) does NOT control
+model selection. Backend selection is in `fleet_mode.py` (backend_mode).
+
 ```python
-def decide_claude_call(agent_state, task, budget_mode, health):
-    """Decide model, effort, session strategy, and max turns."""
-    
-    # Budget gate — can we call at all?
-    if budget_mode in ("blackout", "survival") and not task:
-        return None  # no call
-    
-    # Complexity → base model
-    sp = task.custom_fields.story_points if task else 0
-    if sp >= 8: model = "opus"
-    elif sp >= 5: model = "sonnet"
-    else: model = "sonnet"
-    
-    # Budget constrains
-    model, effort, _ = constrain_model_by_budget(model, "high", "", budget_mode)
-    
-    # Confidence escalation
-    if health.correction_count >= 2:
-        model = "opus"  # model might be wrong, use best
-    
-    # Context strategy
-    if agent_state.context_used_pct and agent_state.context_used_pct > 70:
-        session = "compact"
-    elif agent_state.status == AgentStatus.SLEEPING:
-        session = "fresh"
-    else:
-        session = "continue"
-    
-    return ClaudeCallConfig(model=model, effort=effort, 
-                           session=session, max_turns=turns)
+# model_selection.py — already implemented
+select_model_for_task(task, agent_name)
+# Returns ModelConfig(model, effort, reason) based on SP + task type + role
 ```
 
 ---
@@ -378,182 +345,129 @@ Research finding → ingest into kb.py
 > "exactly like the shift we did a little while ago that you took
 > very well and started to barely consume context at this point"
 
-### 4.1 The Two Modes
+### 4.1 The Organic Flow Model
 
-An agent session operates in TWO modes:
+#### PO Requirement (Verbatim, 2026-04-01)
 
-```
-EXPANSION MODE (context < 70%):
-  Agent is BUILDING understanding:
-  ├── Reading files, exploring code
-  ├── Researching online, comparing options
-  ├── Producing analysis/investigation artifacts
-  ├── Having conversations with PO and colleagues
-  └── Context GROWS with each action
+> "7% for me would be the safe tipping point, with 5% being the real,
+> and before that its just informational, even if progressive and mindful"
 
-DELIVERY MODE (context ≥ 70%):
-  Agent is PRODUCING output from understood work:
-  ├── Writing code from confirmed plans
-  ├── Committing changes (small, focused)
-  ├── Saving artifacts (fleet_artifact_update)
-  ├── Posting decisions to board memory
-  └── Context BARELY grows — actions are small and focused
-```
+> "We do not compact for no reason, we let it flow, flow flow down to 0%"
 
-The shift from expansion to delivery is NOT sudden. It's a GRADIENT
-that the agent manages based on context pressure. The key insight:
-**once the work is fully understood, every remaining action should
-PRODUCE OUTPUT rather than CONSUME INPUT.**
+> "we went from 7% to 0% and you are still alive"
 
-### 4.2 The Context Pressure Zones
+> "from the time we have to respond and engage the regather smart context
+> protocol everything has been properly synthesised and extracted and
+> ready to continue working on"
+
+The context endgame is NOT a rigid zone system with fixed percentages.
+It is an organic, progressive awareness that intensifies naturally as
+context fills. The AI keeps working — it doesn't suddenly change mode
+at arbitrary thresholds. The shift is organic, not forced.
+
+### 4.2 Context Remaining — Progressive Awareness
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  ZONE 1: EXPANSION (context 0-70%)                      │
-│                                                          │
-│  Normal operation. Read, research, explore freely.       │
-│  Produce analysis artifacts progressively.               │
-│  No restrictions on context growth.                      │
-│                                                          │
-│  Actions: Read files, WebSearch, fleet_read_context,     │
-│           fleet_artifact_create, investigation, analysis  │
-├─────────────────────────────────────────────────────────┤
-│  ZONE 2: EFFICIENCY (context 70-85%)                     │
-│                                                          │
-│  Still working but AWARE of pressure.                    │
-│  No unnecessary reads (don't re-read files already seen).│
-│  Finish current artifact section, don't start new ones.  │
-│  Consider: should remaining work be a SUBTASK?           │
-│                                                          │
-│  Actions: fleet_artifact_update (save work), commit code │
-│           that's ready, post progress updates             │
-├─────────────────────────────────────────────────────────┤
-│  ZONE 3: DELIVERY (context 85-93%)                       │
-│                                                          │
-│  STOP EXPANDING. Start DELIVERING.                       │
-│  Execute already-defined work. Follow confirmed plan.    │
-│  Every action should produce output, not consume input.  │
-│  Save ALL in-progress work to artifacts.                 │
-│  Post ALL decisions to board memory.                     │
-│                                                          │
-│  Actions: fleet_commit (code that's written),            │
-│           fleet_artifact_update (save analysis/plan),     │
-│           fleet_task_progress (current state),            │
-│           fleet_chat (decisions, findings to memory)      │
-│                                                          │
-│  DO NOT: start new file reads, start new research,       │
-│          open new investigation branches                  │
-├─────────────────────────────────────────────────────────┤
-│  ZONE 4: EXTRACTION (context 93-97%)                     │
-│                                                          │
-│  EVERYTHING MUST BE SAVED before compaction.             │
-│  Complete any in-progress commits.                       │
-│  fleet_task_complete if work is done.                    │
-│  fleet_task_progress with full state if work continues.  │
-│  All learnings to memory (MEMORY.md).                    │
-│                                                          │
-│  Actions: ONLY output tools. No reads. No research.     │
-│           Every action = producing a recoverable artifact │
-├─────────────────────────────────────────────────────────┤
-│  ZONE 5: COMPACT OR COMPLETE (context 97%+)              │
-│                                                          │
-│  If work is DONE → fleet_task_complete (triggers full    │
-│  completion chain — PR, review, approval, IRC, Plane)    │
-│                                                          │
-│  If work is NOT done → strategic /compact:               │
-│  "Preserve: task {id}, stage {stage}, verbatim,          │
-│   artifact state ({N}/{M} fields), plan reference"       │
-│  → After compact: pre-embed has task state               │
-│  → Agent continues from where artifacts show             │
-│                                                          │
-│  NEVER: let compaction happen uncontrolled. Either        │
-│  complete the work OR compact with instructions.         │
-└─────────────────────────────────────────────────────────┘
+100% → 30% remaining:
+  Normal work. No restrictions. No forced efficiency.
+  Read, research, explore, build understanding.
+  The AI is doing its job. Let it flow.
+
+30% → 7% remaining:
+  Progressive mindfulness. Organic efficiency.
+  The AI naturally becomes more focused as it has built understanding.
+  This shift is NOT forced — it happens because the AI has already
+  done the research and is now producing from understood material.
+  Informational awareness only. No hard rules.
+
+7% remaining (safe tipping point):
+  Prepare extraction. Synthesize findings. Save artifacts.
+  Ensure work-in-progress is recoverable.
+  KEEP WORKING — a lot can play itself in the last 7%.
+
+5% remaining (real tipping point):
+  Final extraction. Commit code. Update artifacts. Write memory.
+  Everything extracted enables clean continuation after compact.
+
+0% → compact:
+  AI is still alive at 0%. Engage regather smart context protocol.
+  Read memory, read state, continue working.
+  Everything has been properly synthesised and extracted.
 ```
 
-### 4.3 Why This Works — The Pattern Observed
+**Key principles:**
+- Do NOT force compact. Let it flow.
+- Do NOT switch to a different "mode" at arbitrary percentages.
+- The shift from expansion to delivery is organic — it happens when
+  understanding is complete, not when a percentage triggers it.
+- A lot of valuable work happens in the last 7% of context.
+- At 0% the AI is still alive. Compact is not death.
+
+### 4.3 Why the Organic Model Works — The Pattern Observed
 
 The PO observed this pattern happen naturally in a real session:
 
 1. Early session: heavy research, file reads, design exploration
    → context grew rapidly
 2. Understanding crystallized: requirements clear, plan confirmed
-3. **Shift happened:** AI switched to small edits, focused commits,
-   minimal reads — context barely grew
+3. **Shift happened naturally:** AI switched to small edits, focused
+   commits, minimal reads — context barely grew
 4. Artifacts produced efficiently from understood material
 5. Work delivered BEFORE compaction hit
+6. Context went from 7% to 0% remaining — AI still alive and working
 
 This shift was EFFECTIVE because the AI had FULLY UNDERSTOOD the work
-before the context filled. The efficiency zone wasn't forced — it was
-natural because all remaining actions were well-defined.
+before the context filled. The efficiency was NOT forced by a zone
+system — it was natural because all remaining actions were well-defined.
 
-**The system should ENGINEER this shift:**
-- Session telemetry provides `context_used_pct`
-- HeartbeatBundle can include context pressure zone (1-5)
-- CLAUDE.md can include context management protocol
-- The ACTION directive in heartbeat can change based on zone:
-  - Zone 1-2: "Work on your assigned tasks"
-  - Zone 3: "DELIVERY MODE: produce output from understood work"
-  - Zone 4: "EXTRACTION: save all work to artifacts NOW"
+The RIGHT time to shift is when understanding is COMPLETE:
+- Requirement understood (verbatim processed)
+- Plan confirmed (PO approved, readiness 99)
+- All contributions received (if applicable)
+- Remaining work is EXECUTION, not EXPLORATION
+- THEN the shift happens organically regardless of context %
+
+Fixed-percentage triggers are WRONG because sometimes work isn't
+understood enough at 85% used. Forcing delivery of half-baked work
+is worse than letting context flow and producing quality output.
 
 ### 4.4 Implementation Across Systems
 
-This isn't one module — it's a cross-cutting behavior:
+This is a cross-cutting behavior, not a single module:
 
 | System | What It Does |
 |--------|-------------|
-| **Session Telemetry** | Provides `context_used_pct` and `context_pressure` |
-| **HeartbeatBundle** | Includes context zone in ACTION directive |
-| **CLAUDE.md** | Includes context management protocol (5 zones) |
-| **Orchestrator** | Brain can adjust max_turns based on context pressure |
-| **Storm Monitor** | context_pressure at 70%+ → storm indicator |
-| **Methodology** | Zone 3+ → prioritize completing current stage over starting new |
-| **MCP Tools** | Could warn on Read/Grep calls in Zone 4+ |
-| **Memory** | Zone 4 → auto-save learnings to MEMORY.md |
+| **Session Telemetry** | Provides `context_used_pct` and `context_remaining_pct` |
+| **HeartbeatBundle** | Includes context awareness — informational, not directive |
+| **CLAUDE.md** | Includes context management awareness (organic, not zone-based) |
+| **Orchestrator** | Brain aware of agent context levels for dispatch decisions |
+| **Storm Monitor** | Extreme context pressure as one storm indicator (not the only one) |
+| **Methodology** | Near 7% remaining → prioritize completing current stage |
+| **Memory** | Near 5% remaining → auto-save learnings to MEMORY.md |
+| **Pre-embed** | After compact → regather from memory, not full re-reads |
 
-### 4.5 The Right Time to Shift
-
-The PO said: "if you find just the right time to stop in order to
-prevent premature compaction." The RIGHT time is:
-
-```
-WRONG: Shift at fixed percentage (always at 85%)
-  → Sometimes work isn't understood enough at 85%
-  → Forces premature delivery of half-baked work
-
-RIGHT: Shift when understanding is COMPLETE
-  → Requirement understood (verbatim processed)
-  → Plan confirmed (PO approved, readiness 99)
-  → All contributions received (if applicable)
-  → Remaining work is EXECUTION, not EXPLORATION
-  → THEN shift to delivery mode regardless of context %
-
-The zone system is a FALLBACK for when the natural shift doesn't
-happen soon enough. If context hits 85% and the agent is still
-exploring, the system FORCES the shift to prevent context waste.
-```
-
-### 4.6 Connection to Agent Lifecycle
+### 4.5 Connection to Agent Lifecycle
 
 Context endgame connects to the lifecycle system:
 
 ```
-Agent completes work in delivery mode → fleet_task_complete
-  → Context was used efficiently → task delivered
+Agent completes work organically → fleet_task_complete
+  → Context was used naturally → task delivered
   → Compaction doesn't matter — work is done
 
-Agent runs out of context before completing → strategic compact
-  → Preserve task state in compact instructions
+Agent context runs low before completing → organic preparation
+  → At 7% remaining: synthesize, save artifacts, keep working
+  → At 5% remaining: final extraction, commit, memory write
+  → At 0%: compact, regather from memory, continue
   → Next heartbeat: pre-embed has artifact state
   → Agent resumes from artifacts (not from scratch)
   → Consecutive HEARTBEAT_OK doesn't increment (agent has work)
 
-Agent context is wasted (expansion too long, no delivery)
-  → Doctor detects: "context at 95%, no artifacts produced"
+Agent context is wasted (no artifacts produced, nothing saved)
+  → Doctor detects: "context near 0%, no artifacts produced"
   → This IS a disease: context_contamination
   → Teaching lesson: "Extract work to artifacts before context fills"
   → Force compact if agent doesn't respond
-```
 
 Agent is pruned (by doctor):
   → Session killed. ALL context lost.
@@ -563,23 +477,26 @@ Agent is pruned (by doctor):
   → Agent resumes from where artifacts + pre-embed show
 ```
 
-### 4.3 How This Connects to Session Telemetry
+### 4.6 Session Telemetry Connection
 
 Session telemetry (W8) provides the data:
 ```
 SessionSnapshot.context_used_pct → agent can read this
-SessionSnapshot.context_pressure → "critical" / "high" / "moderate" / "low"
+SessionSnapshot.context_remaining_pct → how much is left
+SessionSnapshot.rate_limit_used_pct → 5h/7d window usage
 ```
 
-Currently this data feeds STORM indicators (context_pressure at 70%+).
-It should ALSO be available to the agent itself — either pre-embedded
-in heartbeat context or accessible via a tool.
+This data feeds:
+- Agent awareness (pre-embedded or via tool)
+- Storm indicators (extreme context pressure)
+- Brain dispatch decisions (agent context level)
+- Rate limit session cycle awareness (§4.7)
 
-### 4.4 Memory System Integration
+### 4.7a Memory System Integration
 
 Claude Code's auto-memory (`~/.claude/projects/*/memory/`) provides
 cross-session persistence. Claude-Mem plugin adds semantic retrieval.
-Together with fleet's pre-embed, agents have 3 layers of context recovery:
+Together with fleet's pre-embed, agents have 4 layers of context recovery:
 
 ```
 Layer 1: Pre-embedded context (FREE, every heartbeat)
@@ -601,6 +518,181 @@ Layer 4: Fleet RAG (persistent, shared)
   Survives docker purge (SQLite on host filesystem).
 ```
 
+**Regather protocol (after compact):**
+Read memory files for recovery (200-500 tokens) instead of full source
+re-reads (50K+ tokens). Memory was prepared during the organic
+extraction at 7%/5% remaining. This is the "regather smart context
+protocol" the PO defined.
+
+### 4.7 Rate Limit Session Cycle Awareness
+
+#### PO Requirement (Verbatim)
+
+> "passing a high context through a curent session reset... seem to
+> spike the usage very very highly, as if we need to syn with that too
+> in our brain to agent communication, that its not just about waiting
+> when the current session limite is use at 90% but also preparing at
+> 85%, in a similar fasion as the end game strategy to not lose work
+> but at the same time to compact not to create huge spike of cost.."
+
+> "Its not like all context were going to be at 1M, especially not all
+> the time but in a 1M case this is certainly true, and possibly even a
+> little true for smaller context even if less impactfull a bit. (But I
+> saw a spike of 20% instantly earlier, as soon as I did my first message
+> in a conversation I was waiting after the reset of the current session.)"
+
+> "exactly and when I tried again with compact before 'rollover', I do
+> not have this spike. so its a vital piece of information that also
+> shape what we will build. its not that we dont want to re-use /
+> re-inject session / conversion into the current usage session but to
+> do so without huhe spike especially with multiple agent we need to be
+> mindful, even if we do not give 1M token to every labor."
+
+#### The Observation
+
+When a rate limit usage window resets (5-hour or 7-day) while an agent
+still holds a high-context conversation, the first message in the new
+window re-sends the entire context payload. Real data: **20% of fresh
+quota consumed instantly** on one message after rate limit rollover.
+
+When the context was compacted BEFORE the rollover — **no spike**.
+
+This means there are TWO parallel countdowns the brain must manage:
+
+1. **Context remaining** (per-agent): 7% remaining = prepare, 5% = real
+2. **Rate limit usage session** (fleet-wide): 85% used = prepare, 90% = actively manage
+
+Both interact. An agent at heavy context near rate limit rollover is
+a compound risk. Multiple agents with heavy context all heartbeating
+into a fresh window = compounding spikes.
+
+#### PO: Controlled Transition — With Force Compact Near Rollover
+
+> "the trigger compact is the last resort... the goal is to do a
+> controlled transition like we discussed for the context endgame which
+> might often be use for medium to high tasks... especially those with
+> chalanges and failures."
+
+> "at some point its force compact lol...the agent can only prepare
+> or declare with a till that its ready but we have to be sure that
+> it doesn't do it prematuraly either"
+
+> "if we reach the end of the reset I can surely tell you that we
+> will force compact all conversation that are too last and will cause
+> a spike, this is why we are aware and will not display a 1m context
+> big quest when approaching that time for example"
+
+> "imagine you room over 5 x 200 000 or 2 x 1m and whatnot this
+> makes no sense on a pro x5 that will take 50% of the whole 5 hours"
+
+> "this is why not only you prepare them to extract their work and
+> prepare for compat when appropriate allowing the overflows for the
+> budget of compacting even though over 90"
+
+> "if you are over 40 to 80 000 tokens or that you do not need to
+> persist your session context (useless predicted cost for the sole
+> purpose of being ready for a next job later...), dump (as smart
+> artifacts) it for a synthesised re-injection later if needed and/or
+> simply a new task if not related. Only smart things. the brain is
+> smart. it goes without saying."
+
+The brain uses progressive organic transition FIRST. But near rollover
+with agents holding heavy context, **force compact IS appropriate**:
+
+1. **Normal operation**: organic transition, same as context endgame
+2. **Approaching rollover**: agents prepare to extract work
+3. **Near rollover with heavy contexts**: force compact those that
+   would cause a spike — allow going over 90% rate limit budget
+   specifically for the compaction cost (it saves more than it spends)
+4. **After rollover**: put agents back on track with fresh or
+   re-injected sessions as appropriate
+
+#### The Brain's Session Intelligence
+
+The brain evaluates each agent's context against predicted need:
+
+```
+For each agent with active context:
+  │
+  ├── Does this agent have upcoming work needing this context?
+  │   YES → keep context, prepare for organic transition
+  │   NO  → dump to smart artifacts, fresh session
+  │
+  ├── Is context over ~40-80K tokens? (threshold to fine-tune)
+  │   YES + no predicted need → dump immediately
+  │   YES + predicted need → prepare synthesised re-injection
+  │   NO  → low cost, keep alive
+  │
+  ├── Is next task related to current context?
+  │   YES → synthesised re-injection later
+  │   NO  → simply new task, no re-injection needed
+  │
+  └── Aggregate fleet context math:
+      5 × 200K = 1M tokens re-sent on rollover
+      2 × 1M = 2M tokens re-sent on rollover
+      On Pro x5: 1M re-send = ~50% of 5-hour window
+      Brain calculates total fleet context vs remaining quota
+```
+
+Don't persist expensive context "just in case." Don't dispatch
+1M context quests near rollover. Only smart things.
+
+#### PO: Cross-Cutting Intelligence
+
+> "in general we try to optimise all with a smart session management,
+> smart injections and directives and agents anatomy and all. this is a
+> continuously evolving notion that we will fine-tune but like I said a
+> lot can play itself in the last 7% of context."
+
+> "the goal of the brain is to be really proactive and make sure the
+> agents act aligned with the whole and the systems and process so it
+> will certainly be able to summarize all these information at the right
+> impact and the right place within the right structure to have the same
+> I have when doing conversation and doing those rerouting myself and such."
+
+> "like I said this will need find-tuning but we can come up with the
+> right starting logic and make sure we can adapt and scale and make sure
+> we can handle multple cases, like varied based of the context size or
+> the model or the effort or the distance from next reset and stuff like
+> that."
+
+> "for every milestones remain we will need to ask ourselves these kind
+> of question and revise everything of the logic that will make this
+> fleet amazing and unstopable with good outputs."
+
+This is NOT a standalone milestone. It is a cross-cutting intelligence
+principle that shapes EVERY component:
+
+| What | How Session Cycle Awareness Shapes It |
+|------|--------------------------------------|
+| **Agent CLAUDE.md** | Agents know about both countdowns — context remaining AND rate limit session |
+| **Brain dispatch** | Brain does NOT dispatch 1M quests near rollover. Factors context size × distance to reset. |
+| **Heartbeat directives** | Brain adjusts ACTION directive based on rate limit position |
+| **Work mode** | Rate limit at 85% may trigger work_mode transitions (e.g. finish-current-work) |
+| **Budget monitoring** | Budget monitor tracks both quota % AND distance to rollover. Allows >90% for compaction cost. |
+| **Storm prevention** | Multiple heavy-context agents near rollover = storm risk. Aggregate math: 5×200K = 1M. |
+| **Session telemetry** | Telemetry feeds rate limit window data (5h, 7d) to brain |
+| **Agent lifecycle** | Idle agents with no predicted work and heavy context → dump to artifacts |
+| **Model selection** | Near rollover: prefer smaller context / LocalAI over 1M Opus |
+| **Pre-embed** | After rollover: synthesised re-injection from smart artifacts, not full context re-send |
+
+#### Variables That Interact
+
+The brain must weigh multiple factors simultaneously:
+
+- Context size per agent (1M vs 200K — spike is proportional)
+- Aggregate fleet context (sum of all agent contexts vs remaining quota)
+- Model assigned (Opus vs Sonnet — different costs)
+- Effort profile (full vs conservative vs minimal)
+- Distance to next rate limit reset
+- Current rate limit usage %
+- Whether each agent's context is needed for predicted upcoming work
+- Task complexity (medium/high tasks with challenges and failures use more context)
+
+This will require fine-tuning through practice. The starting logic should
+be sound and the structure should support adaptation and scaling across
+multiple cases. The brain is smart. It goes without saying.
+
 ---
 
 ## 5. Brain Intelligence — What Doesn't Need an Agent
@@ -610,7 +702,8 @@ that a lot does not require agent."
 
 ### 5.1 What the Brain Already Does (No AI)
 
-The orchestrator's 9 steps are ALL deterministic Python:
+The orchestrator currently runs 9 steps (target: 13 per brain spec
+in fleet-elevation/04). ALL are deterministic Python:
 
 ```
 Step 0: Context refresh        ← direct API calls, file writes
@@ -657,7 +750,7 @@ AGENT (AI needed, requires reasoning):
 ```
 Tier 1: BRAIN (deterministic, free)
   "Is there a new task for this sleeping agent?" → yes/no
-  "Has budget crossed 90%?" → auto-transition to frugal
+  "Has budget crossed 90%?" → pause dispatch except for compact
   "Are all children of parent task done?" → move parent to review
   Cost: $0
 
@@ -677,6 +770,14 @@ Tier 3: CLAUDE (cloud, paid, powerful)
 The fleet should route decisions to the CHEAPEST tier that can handle
 them. Most operational decisions are Tier 1 (brain). Simple evaluations
 are Tier 2 (LocalAI). Only real work is Tier 3 (Claude).
+
+**Session management influence on tier selection:**
+Near rate limit rollover, the brain favors cheaper tiers more aggressively.
+A gradual wake that normally uses Tier 3 (sonnet, medium) might use Tier 2
+(LocalAI) when the 5h window is at 90%. Tier 1 (brain deterministic) is
+always free and always preferred. The session manager (brain Step 10)
+feeds this decision — it knows which agents have heavy context and
+what the aggregate fleet cost would be for Tier 3 calls near rollover.
 
 ---
 
@@ -762,7 +863,7 @@ This intelligence layer touches nearly every system:
 | Code research | MCP Tools (Read, Grep, Glob, Filesystem), Methodology (analysis stage) |
 | Context awareness | Session Telemetry, Lifecycle, Gateway, Teaching (force compact) |
 | RAG integration | AICP RAG, LocalAI (embeddings, reranker), Context Assembly |
-| Brain intelligence | Orchestrator (all 9 steps), Lifecycle, Budget, Storm |
+| Brain intelligence | Orchestrator (9 steps current, 13 target), Lifecycle, Budget, Storm |
 | Agent file structure | All agent files, Gateway (injection order), Templates |
 
 ---

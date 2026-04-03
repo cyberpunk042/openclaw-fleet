@@ -99,29 +99,20 @@ Backend Router (fleet/core/backend_router.py)
     │   YES → Direct/MCP (cost: $0, confidence: deterministic)
     │         Examples: fleet_read_context, fleet_agent_status, status checks
     │
-    ├── Is budget mode survival/frugal?
-    │   YES → Try LocalAI first
-    │         ├── Is LocalAI model loaded and warm? → LocalAI (cost: $0, confidence: trainee)
-    │         ├── Is task simple enough for free tier? → OpenRouter free (cost: $0, confidence: community)
-    │         └── Must use Claude? → sonnet only, low effort (cost: $, confidence: standard)
+    ├── What backend_mode is configured? (7 combos of Claude/LocalAI/OpenRouter)
+    │   → Determines which backends are available for this request
     │
-    ├── Is budget mode economic?
-    │   YES → LocalAI for simple, Claude sonnet for rest
-    │         ├── Heartbeats → LocalAI (cost: $0)
-    │         ├── Simple reviews → LocalAI (cost: $0)
-    │         ├── Standard work → Claude sonnet (cost: $$)
-    │         └── Complex work → Claude sonnet high effort (cost: $$)
+    ├── Is task simple enough for LocalAI? (if backend_mode includes LocalAI)
+    │   YES → Route to LocalAI (cost: $0, confidence: trainee)
+    │         Examples: heartbeats, simple reviews, structured responses
     │
-    ├── Is budget mode standard?
-    │   YES → Normal routing
-    │         ├── Simple/fleet ops → LocalAI (cost: $0)
-    │         ├── Standard work → Claude sonnet (cost: $$)
-    │         └── Complex work → Claude opus (cost: $$$)
+    ├── Is LocalAI unavailable? Try OpenRouter free (if backend_mode includes it)
+    │   YES → Route to OpenRouter free (cost: $0, confidence: community)
     │
-    └── Is budget mode blitz?
-        YES → Claude for everything, max capability
-              ├── Standard work → Claude sonnet high (cost: $$)
-              └── Complex work → Claude opus max (cost: $$$)
+    └── Needs Claude reasoning? (if backend_mode includes Claude)
+        → Route to Claude with appropriate model selection
+          ├── Standard work → Claude sonnet (cost: $$)
+          └── Complex work → Claude opus (cost: $$$)
 ```
 
 ### Routing Decision Function
@@ -151,7 +142,7 @@ def route_task(
     Priority chain:
     1. Direct/no-LLM for pure tool calls
     2. LocalAI for simple structured tasks (if available)
-    3. OpenRouter free for medium tasks in frugal/survival mode
+    3. OpenRouter free for medium tasks (when enabled in backend_mode)
     4. Claude sonnet for standard work
     5. Claude opus for complex work (if budget allows)
 
@@ -306,7 +297,7 @@ OpenRouter's free router (`openrouter/free`) auto-selects a free model
 matching requested capabilities. No API key required.
 
 **When to use:**
-- Budget mode is frugal or survival
+- Backend mode includes OpenRouter
 - LocalAI is unavailable (swapping models, offline)
 - Task is medium complexity (not trivial, not critical)
 - Agent needs reasoning but cost must be zero
@@ -377,7 +368,7 @@ to be cost-effective, they should only trigger for:
 - trainee/community tier work (LocalAI/free model output)
 - High story-point tasks (≥5 SP)
 - Security-sensitive work
-- When budget mode is standard or blitz (not frugal/survival)
+- When budget mode is standard or turbo
 
 ### Integration Path
 

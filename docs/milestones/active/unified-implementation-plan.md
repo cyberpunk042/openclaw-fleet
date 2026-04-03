@@ -69,9 +69,9 @@ These must come first. Agents need to know who they are before they can do anyth
 
 | ID | Title | Source | Scope |
 |----|-------|--------|-------|
-| **U-01** | Agent Identity & Config | AR-09 + AR-10 + M-AI01 | Update all agent.yaml (mission, capabilities, model). Write CLAUDE.md for all 10 agents per fleet-elevation role specs. Include 10 anti-corruption rules. Max 4000 chars each. |
+| **U-01** | Agent Identity & Config | AR-09 + AR-10 + M-AI01 | Update all agent.yaml (mission, capabilities, model). Write CLAUDE.md for all 10 agents per fleet-elevation role specs. Include 10 anti-corruption rules. Max 4000 chars each. Include awareness of both countdowns (context remaining + rate limit session). |
 | **U-02** | Fix Preembed — Full Data | AR-01 | Rewrite preembed.py. Full context assembly per role (PM gets all tasks, fleet-ops gets approval queue, workers get assigned tasks + artifact state). No compression. |
-| **U-03** | Orchestrator Wake Logic | AR-02 + AR-03 + fleet-elevation/23 | Orchestrator detects work → wakes PM (unassigned inbox) and fleet-ops (pending approvals). DROWSY state. Content-aware sleep. Brain-evaluated heartbeats (free). |
+| **U-03** | Orchestrator Wake Logic | AR-02 + AR-03 + fleet-elevation/23 | Orchestrator detects work → wakes PM (unassigned inbox) and fleet-ops (pending approvals). IDLE (brain-evaluated after 1 HEARTBEAT_OK) state. Content-aware sleep. Brain-evaluated heartbeats (free). Wake/sleep decisions factor rate limit position + agent context size. |
 
 ### Phase B: Heartbeat Rewrites (AR-driven, extends with autonomy tuning)
 
@@ -108,9 +108,9 @@ Each role gets a complete heartbeat rewrite following the fleet-elevation specs.
 | ID | Title | Source | Scope |
 |----|-------|--------|-------|
 | **U-17** | No-Agent Decision Layer | M-AT02 | What doesn't need an agent: direct HTTP, MCP tool calls, template responses. Route to `direct` backend. Zero agent cost. |
-| **U-18** | Context-Aware Agent Lifecycle | M-AT03 + fleet-elevation/23 | Agents monitor context via session telemetry. Trigger strategic compact, extract artifacts, recchain. DROWSY → SLEEPING with brain evaluation. Strategic Claude call matrix (model/effort/session per situation). |
+| **U-18** | Context-Aware Agent Lifecycle | M-AT03 + fleet-elevation/23 | Agents monitor context via session telemetry. TWO parallel countdowns: context remaining (7%/5%) AND rate limit session (85%/90%). Organic transitions. Force compact near rollover for heavy contexts. Brain evaluates: does agent need its context? Over ~40-80K with no predicted work → dump to artifacts. Aggregate fleet context math (5×200K = 1M on rollover). Don't dispatch 1M quests near rollover. Allow >90% budget for compaction cost. IDLE (brain-evaluated after 1 HEARTBEAT_OK) → SLEEPING with brain evaluation. Strategic Claude call matrix. Cross-ref: System 22 §4.7, brain spec Step 10. |
 | **U-19** | Escalation Engine | M-AT04 | Dynamic escalation: task complexity drives effort level, model tier, backend. Budget mode constrains. Confidence tier influences. Settings-adaptive. |
-| **U-20** | Silent Heartbeat Protocol | M-AT05 + fleet-elevation/23 | Zero-cost idle: no LLM call, just API checks. LLM only when work found. Brain evaluates sleeping agents deterministically. 70% cost reduction on idle fleet. |
+| **U-20** | Silent Heartbeat Protocol | M-AT05 + fleet-elevation/23 | Zero-cost idle: no LLM call, just API checks. LLM only when work found. Brain evaluates sleeping agents deterministically — including context size evaluation for dump decisions (agents over threshold with no predicted work → dump to artifacts). 70% cost reduction on idle fleet. |
 
 ### Phase F: Knowledge & RAG
 
@@ -150,7 +150,7 @@ No mocks. Real agents, real tasks, real data flowing.
 | **U-35** | Dual GPU Preparation | M-MO05 | When hardware arrives: tensor split, 14B configs. |
 | **U-36** | AICP ↔ Fleet Bridge | M-IP03 | router_unification.py → AICP controller. |
 | **U-37** | Fleet Runtime Deployment | M-IP04 | Actually run the orchestrator with agents. Operational readiness. |
-| **U-38** | Cost Optimization | M-IP05 | Prompt caching 90% off, Batch API 50% off. Claude-Mem plugin. |
+| **U-38** | Cost Optimization | M-IP05 | Prompt caching 90% off, Batch API 50% off. Claude-Mem plugin. Rate limit session management (cross-ref: U-18, System 22 §4.7). Aggregate fleet context budgeting. |
 
 ---
 

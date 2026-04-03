@@ -236,7 +236,7 @@ conventional commits:
 ```
 chore(config): update phase standards for MVP
 chore(config): add ux-designer to contribution rules
-chore(config): increase architect drowsy threshold
+chore(config): increase architect idle threshold
 ```
 
 This provides traceability: when did a config change, who requested
@@ -311,7 +311,7 @@ PO makes a decision that invalidates current work:
 ### Unexpected Budget Crisis
 
 Budget monitoring detects fast climb or threshold breach:
-- Brain adjusts: effort profile → conservative or minimal
+- Brain adjusts: budget_mode → slower tempo, work_mode → finish-current
 - Sleeping agents stay sleeping
 - Active agents finish current cycle, then reduce heartbeat frequency
 - PO notified via ntfy

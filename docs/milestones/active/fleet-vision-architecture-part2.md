@@ -357,7 +357,7 @@ Inject into agent context (via pre-embed or MCP tool response)
 | Prompt caching | ~90% on repeated context | Low (config change) |
 | LocalAI for simple tasks | ~100% on heartbeats | Medium (routing) |
 | Batch API for non-urgent work | ~50% on async | Low (API parameter) |
-| Reduced wake frequency (DROWSY/SLEEPING) | ~50-80% per idle agent | Already partially implemented |
+| Reduced wake frequency (IDLE/SLEEPING) | ~50-80% per idle agent | Already partially implemented |
 
 ---
 

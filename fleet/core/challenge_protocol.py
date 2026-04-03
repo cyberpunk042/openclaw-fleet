@@ -171,7 +171,6 @@ class ChallengeDecision:
 def evaluate_challenge(
     task: Task,
     confidence_tier: str = "standard",
-    budget_mode: str = "standard",
     author_agent: str = "worker",
     is_bug_fix: bool = False,
 ) -> ChallengeDecision:
@@ -183,7 +182,6 @@ def evaluate_challenge(
     Args:
         task: The completed task.
         confidence_tier: Confidence tier of the work.
-        budget_mode: Current budget mode.
         author_agent: Agent that produced the work.
         is_bug_fix: Whether this is a bug fix.
 
@@ -194,7 +192,7 @@ def evaluate_challenge(
     story_points = task.custom_fields.story_points or 0
 
     required, reason = is_challenge_required(
-        task_type, story_points, confidence_tier, budget_mode,
+        task_type, story_points, confidence_tier,
     )
 
     if not required:
@@ -206,7 +204,7 @@ def evaluate_challenge(
         )
 
     challenge_type = select_challenge_type(
-        task_type, story_points, confidence_tier, budget_mode,
+        task_type, story_points, confidence_tier,
         is_bug_fix=is_bug_fix,
     )
 

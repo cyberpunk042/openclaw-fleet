@@ -220,100 +220,78 @@ def test_record_total_findings():
 
 
 # ─── Challenge Requirements ───────────────────────────────────────
+# is_challenge_required(task_type, story_points, confidence_tier)
+# No longer takes budget_mode.
 
 
 def test_heartbeat_never_challenged():
-    req, reason = is_challenge_required("heartbeat", 0, "standard", "standard")
+    req, reason = is_challenge_required("heartbeat", 0, "standard")
     assert not req
     assert "heartbeat" in reason
 
 
-def test_survival_disables_challenges():
-    req, reason = is_challenge_required("story", 5, "trainee", "survival")
-    assert not req
-
-
-def test_blackout_disables_challenges():
-    req, reason = is_challenge_required("story", 5, "trainee", "blackout")
-    assert not req
-
-
 def test_blocker_always_required():
-    req, reason = is_challenge_required("blocker", 1, "expert", "standard")
+    req, reason = is_challenge_required("blocker", 1, "expert")
     assert req
 
 
 def test_trainee_always_required():
-    req, reason = is_challenge_required("task", 1, "trainee", "standard")
+    req, reason = is_challenge_required("task", 1, "trainee")
     assert req
 
 
 def test_community_always_required():
-    req, reason = is_challenge_required("task", 1, "community", "standard")
+    req, reason = is_challenge_required("task", 1, "community")
     assert req
 
 
-def test_trainee_frugal_deferred():
-    req, reason = is_challenge_required("task", 1, "trainee", "frugal")
-    assert not req
-    assert "deferred" in reason
-
-
 def test_bug_sp3_required():
-    req, reason = is_challenge_required("bug", 3, "standard", "standard")
+    req, reason = is_challenge_required("bug", 3, "standard")
     assert req
 
 
 def test_complex_story_required():
-    req, reason = is_challenge_required("story", 5, "standard", "standard")
+    req, reason = is_challenge_required("story", 5, "standard")
     assert req
 
 
 def test_epic_always_required():
-    req, reason = is_challenge_required("epic", 1, "standard", "standard")
+    req, reason = is_challenge_required("epic", 1, "standard")
     assert req
 
 
 def test_simple_task_optional():
-    req, reason = is_challenge_required("task", 1, "standard", "standard")
+    req, reason = is_challenge_required("task", 1, "standard")
     assert not req
 
 
 def test_docs_optional():
-    req, reason = is_challenge_required("docs", 2, "standard", "standard")
+    req, reason = is_challenge_required("docs", 2, "standard")
     assert not req
 
 
 # ─── Challenge Type Selection ─────────────────────────────────────
+# select_challenge_type(task_type, story_points, confidence_tier, is_bug_fix=False)
+# No longer takes budget_mode.
 
 
 def test_bug_fix_gets_scenario():
-    t = select_challenge_type("bug", 3, "standard", "standard", is_bug_fix=True)
+    t = select_challenge_type("bug", 3, "standard", is_bug_fix=True)
     assert t == "scenario"
 
 
-def test_economic_gets_automated():
-    t = select_challenge_type("story", 5, "standard", "economic")
-    assert t == "automated"
-
-
-def test_trainee_blitz_gets_cross_model():
-    t = select_challenge_type("task", 1, "trainee", "blitz")
+def test_trainee_gets_cross_model():
+    t = select_challenge_type("task", 1, "trainee")
     assert t == "cross-model"
 
 
-def test_trainee_standard_gets_agent():
-    t = select_challenge_type("task", 1, "trainee", "standard")
-    assert t == "agent"
-
-
 def test_complex_gets_agent():
-    t = select_challenge_type("epic", 8, "standard", "standard")
+    t = select_challenge_type("epic", 8, "standard")
     assert t == "agent"
 
 
 def test_simple_gets_automated():
-    t = select_challenge_type("task", 1, "standard", "standard")
+    t = select_challenge_type("task", 1, "standard")
     assert t == "automated"
 
 

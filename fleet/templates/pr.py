@@ -87,7 +87,6 @@ def format_pr_body(
             f"| **Model** | `{labor_stamp.model}` |",
             f"| **Confidence** | {emoji} {labor_stamp.confidence_tier} |",
             f"| **Effort** | {labor_stamp.effort} |",
-            f"| **Budget Mode** | {labor_stamp.budget_mode} |",
         ])
         if labor_stamp.estimated_cost_usd:
             ref_lines.append(

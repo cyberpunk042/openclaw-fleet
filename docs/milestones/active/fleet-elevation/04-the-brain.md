@@ -59,7 +59,7 @@ every 30 seconds:
 8. Health check (stuck tasks, offline agents, stale deps)
 
 Plus: fleet control state reading (work mode, cycle phase, backend
-mode), mode change detection, effort profile support, change detection,
+mode), mode change detection, work mode support, change detection,
 budget monitoring, fleet lifecycle tracking.
 
 ### What's Good About the Current Brain
@@ -153,7 +153,7 @@ Step 5: DISPATCH
   - Find dispatchable tasks (full logic engine evaluation)
   - For each: build autocomplete chain for target agent
   - Dispatch: update status, write context, notify, emit events
-  - Respect: max_dispatch_per_cycle, effort_profile limits
+  - Respect: max_dispatch_per_cycle, work_mode limits
 
 Step 6: APPROVAL & TRANSITION
   - Ensure review tasks have approval objects
@@ -178,13 +178,66 @@ Step 9: CROSS-TASK PROPAGATION
   - Transfer context → package for receiving agent
   - Trail events → record on task and parent
 
-Step 10: HEALTH & BUDGET
+Step 10: SESSION MANAGEMENT
+  - Read rate limit window usage (5h, 7d) from session telemetry
+  - Read each active agent's context usage from session telemetry
+  - Two parallel countdowns running:
+    a) Context remaining per agent (organic awareness at 7%/5%)
+    b) Rate limit session usage fleet-wide (awareness at 85%/90%)
+
+  PO requirements (verbatim, 2026-04-01):
+  > "at some point its force compact lol...the agent can only prepare
+  > or declare with a till that its ready but we have to be sure that
+  > it doesn't do it prematuraly either"
+
+  > "if we reach the end of the reset I can surely tell you that we
+  > will force compact all conversation that are too last and will cause
+  > a spike, this is why we are aware and will not display a 1m context
+  > big quest when approaching that time for example"
+
+  > "imagine you room over 5 x 200 000 or 2 x 1m and whatnot this
+  > makes no sense on a pro x5 that will take 50% of the whole 5 hours"
+
+  > "this is why not only you prepare them to extract their work and
+  > prepare for compat when appropriate allowing the overflows for the
+  > budget of compacting even though over 90"
+
+  > "if you are over 40 to 80 000 tokens or that you do not need to
+  > persist your session context (useless predicted cost for the sole
+  > purpose of being ready for a next job later...), dump (as smart
+  > artifacts) it for a synthesised re-injection later if needed and/or
+  > simply a new task if not related. Only smart things. the brain is
+  > smart. it goes without saying."
+
+  Session management logic:
+  a) DO NOT dispatch 1M context tasks near rate limit rollover
+  b) Near rollover, evaluate each agent's context:
+     - Does this agent have upcoming work that needs this context?
+     - Is the context over ~40-80K tokens (threshold to tune)?
+     - If no predicted need → dump as smart artifacts, fresh session
+     - If related work coming → synthesised re-injection later
+     - If unrelated work → simply new task, no re-injection needed
+  c) Force compact IS appropriate near rollover for heavy contexts
+     - Allow going over 90% rate limit budget for compacting itself
+     - The compaction cost saves more than it spends
+  d) After rollover, properly put agents back on track
+     - Fresh sessions where needed
+     - Re-inject synthesised context where work continues
+  e) Aggregate context math matters:
+     - 5 × 200K = 1M tokens re-sent on rollover → ~50% of x5 Pro
+     - 2 × 1M = 2M tokens re-sent → exceeds x5 Pro window
+     - Brain must calculate total fleet context cost vs remaining quota
+  f) Smart, not wasteful: don't persist context "just in case"
+     - Only keep context alive if there's a predicted upcoming job
+     - Idle agents with no predicted work = dump context to artifacts
+
+Step 11: HEALTH & BUDGET
   - Tasks stuck > 48h → alert PM
   - Agents offline with assigned work → alert PM
-  - Budget check → if over threshold, reduce effort profile
+  - Budget check → if over threshold, reduce work mode
   - Sprint progress → update board memory periodically
 
-Step 11: DIRECTIVES
+Step 12: DIRECTIVES
   - Read PO directives from board memory
   - Route to target agents via their context/ files
   - Mark directives as processed (tag update)
@@ -1036,7 +1089,7 @@ autocomplete:
 - Brain reads delivery_phase for standards application
 - Brain enforces phase gates (PO approval for advancement)
 - Brain creates phase-appropriate contribution opportunities
-- Brain applies phase-aware effort profiles
+- Brain applies phase-aware work modes
 
 ### Brain ↔ Event Bus
 - Brain is the primary event dispatcher
@@ -1049,6 +1102,40 @@ autocomplete:
 - Brain calls build_autocomplete_chain for dispatch
 - Brain writes to agents/{name}/context/ files every cycle
 - Brain reads from context assembly for dispatch decisions
+
+### Brain ↔ Session Management (NEW — 2026-04-01)
+
+PO requirement (verbatim):
+> "its not just about waiting when the current session limite is use
+> at 90% but also preparing at 85%, in a similar fasion as the end
+> game strategy to not lose work but at the same time to compact not
+> to create huge spike of cost"
+
+> "for every milestones remain we will need to ask ourselves these
+> kind of question and revise everything of the logic that will make
+> this fleet amazing and unstopable with good outputs"
+
+- Brain tracks TWO parallel countdowns:
+  1. Context remaining per agent (organic awareness: 7%/5% remaining)
+  2. Rate limit session usage fleet-wide (awareness: 85%/90% used)
+- Brain knows each agent's context size and calculates aggregate:
+  5 × 200K = 1M tokens on rollover. 2 × 1M = 2M. This math matters.
+- Brain factors distance to rate limit window rollover
+- At 85% used: progressive awareness, don't dispatch expensive work
+- At 90% used: organic preparation — agents extract to artifacts
+  Allow going over 90% for the compacting itself (saves more than costs)
+- Near rollover: evaluate each agent — does it NEED its context?
+  Over ~40-80K with no predicted upcoming job → dump to artifacts
+  Unrelated next work → fresh session, no re-injection
+  Related next work → synthesised re-injection later
+- DO NOT dispatch 1M context quests near rollover
+- Force compact IS appropriate near rollover for heavy contexts
+  (the agent prepares, but the brain ultimately decides)
+- After rollover: put agents back on track with fresh or re-injected
+  sessions as appropriate
+- Feeds: session telemetry (real data), budget monitor (quota %),
+  agent lifecycle (context levels), work modes (cost constraints)
+- Cross-ref: System 22 §4.7 (rate limit session cycle awareness)
 
 ### Brain ↔ Gateway
 - Brain reads agent status from gateway (online/offline)

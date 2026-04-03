@@ -32,7 +32,6 @@ def create_heartbeat_stamp(
     duration_seconds: int = 0,
     estimated_tokens: int = 0,
     estimated_cost_usd: float = 0.0,
-    budget_mode: str = "standard",
     void: bool = False,
 ) -> LaborStamp:
     """Create a minimal labor stamp for a heartbeat session.
@@ -48,7 +47,6 @@ def create_heartbeat_stamp(
         duration_seconds: Wall-clock time for the heartbeat.
         estimated_tokens: Approximate tokens consumed.
         estimated_cost_usd: Estimated cost in USD.
-        budget_mode: Active budget mode during the heartbeat.
         void: Whether the heartbeat produced no useful work.
     """
     return LaborStamp(
@@ -63,7 +61,6 @@ def create_heartbeat_stamp(
         duration_seconds=duration_seconds,
         estimated_tokens=estimated_tokens,
         estimated_cost_usd=estimated_cost_usd,
-        budget_mode=budget_mode,
         iteration=1,
     )
 

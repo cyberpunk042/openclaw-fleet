@@ -52,11 +52,9 @@ def test_report_manual_fields():
         indicators=["session_burst", "void_sessions"],
         void_sessions=8,
         total_sessions=10,
-        estimated_cost_usd=1.12,
     )
     assert r.peak_severity == "STORM"
     assert r.void_session_pct == 0.0  # Not auto-computed from fields
-    assert r.estimated_cost_usd == 1.12
 
 
 # ─── Duration Display ─────────────────────────────────────────────
@@ -85,11 +83,9 @@ def test_to_dict():
         peak_severity="WARNING",
         indicators=["fast_climb"],
         responses=[ResponseEntry(timestamp=time.time(), action="force economic")],
-        estimated_cost_usd=0.56,
     )
     d = r.to_dict()
     assert d["peak_severity"] == "WARNING"
-    assert d["estimated_cost_usd"] == 0.56
     assert len(d["responses"]) == 1
     assert len(d["indicators"]) == 1
 
@@ -98,7 +94,6 @@ def test_to_dict_empty():
     r = IncidentReport()
     d = r.to_dict()
     assert d["peak_severity"] == ""
-    assert d["estimated_cost_usd"] == 0.0
     assert d["void_sessions"] == 0
 
 
@@ -111,12 +106,10 @@ def test_format_markdown_contains_severity():
         started_at=100.0,
         ended_at=580.0,
         indicators=["session_burst: 15/min", "void_sessions: 80%"],
-        estimated_cost_usd=1.40,
     )
     md = r.format_markdown()
     assert "STORM" in md
     assert "session_burst" in md
-    assert "$1.40" in md
 
 
 def test_format_markdown_contains_timeline():
@@ -145,24 +138,12 @@ def test_format_markdown_contains_prevention():
     assert "Reduce concurrency" in md
 
 
-def test_format_markdown_budget_mode():
-    r = IncidentReport(
-        peak_severity="WARNING",
-        budget_mode_before="standard",
-        budget_mode_after="economic",
-    )
-    md = r.format_markdown()
-    assert "standard" in md
-    assert "economic" in md
-
-
 def test_format_markdown_void_sessions():
     r = IncidentReport(
         peak_severity="STORM",
         void_sessions=8,
         total_sessions=10,
         void_session_pct=80.0,
-        estimated_cost_usd=1.12,
     )
     md = r.format_markdown()
     assert "8 void sessions" in md
@@ -179,16 +160,6 @@ def test_format_markdown_root_cause():
     assert "Gateway restart" in md
 
 
-def test_format_markdown_labor_cost():
-    r = IncidentReport(
-        peak_severity="STORM",
-        void_sessions=10,
-        estimated_cost_usd=1.40,
-    )
-    md = r.format_markdown()
-    assert "Storm response: $0 (deterministic)" in md
-
-
 def test_format_markdown_no_responses():
     r = IncidentReport(peak_severity="WARNING")
     md = r.format_markdown()
@@ -203,13 +174,11 @@ def test_format_summary():
         incident_id="INC-20260331-142300",
         peak_severity="STORM",
         duration_seconds=480,
-        estimated_cost_usd=1.40,
         indicators=["session_burst", "void_sessions"],
     )
     summary = r.format_summary()
     assert "INC-20260331-142300" in summary
     assert "STORM" in summary
-    assert "$1.40" in summary
     assert "2 indicators" in summary
 
 
@@ -218,7 +187,6 @@ def test_format_board_memory():
         incident_id="INC-20260331-142300",
         peak_severity="STORM",
         duration_seconds=480,
-        estimated_cost_usd=1.40,
         indicators=["session_burst", "void_sessions"],
         void_sessions=8,
         total_sessions=10,
@@ -226,7 +194,6 @@ def test_format_board_memory():
     bm = r.format_board_memory()
     assert "[storm-incident]" in bm
     assert "STORM" in bm
-    assert "$1.40" in bm
     assert "8/10" in bm
 
 
@@ -241,30 +208,12 @@ def test_build_report_basic():
         ended_at=now,
         indicators=["session_burst: 12/min"],
         responses=[ResponseEntry(timestamp=now - 250, action="force economic")],
-        budget_mode_before="standard",
-        budget_mode_after="economic",
         void_sessions=5,
         total_sessions=10,
     )
     assert report.peak_severity == "WARNING"
     assert report.duration_seconds == 300.0
     assert report.void_session_pct == 50.0
-    assert report.estimated_cost_usd == 5 * 0.14  # 5 void × $0.14
-
-
-def test_build_report_custom_cost():
-    now = time.time()
-    report = build_incident_report(
-        peak_severity="STORM",
-        started_at=now - 600,
-        ended_at=now,
-        indicators=["fast_climb", "session_burst"],
-        responses=[],
-        void_sessions=10,
-        total_sessions=12,
-        estimated_cost_per_void_session=0.20,
-    )
-    assert report.estimated_cost_usd == 10 * 0.20
 
 
 def test_build_report_zero_sessions():
@@ -279,7 +228,6 @@ def test_build_report_zero_sessions():
         total_sessions=0,
     )
     assert report.void_session_pct == 0.0
-    assert report.estimated_cost_usd == 0.0
 
 
 def test_build_report_includes_prevention():
@@ -399,10 +347,9 @@ def test_prevention_unknown_indicator():
 
 
 def test_storm_event_creation():
-    e = StormEvent(budget_mode_at_start="standard")
+    e = StormEvent()
     assert e.started_at > 0
     assert not e.closed
-    assert e.budget_mode_at_start == "standard"
 
 
 def test_storm_event_record_severity():
@@ -439,21 +386,18 @@ def test_storm_event_close():
 
 
 def test_storm_event_to_report():
-    e = StormEvent(budget_mode_at_start="standard")
+    e = StormEvent()
     e.record_severity("STORM")
     e.record_indicator("session_burst: 15/min")
     e.record_response("force economic mode")
-    e.record_response("force survival mode")
+    e.record_response("disable dispatch")
     e.close()
 
     report = e.to_report(
-        budget_mode_after="survival",
         void_sessions=8,
         total_sessions=10,
     )
     assert report.peak_severity == "STORM"
-    assert report.budget_mode_before == "standard"
-    assert report.budget_mode_after == "survival"
     assert report.void_sessions == 8
     assert len(report.responses) == 2
     assert len(report.indicators) == 1
@@ -472,7 +416,7 @@ def test_storm_event_to_report_open():
 
 def test_storm_event_full_lifecycle():
     """Full lifecycle: create → escalate → respond → close → report."""
-    e = StormEvent(budget_mode_at_start="standard")
+    e = StormEvent()
 
     # Escalation
     e.record_severity("WATCH")
@@ -483,7 +427,7 @@ def test_storm_event_full_lifecycle():
     e.record_response("force economic mode")
 
     e.record_severity("STORM")
-    e.record_response("force survival mode")
+    e.record_response("disable dispatch")
     e.record_response("disable heartbeats")
     e.record_response("alert PO", "ntfy URGENT")
 
@@ -491,7 +435,6 @@ def test_storm_event_full_lifecycle():
     e.close()
 
     report = e.to_report(
-        budget_mode_after="survival",
         void_sessions=8,
         total_sessions=10,
         root_cause="Gateway restart fired all heartbeats simultaneously.",

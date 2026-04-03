@@ -101,38 +101,6 @@ def test_hybrid_gets_architect_not_challenge():
     assert "challenge-runner" not in names
 
 
-# ─── Budget Mode Interaction ──────────────────────────────────────
-
-
-def test_frugal_skips_challenge():
-    """Frugal mode disables challenges (they cost tokens)."""
-    gates = build_review_gates(
-        "task", has_code=False,
-        confidence_tier="trainee", budget_mode="frugal",
-    )
-    assert "challenge-runner" not in _agent_names(gates)
-    # Still requires architect
-    assert "architect" in _agent_names(gates)
-
-
-def test_survival_skips_challenge():
-    """Survival mode also disables challenges."""
-    gates = build_review_gates(
-        "task", has_code=False,
-        confidence_tier="trainee", budget_mode="survival",
-    )
-    assert "challenge-runner" not in _agent_names(gates)
-
-
-def test_standard_budget_allows_challenge():
-    """Standard budget mode allows challenges."""
-    gates = build_review_gates(
-        "task", has_code=False,
-        confidence_tier="trainee", budget_mode="standard",
-    )
-    assert "challenge-runner" in _agent_names(gates)
-
-
 # ─── Task Type Gates ──────────────────────────────────────────────
 
 

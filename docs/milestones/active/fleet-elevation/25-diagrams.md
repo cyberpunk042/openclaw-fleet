@@ -259,7 +259,7 @@ Key data flows:
                          │ HEARTBEAT_OK ×2
                          ↓
                     ┌──────────┐
-                    │  DROWSY  │
+                    │  IDLE  │
                     │          │
                     │ Reduced  │
                     │ heartbeat│
@@ -294,7 +294,7 @@ Key data flows:
    Cost:
      ACTIVE   = normal Claude cost (productive work)
      IDLE     = reduced Claude cost (30min intervals)
-     DROWSY   = minimal Claude cost (60min intervals)
+     IDLE   = minimal Claude cost (60min intervals)
      SLEEPING = $0 (brain evaluates in Python)
      OFFLINE  = $0 (rare checks only)
 ```

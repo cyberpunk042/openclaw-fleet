@@ -63,7 +63,7 @@ def test_stamp_auto_sets_timestamp():
 
 def test_stamp_short_label():
     stamp = LaborStamp(model="sonnet-4-6", confidence_tier="standard")
-    assert stamp.short_label == "sonnet-4-6 \u00b7 standard"
+    assert stamp.short_label == "sonnet-4-6 · standard"
 
 
 def test_stamp_requires_challenge_for_trainee():
@@ -102,7 +102,6 @@ def test_dispatch_record_auto_timestamp():
         task_id="abc12345", agent_name="software-engineer",
         backend="claude-code", model="sonnet",
         effort="medium", selection_reason="default",
-        budget_mode="standard",
     )
     assert record.dispatched_at != ""
 
@@ -112,11 +111,10 @@ def test_dispatch_record_to_dict():
         task_id="abc12345", agent_name="architect",
         backend="claude-code", model="opus",
         effort="high", selection_reason="epic task",
-        budget_mode="blitz", skills=["code-review"],
+        skills=["code-review"],
     )
     d = record.to_dict()
     assert d["model"] == "opus"
-    assert d["budget_mode"] == "blitz"
     assert "code-review" in d["skills"]
 
 
@@ -128,7 +126,7 @@ def test_assemble_stamp_from_dispatch():
         task_id="abc12345", agent_name="software-engineer",
         backend="claude-code", model="sonnet-4-6",
         effort="medium", selection_reason="default",
-        budget_mode="standard", skills=["git-ops"],
+        skills=["git-ops"],
     )
     stamp = assemble_stamp(
         dispatch=dispatch,
@@ -144,10 +142,9 @@ def test_assemble_stamp_from_dispatch():
     assert stamp.confidence_tier == "standard"
     assert stamp.duration_seconds == 120
     assert stamp.estimated_tokens == 5000
-    assert stamp.estimated_cost_usd > 0  # sonnet cost estimated
+    assert stamp.estimated_cost_usd > 0
     assert "git-ops" in stamp.skills_used
     assert "fleet_commit" in stamp.tools_called
-    assert stamp.budget_mode == "standard"
 
 
 def test_assemble_stamp_localai_zero_cost():
@@ -155,7 +152,6 @@ def test_assemble_stamp_localai_zero_cost():
         task_id="abc12345", agent_name="software-engineer",
         backend="localai", model="hermes-3b",
         effort="low", selection_reason="heartbeat",
-        budget_mode="survival",
     )
     stamp = assemble_stamp(dispatch=dispatch, estimated_tokens=1000)
     assert stamp.confidence_tier == "trainee"
@@ -168,13 +164,11 @@ def test_assemble_stamp_opus_cost_higher():
         task_id="abc12345", agent_name="architect",
         backend="claude-code", model="opus-4-6",
         effort="high", selection_reason="epic",
-        budget_mode="blitz",
     )
     dispatch_sonnet = DispatchRecord(
         task_id="abc12345", agent_name="architect",
         backend="claude-code", model="sonnet-4-6",
         effort="high", selection_reason="epic",
-        budget_mode="blitz",
     )
     stamp_opus = assemble_stamp(dispatch=dispatch_opus, estimated_tokens=10000)
     stamp_sonnet = assemble_stamp(dispatch=dispatch_sonnet, estimated_tokens=10000)

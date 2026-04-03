@@ -83,13 +83,11 @@ async def _pause(reason: str = "") -> int:
             cfg = yaml.safe_load(f) or {}
         if "orchestrator" not in cfg:
             cfg["orchestrator"] = {}
-        cfg["orchestrator"]["effort_profile"] = "paused"
         with open(config_path, "w") as f:
             yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
-        print("   Effort profile set to 'paused'")
         actions += 1
     except Exception as e:
-        print(f"   WARNING: Could not set effort profile: {e}")
+        print(f"   WARNING: Could not update config: {e}")
 
     # 6. Write pause marker
     pause_file = os.path.join(fleet_dir, ".fleet-paused")

@@ -380,7 +380,7 @@ lessons from the March 2026 process storms.
 | Document | Milestones | Key Concept |
 |----------|-----------|-------------|
 | `labor-attribution-and-provenance.md` | M-LA01–08 | Every artifact stamped with model, effort, confidence tier |
-| `budget-mode-system.md` | M-BM01–06 | 6 graduated modes from blitz to blackout, per-order envelopes |
+| `budget-mode-system.md` | M-BM01–06 | Fleet tempo setting, per-order overrides |
 | `multi-backend-routing-engine.md` | M-BR01–08 | Plugin backend registry, OpenRouter free, Codex adversarial |
 | `iterative-validation-and-challenge-loops.md` | M-IV01–08 | Multi-round adversarial challenges, 4 challenge types |
 | `model-upgrade-path.md` | M-MU01–08 | Qwen3-8B upgrade, 19GB dual-GPU plan, TurboQuant |
@@ -425,7 +425,7 @@ lessons from the March 2026 process storms.
 |-------|---------|--------|
 | OpenAI Codex CLI | Open-source but NOT free (needs API credits), NOT a Claude plugin | Use as adversarial review tool, not primary backend |
 | MiMo-V2-Pro | API-only, closed-source, $1-3/M tokens | Not usable locally; concept is right (use best model per task) |
-| OpenRouter | 29 free models, auto-routing, OpenAI-compatible API | Free fallback backend for frugal/survival modes |
+| OpenRouter | 29 free models, auto-routing, OpenAI-compatible API | Free fallback backend when enabled in backend_mode |
 | Google TurboQuant | 6x KV cache compression, zero accuracy loss (March 2026) | Longer contexts on same VRAM, monitor for GGUF support |
 | Microsoft BitNet | 1-bit quantization, 0.4GB for 2B model | Watch ecosystem; can't convert existing models yet |
 | Qwen3-8B | 8B params, fits 8GB VRAM, massive upgrade over hermes-3b | Primary LocalAI upgrade candidate |

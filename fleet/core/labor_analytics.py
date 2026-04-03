@@ -316,16 +316,6 @@ class LaborAnalytics:
             costs.items(), key=lambda x: x[1], reverse=True,
         )}
 
-    def cost_by_budget_mode(self) -> dict[str, float]:
-        """Total cost grouped by budget mode."""
-        costs: dict[str, float] = {}
-        for s in self._stamps:
-            mode = s.budget_mode or "unknown"
-            costs[mode] = costs.get(mode, 0.0) + s.estimated_cost_usd
-        return {k: round(v, 2) for k, v in sorted(
-            costs.items(), key=lambda x: x[1], reverse=True,
-        )}
-
     # ─── Summary ─────────────────────────────────────────────────
 
     def summary(self) -> dict:
@@ -345,7 +335,6 @@ class LaborAnalytics:
                 round(total_approved / total_reviewed, 3) if total_reviewed else 0.0
             ),
             "cost_by_backend": self.cost_by_backend(),
-            "cost_by_budget_mode": self.cost_by_budget_mode(),
             "agents": [m.to_dict() for m in agent_metrics],
             "models": [m.to_dict() for m in model_metrics],
             "tiers": [m.to_dict() for m in tier_metrics],
@@ -367,12 +356,6 @@ class LaborAnalytics:
         lines.append("### Cost by Backend")
         for backend, cost in s["cost_by_backend"].items():
             lines.append(f"- {backend}: ${cost:.2f}")
-        lines.append("")
-
-        # Cost by budget mode
-        lines.append("### Cost by Budget Mode")
-        for mode, cost in s["cost_by_budget_mode"].items():
-            lines.append(f"- {mode}: ${cost:.2f}")
         lines.append("")
 
         # Per-agent

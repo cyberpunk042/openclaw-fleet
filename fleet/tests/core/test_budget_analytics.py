@@ -83,7 +83,7 @@ def test_mode_metrics_basic():
 
 def test_mode_metrics_empty():
     a = BudgetAnalytics()
-    m = a.mode_metrics("blitz")
+    m = a.mode_metrics("turbo")
     assert m.total_tasks == 0
     assert m.avg_cost_per_task == 0.0
 
@@ -118,11 +118,11 @@ def test_all_mode_metrics():
     a.record_many([
         _event(mode="standard", cost=0.50, task_id="t1"),
         _event(mode="economic", cost=0.10, task_id="t2"),
-        _event(mode="blitz", cost=0.80, task_id="t3"),
+        _event(mode="turbo", cost=0.80, task_id="t3"),
     ])
     metrics = a.all_mode_metrics()
     assert len(metrics) == 3
-    assert metrics[0].mode == "blitz"  # Highest cost first
+    assert metrics[0].mode == "turbo"  # Highest cost first
 
 
 def test_mode_metrics_backends():
@@ -174,7 +174,7 @@ def test_compare_modes_by_task_type():
 def test_compare_modes_no_data():
     a = BudgetAnalytics()
     a.record(_event(mode="standard", task_id="t1"))
-    comp = a.compare_modes("standard", "blitz")
+    comp = a.compare_modes("standard", "turbo")
     assert comp is None
 
 

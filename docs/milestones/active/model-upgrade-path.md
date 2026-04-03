@@ -309,7 +309,7 @@ trust through observed performance, and get promoted by the PO.
 |-------------------|-------------|
 | Multi-Backend Router | New models added to backend registry |
 | Labor Attribution | Model used recorded in labor stamps, tier progression tracked |
-| Budget Mode System | Better local models = more offload in frugal/survival modes |
+| Budget Mode System | Better local models = more offload when LocalAI enabled in backend_mode |
 | Iterative Validation | Local reasoning models (DeepSeek R1) used for free adversarial challenges |
 | Strategic Vision LocalAI | Model upgrades directly serve Stages 2-5 |
 | AICP Assessment | Stage 1 benchmarks inform model selection |

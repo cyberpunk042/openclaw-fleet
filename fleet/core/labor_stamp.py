@@ -81,11 +81,10 @@ class LaborStamp:
     challenge_rounds_survived: int = 0
     challenge_types_faced: list[str] = field(default_factory=list)
     challenge_skipped: bool = False
-    challenge_skip_reason: str = ""    # e.g. "frugal mode", "blackout"
+    challenge_skip_reason: str = ""
     previous_attempt_id: Optional[str] = None
 
     # CONTEXT
-    budget_mode: str = "standard"
     fallback_from: Optional[str] = None    # If this was a fallback routing
     fallback_reason: Optional[str] = None
 
@@ -130,7 +129,6 @@ class LaborStamp:
             "iteration": self.iteration,
             "challenge_rounds_survived": self.challenge_rounds_survived,
             "challenge_types_faced": self.challenge_types_faced,
-            "budget_mode": self.budget_mode,
             "fallback_from": self.fallback_from,
             "timestamp": self.timestamp,
         }
@@ -159,7 +157,6 @@ class DispatchRecord:
     model: str                             # Selected model
     effort: str                            # Selected effort
     selection_reason: str                   # Why this model was selected
-    budget_mode: str                       # Active budget mode at dispatch time
     skills: list[str] = field(default_factory=list)
     dispatched_at: str = ""
 
@@ -175,7 +172,6 @@ class DispatchRecord:
             "model": self.model,
             "effort": self.effort,
             "selection_reason": self.selection_reason,
-            "budget_mode": self.budget_mode,
             "skills": self.skills,
             "dispatched_at": self.dispatched_at,
         }
@@ -224,7 +220,6 @@ def assemble_stamp(
         estimated_tokens=estimated_tokens,
         estimated_cost_usd=round(cost, 4),
         iteration=iteration,
-        budget_mode=dispatch.budget_mode,
     )
 
 

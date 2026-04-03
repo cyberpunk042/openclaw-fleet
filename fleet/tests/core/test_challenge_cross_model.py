@@ -34,43 +34,34 @@ def test_config_defaults():
 
 
 # ─── select_cross_model_config ───────────────────────────────────
+# Signature: select_cross_model_config(task_type, story_points, localai_available=True)
+# No longer takes confidence_tier or budget_mode.
 
 
 def test_select_simple_localai_available():
-    cfg = select_cross_model_config("task", 2, "standard", localai_available=True)
+    cfg = select_cross_model_config("task", 2, localai_available=True)
     assert cfg.challenger_backend == "localai"
     assert cfg.challenger_model == "hermes-3b"
 
 
 def test_select_simple_localai_unavailable():
-    cfg = select_cross_model_config("task", 2, "standard", localai_available=False)
+    cfg = select_cross_model_config("task", 2, localai_available=False)
     assert cfg.challenger_backend == "openrouter"
 
 
 def test_select_complex_task():
-    cfg = select_cross_model_config("story", 5, "standard")
+    cfg = select_cross_model_config("story", 5)
     assert cfg.challenger_backend == "openrouter"
 
 
 def test_select_epic():
-    cfg = select_cross_model_config("epic", 3, "standard")
+    cfg = select_cross_model_config("epic", 3)
     assert cfg.challenger_backend == "openrouter"
 
 
 def test_select_blocker():
-    cfg = select_cross_model_config("blocker", 1, "standard")
+    cfg = select_cross_model_config("blocker", 1)
     assert cfg.challenger_backend == "openrouter"
-
-
-def test_select_frugal_uses_localai():
-    cfg = select_cross_model_config("story", 5, "frugal", localai_available=True)
-    assert cfg.challenger_backend == "localai"
-    assert cfg.challenger_model == "hermes-3b"
-
-
-def test_select_survival_uses_localai():
-    cfg = select_cross_model_config("blocker", 8, "survival", localai_available=True)
-    assert cfg.challenger_backend == "localai"
 
 
 # ─── build_cross_model_messages ──────────────────────────────────

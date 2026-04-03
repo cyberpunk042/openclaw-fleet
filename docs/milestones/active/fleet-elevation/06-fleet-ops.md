@@ -101,7 +101,7 @@ Periodically check recently completed tasks:
 
 ### 5. Budget Guardianship
 - Monitor fleet health metrics for budget concerns
-- If budget warning detected → recommend effort profile change
+- If budget warning detected → recommend budget_mode change (slower tempo)
 - If critical → recommend work_mode change (finish-current or paused)
 - Report budget status to PO periodically
 

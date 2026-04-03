@@ -232,7 +232,7 @@ fleet/tests/
 │   ├── test_context_assembly.py
 │   ├── test_cross_refs.py
 │   ├── test_doctor.py
-│   ├── test_effort_profiles.py
+│   ├── test_budget_modes.py
 │   ├── test_event_chain.py         ← chain builder tests exist
 │   ├── test_event_display.py
 │   ├── test_event_router.py
@@ -286,7 +286,7 @@ Top-level imports:
 Lazy imports (inside functions):
 - behavioral_security (scan_task), context_assembly (clear_context_cache),
   context_writer (write_heartbeat_context, write_task_context),
-  effort_profiles (get_profile), error_reporter (detect_rate_limit),
+  budget_modes (get_profile), error_reporter (detect_rate_limit),
   events (create_event, EventStore), health (assess_fleet_health),
   outage_detector, preembed (build_heartbeat_preembed, build_task_preembed),
   role_providers (get_role_provider), self_healing (plan_healing_actions),

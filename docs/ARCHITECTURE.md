@@ -27,8 +27,9 @@
 │  │ Monitor │ │ Monitor │ │ Mode     │ │ Profile │ │ Detector │ │
 │  └────┬────┘ └────┬────┘ └─────┬────┘ └────┬────┘ └─────┬────┘ │
 │       │           │            │            │            │       │
-│  9 Steps: Context → Security → Doctor → Approvals →      │       │
-│           Wake → Dispatch → Directives → Parents → Health │       │
+│  13 Steps: Context → Events → Doctor → Gates →            │       │
+│   Contributions → Dispatch → Approvals → Parents →        │       │
+│   Drivers → Propagation → Session Mgmt → Health → Direct  │       │
 └────────┬─────────────────────────────────────────────────────────┘
          │ writes context/ files          │ inject_content()
          ▼                                ▼
@@ -50,7 +51,7 @@
 │  Workers:  architect │ engineer │ devops │ QA │ writer │ UX       │
 │                                                                    │
 │  Each agent: CLAUDE.md + HEARTBEAT.md + context/ + MCP tools      │
-│  Lifecycle: ACTIVE → IDLE → DROWSY → SLEEPING → OFFLINE          │
+│  Lifecycle: ACTIVE → IDLE → SLEEPING → OFFLINE          │
 └────────┬─────────────────────────────────────────────────────────┘
          │ MCP tool calls
          ▼
@@ -221,7 +222,7 @@ MCP Tool: fleet_task_complete
 
 ```
 config/
-├── fleet.yaml              Fleet-wide: gateway, MC, orchestrator, effort
+├── fleet.yaml              Fleet-wide: gateway, MC, orchestrator, tempo
 ├── phases.yaml             PO-defined delivery phase progressions
 ├── agent-identities.yaml   Agent display names
 ├── skill-assignments.yaml  Skill → agent mapping
@@ -276,16 +277,44 @@ Injection order: IDENTITY → SOUL → CLAUDE → TOOLS → AGENTS → context/ 
 | Session Telemetry (W8) | Runtime systems | Adapter built, not wired to orchestrator |
 | Fleet Routing | Real dispatch | Router exists, orchestrator doesn't use it fully |
 | Contribution flow | Agents | fleet_contribute tool not built |
-| Brain evaluation | DROWSY agents | Data structures exist, logic not in orchestrator |
+| Brain evaluation | IDLE+ agents (after 1 HEARTBEAT_OK) | Data structures exist, interception logic not in orchestrator |
 
 ---
 
-## 9. Honest Status
+## 9. Honest Status (Updated 2026-04-02)
 
 **61 milestones live verified.** 56 with code but not live tested. ~133 designed only. 5 blocked by operational readiness.
 
+**B0 complete** (agent directory cleanup). **B0.5 complete** (8 per-type standards). **B0.8 complete** (contamination cleanup — all fabricated specifics removed).
+
 **Zero end-to-end live tests** with real agents doing real work through the full lifecycle (dispatch → stages → contributions → work → challenge → review → done).
 
-The code exists. The tests pass. The systems connect. But nobody has pressed "go" and watched 10 agents work together on real tasks through real methodology stages with real challenges and real approvals.
+**Complete vision mapped** (2026-04-02): `fleet-vision-architecture.md` — 43 sections, 4400+ lines covering full task lifecycle, OCMC/Brain/Gateway protocol, contribution flow, review flow, cross-cutting scenarios, autocomplete chain engineering, phase system, trail system, anti-corruption, agent character, ecosystem deployment.
 
-That is the next milestone.
+**Complete gap registry:** §33 identifies 23 categories, 130+ missing pieces, ~200-400 hours of work. Includes 5 code bugs, 5 missing MCP tools, 8 missing brain modules, entire contribution/phase/trail systems, skills/plugins/commands not deployed, anti-corruption Line 1 at 0%.
+
+**Path to live:** 24 steps across 8 phases. See `path-to-live.md`.
+- Phase A: Foundation (gateway fix, stage fix, IaC, Tier 1 ecosystem)
+- Phase B: Agent Identity (70+ agent files to spec)
+- Phase C: Brain Evolution (autocomplete, trail, settings, pre-embed, telemetry)
+- Phase D: First MVP Live Test
+- Phase E: Cross-Agent Synergy (contributions, phases, session mgmt)
+- Phase F: Full Lifecycle Test
+- Phase G: Hardening (brain eval, diseases, regression/cowork)
+- Phase H: Ecosystem Tier 2 + 24h Observation
+
+**Estimated:** 132-240 hours, 6-12 weeks of focused work.
+
+## 10. Deep Documentation Reference
+
+| Document | Lines | Content |
+|----------|-------|---------|
+| fleet-vision-architecture.md | 4400+ | 43 sections: complete system map, all flows, all gaps |
+| fleet-master-diagrams.md | 1350 | 18 diagrams: architecture, brain, contribution, review, autocomplete, phase, anti-corruption, trail, notifications |
+| path-to-live.md | 460 | 24-step ordered path across 8 phases |
+| WORK-BACKLOG.md | 370 | Prioritized backlog + §33 gap integration |
+| 22 system docs | 10,283 | Per-system reference (docs/systems/) |
+| 31 fleet-elevation docs | ~15,000 | Design specs for agent elevation |
+| 8 standards | ~2,000 | Per-type quality gates |
+| ecosystem-deployment-plan.md | 400+ | 15 ecosystem items, 3 tiers |
+| context-window-awareness-and-control.md | 500+ | CW-01 to CW-10 requirements |

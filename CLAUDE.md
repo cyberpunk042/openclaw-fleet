@@ -91,7 +91,7 @@ fleet/                         # Main Python package (71 modules)
     models.py                  # Task, Agent, TaskStatus, TaskCustomFields
     orchestrator (cli/)        # The brain — 30s cycle, 6 steps
     budget_monitor.py          # Real Claude OAuth quota monitoring
-    effort_profiles.py         # full/conservative/minimal/paused
+    budget_modes.py            # Fleet tempo setting (speed/frequency)
     task_scoring.py            # Priority scoring for dispatch
     agent_lifecycle.py         # ACTIVE → IDLE → SLEEPING → OFFLINE
     agent_roles.py             # Roles, PR authority, secondary roles
@@ -137,7 +137,7 @@ agents/                        # Agent definitions (10 agents)
   {name}/HEARTBEAT.md          # Heartbeat instructions
   _template/                   # Template for new agents
 config/                        # Fleet configuration
-  fleet.yaml                   # Orchestrator, effort, notifications
+  fleet.yaml                   # Orchestrator, tempo, notifications
   agent-identities.yaml        # Agent roster and roles
   projects.yaml                # Project registry
 scripts/                       # IaC scripts (42 scripts)
@@ -178,7 +178,7 @@ Runs every 30 seconds. 6 steps per cycle:
 
 Safety:
 - Budget monitor reads real Claude OAuth quota before every dispatch
-- Effort profiles: `conservative` (default), `full`, `minimal`, `paused`
+- Work mode controls dispatch (work-paused, finish-current-work, etc.)
 - Max 2 dispatches per cycle
 - Error reporter + outage detector with exponential backoff
 
@@ -199,7 +199,7 @@ make sync          # Sync tasks ↔ PRs
 fleet pause        # Pause all dispatches
 fleet resume       # Resume dispatches
 fleet status       # Agent and task status
-fleet effort full  # Switch to full effort profile
+fleet budget set <mode>  # Set fleet tempo mode
 fleet plane list-projects  # List Plane projects
 ```
 

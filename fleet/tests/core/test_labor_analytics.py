@@ -20,7 +20,6 @@ def _stamp(
     cost: float = 0.10,
     duration: int = 60,
     tokens: int = 500,
-    budget_mode: str = "standard",
     challenge_rounds: int = 0,
 ) -> LaborStamp:
     return LaborStamp(
@@ -31,7 +30,6 @@ def _stamp(
         estimated_cost_usd=cost,
         duration_seconds=duration,
         estimated_tokens=tokens,
-        budget_mode=budget_mode,
         challenge_rounds_survived=challenge_rounds,
     )
 
@@ -245,18 +243,6 @@ def test_cost_by_backend():
     costs = a.cost_by_backend()
     assert costs["claude-code"] == 0.80
     assert costs["localai"] == 0.00
-
-
-def test_cost_by_budget_mode():
-    a = LaborAnalytics()
-    a.record_many([
-        _stamp(budget_mode="standard", cost=0.50),
-        _stamp(budget_mode="economic", cost=0.10),
-        _stamp(budget_mode="standard", cost=0.20),
-    ])
-    costs = a.cost_by_budget_mode()
-    assert costs["standard"] == 0.70
-    assert costs["economic"] == 0.10
 
 
 # ─── Summary ────────────────────────────────────────────────────

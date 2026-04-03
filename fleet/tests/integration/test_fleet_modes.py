@@ -330,7 +330,7 @@ class TestReadinessAndStageEnforcement:
     def test_all_valid_modes_listed(self):
         assert len(WORK_MODES) == 5
         assert len(CYCLE_PHASES) == 6
-        assert len(BACKEND_MODES) == 3
+        assert len(BACKEND_MODES) == 7
 
 
 # ═══ EVENT EMISSION FOR MODE CHANGES ═════════════════════════════════

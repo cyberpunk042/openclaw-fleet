@@ -1,43 +1,30 @@
-# OpenClaw Fleet Configuration
-
+agents_dir: agents
 fleet:
   name: openclaw-fleet
   version: 0.1.0
-
 gateway:
-  port: 9400
   claude_model: opus
   default_mode: think
-
+  port: 9400
 mission_control:
-  url: http://localhost:8000
   enabled: true
-
-agents_dir: agents
-
-# ─── Notifications ─────────────────────────────────────────────────────
+  url: http://localhost:8000
 notifications:
   ntfy:
-    url: http://192.168.40.11:10222
     topics:
-      progress: fleet-progress    # info — task done, PR merged, sprint update
-      review: fleet-review        # important — escalation, decision needed
-      alert: fleet-alert          # urgent — security, infrastructure, sprint blocked
+      alert: fleet-alert
+      progress: fleet-progress
+      review: fleet-review
+    url: http://192.168.40.11:10222
   windows:
-    enabled: false                # Enable when wsl-notify-send is installed
-    only_urgent: true             # Only Windows toast for urgent notifications
-
-# ─── Orchestrator ──────────────────────────────────────────────────────
+    enabled: false
+    only_urgent: true
 orchestrator:
-  # Orchestrator dispatches tasks, evaluates parents, wakes drivers.
-  # It does NOT approve tasks — that's fleet-ops' job as board lead.
+  budget_mode: turbo
   driver_agents:
-    - project-manager
-    - fleet-ops
-  driver_heartbeat_interval: 600  # seconds (10 min) — shorter during active sprints
+  - project-manager
+  - fleet-ops
+  driver_heartbeat_interval: 600
+  dry_run: false
   max_concurrent_per_agent: 1
   max_dispatch_per_cycle: 2
-  dry_run: false
-  # Effort profile: full, conservative, minimal, paused
-  # Controls fleet intensity — budget, model selection, active agents
-  effort_profile: conservative  # Start conservative after the drain incident

@@ -51,7 +51,7 @@
 | **20: AI Behavior** — anti-corruption rules, structural prevention, disease catalogue | **PARTIAL** — 10 anti-corruption rules DEFINED but in 0/10 CLAUDE.md files. Doctor detects 4/11 diseases. Teaching has 8/11 lesson templates. Stage gating IS enforcement. | Anti-corruption rules must go in every CLAUDE.md. 7 disease detections to implement. |
 | **21: Task Lifecycle Redesign** — PRE/PROGRESS/POST | **IMPLEMENTED** — `task_lifecycle.py` exists. Fleet_task_accept (PRE), fleet_task_progress (PROGRESS), fleet_task_complete (POST). | Not fully enforced — agents can skip PRE. |
 | **22: Milestones** | Tracking doc | N/A |
-| **23: Agent Lifecycle** — DROWSY, brain-evaluated heartbeats, strategic Claude calls | **PARTIAL** — `agent_lifecycle.py` has DROWSY state, consecutive_heartbeat_ok, data hash. FleetLifecycle class manages states. | Brain evaluation logic NOT in orchestrator. Strategic Claude call matrix NOT implemented. |
+| **23: Agent Lifecycle** — IDLE, brain-evaluated heartbeats, strategic Claude calls | **PARTIAL** — `agent_lifecycle.py` has IDLE state, consecutive_heartbeat_ok, data hash. FleetLifecycle class manages states. | Brain evaluation logic NOT in orchestrator. Strategic Claude call matrix NOT implemented. |
 | **24: Tool Call Tree Catalog** | **PARTIAL** — `skill_enforcement.py` has required tools per task type. | Not connected to review gates for confidence scoring. |
 | **25-31: Reference docs** | Planning/reference only | N/A |
 
@@ -132,13 +132,13 @@
 | System | Milestones | Unit Tests | Integration Tests | Live Tests | Code Matches Spec? |
 |--------|-----------|-----------|-------------------|-----------|-------------------|
 | **Labor Attribution** | M-LA01-08 | 44 ✅ | 5 ✅ | 0 | ✅ Yes — LaborStamp, tiers, analytics per spec |
-| **Budget Mode** | M-BM01-06 | 93 ✅ | 4 ✅ | 0 | ✅ Yes — 6 modes, constraints, auto-transition per spec |
-| **Multi-Backend Router** | M-BR01-08 | 73 ✅ | 5 ✅ | 0 | ✅ Yes — 4 backends, routing, fallback, health per spec |
-| **Iterative Validation** | M-IV01-08 | 178 ✅ | 0 | 0 | ✅ Yes — 4 types, budget-aware, deferred queue per spec |
+| **Budget Mode** | M-BM01-06 | 7 ✅ | 1 ✅ | 0 | ⚠️ CLEANED — tempo setting only, mode definitions TBD. Contamination removed (2026-04-01). |
+| **Multi-Backend Router** | M-BR01-08 | 73 ✅ | 5 ✅ | 0 | ⚠️ UPDATED — uses backend_mode (7 combos), cheapest capable wins. No per-mode routing functions. |
+| **Iterative Validation** | M-IV01-08 | 178 ✅ | 0 | 0 | ⚠️ CLEANED — challenge depth by tier/complexity, not budget mode. Deferred queue generic. |
 | **Model Upgrade** | M-MU01-08 | 130 ✅ | 4 ✅ | 0 | ✅ Yes — shadow, promote, tier, benchmark per spec |
 | **Storm Prevention** | M-SP01-09 | 90 ✅ | 5 ✅ | 0 | ✅ Yes — 9 indicators, 5 severity, circuit breakers per spec |
 
-**All 47 strategic milestones match their design specs.** The code implements what the docs describe. The gap is live testing — none of these have been tested with real agents.
+**Contamination cleanup (2026-04-01):** Budget modes, router, and challenge system were cleaned of fabricated specifics. Test count dropped from ~1800 to 1730 (removed tests for invented behavior). effort_profiles.py deleted (redundant). Code is cleaner but specs need updating to match.
 
 ---
 
@@ -148,10 +148,10 @@ Places where code does something DIFFERENT from what the spec says:
 
 | Area | Spec Says | Code Does | Impact |
 |------|----------|-----------|--------|
-| **Agent file injection order** | IDENTITY→SOUL→CLAUDE→TOOLS→AGENTS→context→HEARTBEAT | **UNVERIFIED** — gateway is vendor code, order not confirmed | Could affect AI behavior if order is wrong |
-| **CLAUDE.md max 4000 chars** | Gateway enforces 4000 char limit | **UNVERIFIED** — no current CLAUDE.md approaches limit | Will matter when rewritten per spec |
+| **Agent file injection order** | IDENTITY→SOUL→CLAUDE→TOOLS→AGENTS→context→HEARTBEAT | **NOT IMPLEMENTED** — gateway reads ONLY CLAUDE.md + context/ files. executor.py:94-119 and ws_server.py:335-353 confirmed. Does NOT read IDENTITY, SOUL, TOOLS, AGENTS, HEARTBEAT. | CRITICAL — agents get none of the onion architecture. All identity, values, tools, synergy, heartbeat protocol MISSING from system prompt. Gateway code must be modified. |
+| **CLAUDE.md max 4000 chars** | Gateway enforces 4000 char limit | **VERIFIED** — executor.py:107 caps at 4000, ws_server.py:345 caps at 2000 (INCONSISTENT — ws_server is tighter) | Need to align: both should be 4000. ws_server.py:345 `[:2000]` → `[:4000]` |
 | **Contribution flow** | Brain creates parallel subtasks at REASONING stage | **NOT IN CODE** — no contribution logic in orchestrator | Largest functional gap |
-| **Brain-evaluated heartbeats** | DROWSY/SLEEPING agents get deterministic evaluation | **NOT IN CODE** — all agents get Claude calls | Cost gap — sleeping agents cost money |
+| **Brain-evaluated heartbeats** | IDLE/SLEEPING agents get deterministic evaluation | **NOT IN CODE** — all agents get Claude calls. agent_lifecycle.py has brain_evaluates property ready. | Cost gap — sleeping agents cost money |
 | **Stage-gated tool access** | More tools should be stage-restricted | **PARTIAL** — only fleet_commit + fleet_task_complete blocked | Spec implies broader gating |
 | **Review gates** | QA, architect, devsecops review before approval | **review_gates exist in fleet_task_complete** but reviewers don't actually receive review tasks | Review chain not operational |
 | **HeartbeatBundle vs preembed** | Should be unified | **TWO parallel systems** — heartbeat_context.py builds HeartbeatBundle, preembed.py builds markdown text separately | Duplication, different data |
@@ -177,38 +177,106 @@ Modules that were built without a design spec:
 ## 7. The Critical Path — What Spec Work Blocks Live Testing
 
 ```
-BLOCKER 1: AR-10 (Per-agent CLAUDE.md)
+DONE: B0 (Agent Directory Cleanup)
+  Templates in git (_template/), runtime dirs gitignored.
+
+DONE: Per-type standards (8 docs in standards/)
+  Quality gates for all agent files, brain modules, IaC.
+
+DONE: Contamination cleanup (2026-04-01)
+  Removed fabricated budget modes, effort profiles, cost envelopes.
+  Budget mode → tempo only. Router → backend_mode (7 combos).
+  effort_profiles.py deleted (redundant). 1730 tests pass.
+
+BLOCKER 0: B0.7 — Gateway Injection Order
+  Gateway reads ONLY CLAUDE.md + context/ files.
+  Does NOT read IDENTITY, SOUL, TOOLS, AGENTS, HEARTBEAT.
+  Without this, writing agent files is pointless.
+  Work: 2-4 hours (modify executor.py + ws_server.py)
+
+BLOCKER 1: Settings Wiring
+  backend_mode not passed to router yet.
+  budget_mode tempo not applied to CRONs yet.
+  Settings exist in OCMC but don't fully propagate.
+  Work: 4-8 hours
+
+BLOCKER 2: B1 — AR-10 (Per-agent CLAUDE.md)
+  Standard: standards/claude-md-standard.md
   Spec: fleet-elevation/02, 05-14, 20
   Code: 0/10 CLAUDE.md follow spec
-  Impact: Agents don't have anti-corruption rules, stage protocol,
-          contribution model, tool chains, boundary setting
+  Impact: No anti-corruption, no stage protocol, no contribution model
   Work: 20-40 hours of careful writing
 
-BLOCKER 2: AR-04-08 (Per-role HEARTBEAT.md)
+BLOCKER 2: B2 — AR-04-08 (Per-role HEARTBEAT.md)
+  Standard: standards/heartbeat-md-standard.md
   Spec: fleet-elevation/05-14, agent-rework/04-08
   Code: Template exists, per-role rewrites not done
-  Impact: PM doesn't follow PM protocol, fleet-ops doesn't follow
-          review protocol, workers don't differentiate by role
+  Impact: PM/fleet-ops/architect/devsecops don't follow role protocols
   Work: 5-10 hours
 
-BLOCKER 3: fleet-elevation/15 (Contribution Flow)
+BLOCKER 3: H1 — fleet-elevation/15 (Contribution Flow)
+  Standard: standards/brain-modules-standard.md (contributions.py)
   Spec: Parallel contributions before work
   Code: fleet_contribute MCP tool NOT built
   Impact: Specialists can't contribute before implementation
-  Work: 8-16 hours (tool + brain logic + context)
+  Work: 8-16 hours
 
-BLOCKER 4: AR-01 (Full Pre-Embed)
-  Spec: PM gets Plane sprint, workers get artifacts
+BLOCKER 4: B4 + H3 (agent.yaml + Full Pre-Embed)
+  Standard: standards/agent-yaml-standard.md, standards/context-files-standard.md
   Code: Functional but not per full spec
-  Impact: Agents work with incomplete awareness
+  Impact: Agents work with incomplete identity and awareness
   Work: 4-8 hours
 
 After fixing these: FIRST LIVE TEST POSSIBLE
 ```
 
+### 7.1 Full Picture (Updated 2026-04-02)
+
+The critical path above shows 4 blockers. The FULL scope mapped in
+`fleet-vision-architecture.md §33` identifies **23 categories, 130+ pieces,
+~200-400 hours of work** beyond these blockers.
+
+**Major missing layers:**
+- Contribution system (10 pieces) — cross-agent synergy
+- Phase system (9 pieces) — delivery quality gates
+- Trail & audit (6 pieces) — complete audit record
+- Autocomplete chain (8 pieces) — core design principle
+- Session management (5+ pieces) — context + rate limit coordination
+- Anti-corruption Line 1 (structural prevention) — 0% built
+- Brain: 7 missing steps, 8 missing modules
+- Ecosystem: skills/plugins/commands not deployed
+- 5 MCP tools not built, 5 existing tools need chain elevation
+
+**See:**
+- `fleet-vision-architecture.md §33` — complete gap registry
+- `path-to-live.md` — 24-step ordered path across 8 phases
+- `fleet-master-diagrams.md` — 18 diagrams including new flows
+
 ---
 
-## 8. Reading This Document
+## 8. Standards Documents (NEW — 2026-04-01)
+
+Per-type quality standards that gate all agent work. Located in
+`docs/milestones/active/standards/`:
+
+| Standard | Gates | What It Defines |
+|----------|-------|----------------|
+| [claude-md-standard.md](milestones/active/standards/claude-md-standard.md) | B1 (CLAUDE.md ×10) | 8 required sections, 4000 char limit, per-role content, annotated example |
+| [heartbeat-md-standard.md](milestones/active/standards/heartbeat-md-standard.md) | B2 (HEARTBEAT.md ×5) | 5 heartbeat types, priority protocol, per-role work stage variations |
+| [agent-yaml-standard.md](milestones/active/standards/agent-yaml-standard.md) | B4 (agent.yaml ×10) | 14 required fields, per-role values, model rationale |
+| [identity-soul-standard.md](milestones/active/standards/identity-soul-standard.md) | U-01 (Agent identity) | Inner layer, top-tier expert, 10 anti-corruption rules, per-role values |
+| [tools-agents-standard.md](milestones/active/standards/tools-agents-standard.md) | U-09 (Self-knowledge) | Chain-aware tools (GENERATED), synergy (GENERATED), contribution matrix |
+| [context-files-standard.md](milestones/active/standards/context-files-standard.md) | H3 (Pre-embed) | Autocomplete chain (10 sections in order), NEVER compressed |
+| [iac-mcp-standard.md](milestones/active/standards/iac-mcp-standard.md) | B3 (Template deploy) | 6 scripts, idempotent, config-driven, Makefile integration |
+| [brain-modules-standard.md](milestones/active/standards/brain-modules-standard.md) | H1, H5, U-18 | 8 new modules, 13-step orchestrator, session management |
+
+**Master index:** [agent-file-standards.md](milestones/active/agent-file-standards.md)
+
+**Rule:** Standards document FIRST, then build. No code without meeting its standard.
+
+---
+
+## 9. Reading This Document
 
 For each milestone/task:
 1. Find the spec in this document

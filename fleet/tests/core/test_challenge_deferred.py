@@ -4,62 +4,10 @@ import time
 from pathlib import Path
 
 from fleet.core.challenge_deferred import (
-    DEFERRAL_MODES,
-    PROCESSING_MODES,
     DeferredChallenge,
     DeferredChallengeQueue,
-    budget_improved,
-    can_process_deferred,
     compute_drain_batch_size,
-    should_defer_challenge,
 )
-
-
-# ─── Budget Mode Helpers ─────────────────────────────────────────
-
-
-def test_should_defer_frugal():
-    assert should_defer_challenge("frugal")
-
-
-def test_should_defer_survival():
-    assert should_defer_challenge("survival")
-
-
-def test_should_defer_blackout():
-    assert should_defer_challenge("blackout")
-
-
-def test_should_not_defer_standard():
-    assert not should_defer_challenge("standard")
-
-
-def test_should_not_defer_blitz():
-    assert not should_defer_challenge("blitz")
-
-
-def test_can_process_standard():
-    assert can_process_deferred("standard")
-
-
-def test_can_process_blitz():
-    assert can_process_deferred("blitz")
-
-
-def test_cannot_process_frugal():
-    assert not can_process_deferred("frugal")
-
-
-def test_budget_improved_frugal_to_standard():
-    assert budget_improved("frugal", "standard")
-
-
-def test_budget_not_improved_standard_to_frugal():
-    assert not budget_improved("standard", "frugal")
-
-
-def test_budget_not_improved_same():
-    assert not budget_improved("standard", "standard")
 
 
 # ─── DeferredChallenge ───────────────────────────────────────────
@@ -103,18 +51,18 @@ def test_to_dict():
     dc = DeferredChallenge(
         task_id="t1", task_type="task",
         story_points=3, confidence_tier="standard",
-        reason="frugal mode",
+        reason="deferred",
     )
     d = dc.to_dict()
     assert d["task_id"] == "t1"
-    assert d["reason"] == "frugal mode"
+    assert d["reason"] == "deferred"
 
 
 def test_from_dict():
     d = {
         "task_id": "t2", "task_type": "bug",
         "story_points": 5, "confidence_tier": "trainee",
-        "reason": "survival mode", "priority": 10,
+        "reason": "deferred", "priority": 10,
     }
     dc = DeferredChallenge.from_dict(d)
     assert dc.task_id == "t2"
@@ -155,7 +103,6 @@ def test_enqueue_full_rejected():
 
 def test_dequeue_fifo():
     q = DeferredChallengeQueue()
-    # Same priority, different times
     dc1 = DeferredChallenge("t1", "task", 3, "standard", deferred_at=100.0)
     dc2 = DeferredChallenge("t2", "task", 3, "standard", deferred_at=200.0)
     q.enqueue(dc1)
@@ -167,7 +114,6 @@ def test_dequeue_fifo():
 
 def test_dequeue_priority():
     q = DeferredChallengeQueue()
-    # Different priority
     dc1 = DeferredChallenge("t1", "task", 1, "standard", deferred_at=100.0)
     dc2 = DeferredChallenge("t2", "blocker", 3, "standard", deferred_at=200.0)
     q.enqueue(dc1)
@@ -306,25 +252,17 @@ def test_load_nonexistent(tmp_path: Path):
 # ─── Drain Logic ─────────────────────────────────────────────────
 
 
-def test_drain_blitz():
-    assert compute_drain_batch_size("blitz", 10) == 5
+def test_drain_default():
+    assert compute_drain_batch_size(10) == 3
 
 
-def test_drain_standard():
-    assert compute_drain_batch_size("standard", 10) == 3
-
-
-def test_drain_economic():
-    assert compute_drain_batch_size("economic", 10) == 1
-
-
-def test_drain_frugal():
-    assert compute_drain_batch_size("frugal", 10) == 0
+def test_drain_custom_max():
+    assert compute_drain_batch_size(10, max_per_cycle=5) == 5
 
 
 def test_drain_empty_queue():
-    assert compute_drain_batch_size("blitz", 0) == 0
+    assert compute_drain_batch_size(0) == 0
 
 
 def test_drain_small_queue():
-    assert compute_drain_batch_size("blitz", 2) == 2
+    assert compute_drain_batch_size(2) == 2

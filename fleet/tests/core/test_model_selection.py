@@ -58,7 +58,7 @@ def test_deep_reasoning_agent_medium_task():
 
 
 def test_worker_agent_medium_task_stays_sonnet():
-    # software-engineer with sp=5 but not a story → sonnet high
+    # software-engineer with sp=5 but not a story -> sonnet high
     config = select_model_for_task(_task(sp=5), "software-engineer")
     assert config.model == "sonnet"
     assert config.effort == "high"
@@ -75,32 +75,5 @@ def test_default_no_sp():
     assert config.model == "sonnet"
 
 
-# ─── Budget Mode Constraints ────────────────────────────────────────
-
-
-def test_economic_blocks_opus():
-    """Economic mode should downgrade opus to sonnet."""
-    config = select_model_for_task(_task(sp=13), "architect", budget_mode="economic")
-    assert config.model == "sonnet"
-    assert "constrained" in config.reason
-
-
-def test_blitz_allows_opus():
-    config = select_model_for_task(_task(sp=13), "architect", budget_mode="blitz")
-    assert config.model == "opus"
-
-
-def test_survival_blocks_all_claude():
-    config = select_model_for_task(_task(sp=3), "software-engineer", budget_mode="survival")
-    assert "blocked" in config.reason
-
-
-def test_no_budget_mode_no_constraint():
-    config = select_model_for_task(_task(sp=13), "architect", budget_mode="")
-    assert config.model == "opus"  # Unconstrained
-
-
-def test_economic_caps_effort():
-    """Economic mode caps effort at medium."""
-    config = select_model_for_task(_task(task_type="epic"), "architect", budget_mode="economic")
-    assert config.effort == "medium"  # Capped from max
+# Budget mode constraint tests removed — select_model_for_task
+# no longer takes budget_mode parameter.

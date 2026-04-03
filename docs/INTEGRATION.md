@@ -41,10 +41,6 @@ Orchestrator reads board state (MC API)
   │   work-paused? → skip dispatch
   │   cycle_phase → filter active agents (get_active_agents_for_phase)
   │
-  ├── EffortProfile check (effort_profiles.py)
-  │   profile.allow_dispatch? → if False, skip
-  │   max_dispatch_per_cycle → cap dispatches
-  │
   ├── StormMonitor check (storm_monitor.py)
   │   CRITICAL → abort entire cycle
   │   STORM → max_dispatch = 0
@@ -59,9 +55,15 @@ Orchestrator reads board state (MC API)
   │   agents_to_skip → don't dispatch to flagged agents
   │   tasks_to_block → don't dispatch flagged tasks
   │
+  ├── Session management check (brain Step 10)
+  │   rate_limit_used_pct > 85%? → no 1M context dispatches
+  │   distance to rollover + task context size → dispatch safe?
+  │   aggregate fleet context vs remaining quota → compound risk?
+  │
   ├── Route decision (backend_router.py)
-  │   route_task(task, agent, budget_mode, localai_available, storm_monitor, health_dashboard)
-  │   → assess complexity → route by budget mode
+  │   route_task(task, agent, backend_mode, localai_available, storm_monitor)
+  │   → backends_for_mode(backend_mode) → enabled backends
+  │   → assess complexity → cheapest capable enabled backend
   │   → health check (W5: backend DOWN → fallback)
   │   → circuit breaker check (storm: breaker OPEN → fallback)
   │   → RoutingDecision(backend, model, effort, confidence_tier)
@@ -71,7 +73,7 @@ Orchestrator reads board state (MC API)
   │   format_message() → dispatch message for agent
   │
   ├── Labor stamp: DispatchRecord created
-  │   Records: task_id, agent, backend, model, effort, budget_mode
+  │   Records: task_id, agent, backend, model, effort
   │
   ├── Context refresh (context_writer.py)
   │   Write task-context.md with stage instructions
@@ -98,10 +100,20 @@ DispatchRecord ─────→ labor stamp provenance
 
 ## 3. Flow 2: Agent Heartbeat
 
-**Trigger:** Gateway fires heartbeat per cron schedule (interval depends on agent lifecycle status).
+**Trigger:** Gateway fires heartbeat per cron schedule. Cron NEVER stops —
+brain intercepts via HeartbeatGate to decide: real Claude call or silent OK.
 
 ```
 Gateway cron fires for agent
+  │
+  ├── HeartbeatGate.evaluate() — brain intercepts BEFORE Claude call
+  │   ├── ACTIVE/IDLE → proceed to real heartbeat
+  │   ├── IDLE/SLEEPING → evaluate deterministically (FREE):
+  │   │   mentions? tasks? contributions? directives? role triggers?
+  │   │   ├── Wake trigger found → fire real heartbeat (strategic config)
+  │   │   └── Nothing found → silent heartbeat OK ($0, logged, done)
+  │   └── The cron never stops. The agent is always on call.
+  │
   │
   ├── Gateway reads agent files (injection order):
   │   1. IDENTITY.md (grounding)
@@ -145,9 +157,16 @@ Gateway cron fires for agent
   │
   ├── Heartbeat result recorded:
   │   ├── HEARTBEAT_OK → consecutive_heartbeat_ok += 1
-  │   │   2 → DROWSY (reduced heartbeat frequency)
+  │   │   1 → IDLE (brain takes over, silent heartbeat)
   │   │   3 → SLEEPING (brain evaluates, zero Claude calls)
   │   └── Work done → consecutive_heartbeat_ok = 0 (ACTIVE)
+  │
+  ├── Session management evaluation (brain Step 10):
+  │   Agent context size recorded from session telemetry
+  │   If near rate limit rollover + context > ~40-80K + no predicted work:
+  │     → dump context to smart artifacts, fresh session
+  │   If near rollover + context heavy + work continues:
+  │     → prepare synthesised re-injection for after rollover
   │
   └── Orchestrator Step 0 (next cycle): refresh context/ files
 ```
@@ -161,7 +180,7 @@ context/task-context.md ───→ task detail + stage instructions
 HEARTBEAT.md ──────────────→ action protocol (what to do)
 CLAUDE.md ─────────────────→ role rules + anti-corruption (how to behave)
 MCP tool calls ────────────→ event chains across 6 surfaces
-HEARTBEAT_OK count ────────→ lifecycle state (ACTIVE → DROWSY → SLEEPING)
+HEARTBEAT_OK count ────────→ lifecycle state (ACTIVE → IDLE → SLEEPING)
 ```
 
 ---
@@ -241,7 +260,7 @@ Agent calls fleet_task_complete(summary="Added FleetControlBar component")
   │   DispatchRecord + session metrics → full LaborStamp
   │   confidence_tier auto-derived from backend + model
   │   challenge_rounds_survived, challenge_types_faced
-  │   budget_mode, fallback_from (if routed through fallback)
+  │   fallback_from (if routed through fallback)
   │
   ├── Review gates: _build_review_gates(task_type, has_code)
   │   Code task → QA required
@@ -400,6 +419,11 @@ PM task reaches REASONING stage with readiness ~80
 ```
 Void session rate climbing (agents heartbeating without doing work):
   │
+  ├── Session management: aggregate fleet context near rollover
+  │   sum(all agent context sizes) vs remaining rate limit quota
+  │   Multiple heavy-context agents near rollover = compound spike risk
+  │   This is a storm indicator alongside void sessions
+  │
   ├── storm_monitor.report_session(void=True) — called per session
   │   _void_sessions += 1
   │   void rate = _void_sessions / _total_sessions
@@ -419,26 +443,17 @@ Void session rate climbing (agents heartbeating without doing work):
   ├── Orchestrator pre-check:
   │   WARNING:
   │   ├── config["max_dispatch_per_cycle"] = min(current, 1)
-  │   ├── capture_diagnostic(budget_mode) → save snapshot to disk
+  │   ├── capture_diagnostic() → save snapshot to disk
   │   ├── IRC #alerts: "[storm] WARNING: {status}"
-  │   └── evaluate_storm_response() → force_budget_mode = "economic"
-  │       STORM_BUDGET_FORCING[WARNING] = "economic" (W3 wiring)
   │
   │   STORM:
   │   ├── config["max_dispatch_per_cycle"] = 0
   │   ├── diagnostic snapshot
   │   ├── IRC #alerts + ntfy PO
-  │   └── force_budget_mode = "survival"
   │
   │   CRITICAL:
   │   ├── IRC #alerts + ntfy PO URGENT
   │   ├── return state (HALT — no further steps execute)
-  │   └── force_budget_mode = "blackout"
-  │
-  ├── Budget mode forced → affects ALL subsequent routing:
-  │   economic → sonnet only, no opus
-  │   survival → LocalAI only, no Claude
-  │   blackout → direct only, fleet frozen
   │
   ├── Circuit breakers (per-agent, per-backend):
   │   Backend failures accumulate → breaker trips → OPEN state
@@ -455,7 +470,7 @@ Void session rate climbing (agents heartbeating without doing work):
   │   StormAnalytics records for trend analysis
   │
   └── De-escalation (slower than escalation):
-      Budget mode relaxes: blackout → survival → economic → standard
+      Dispatch limits relax as indicators clear
       Agent lifecycle: sleeping agents can wake again
       Circuit breakers: cooldown timers expire → HALF_OPEN → test → CLOSED
 ```
@@ -620,7 +635,7 @@ Orchestrator detects: 3 unassigned inbox tasks
   │
   └── Agent lifecycle:
       Sleeping agent gets task assigned:
-        should_wake_for_task() → True (DROWSY/SLEEPING/OFFLINE)
+        should_wake_for_task() → True (IDLE/SLEEPING/OFFLINE)
         agent.wake(now) → status = IDLE, consecutive_ok = 0
         → Next heartbeat at IDLE interval (30 min, not 2h)
 ```

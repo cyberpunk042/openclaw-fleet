@@ -35,11 +35,11 @@
 
 ## What This Document Covers
 
-The complete agent lifecycle — from active work through idle, drowsy,
+The complete agent lifecycle — from active work through idle,
 sleeping, and back to active. How the brain takes over heartbeat
 evaluation when agents sleep. How Claude calls are made strategically
 with the right model, effort, session strategy, and timing. How all
-the existing infrastructure (agent_lifecycle.py, effort_profiles.py,
+the existing infrastructure (agent_lifecycle.py, fleet_mode.py,
 budget_monitor.py, change_detector.py, gateway_client.py, executor.py)
 connects to make this work.
 
@@ -58,13 +58,14 @@ Already implements:
 - `FleetLifecycle` — tracks all agents, `agents_needing_heartbeat()`,
   `is_fleet_idle()`
 
-### fleet/core/effort_profiles.py
+### fleet/core/fleet_mode.py
 Already implements:
-- Four profiles: full, conservative, minimal, paused
-- Per-profile: max_dispatch, heartbeat intervals, allow_opus,
-  allow_dispatch, allow_heartbeats, active_agents list
-- `is_agent_active()` — check if agent is allowed under profile
-- Profile read from config/fleet.yaml
+- Work mode: full-autonomous, project-management-work, local-work-only,
+  finish-current-work, work-paused
+- Cycle phase: execution, planning, analysis, investigation, review,
+  crisis-management
+- Backend mode: 7 combos of Claude/LocalAI/OpenRouter
+- `should_dispatch()`, `get_active_agents_for_phase()`
 
 ### fleet/core/budget_monitor.py
 Already implements:
@@ -116,10 +117,11 @@ And: "then it relay the work to the brain to actually do a compare"
 — the brain takes over with DETERMINISTIC evaluation. No Claude call
 for "is there something for me?" The brain KNOWS by reading the data.
 
-### Content-Aware Sleep — The Missing Piece
+### Content-Aware Lifecycle — The Missing Piece (Rectified 2026-04-01)
 
-The agent lifecycle needs to track not just TIME since last activity,
-but CONTENT since last heartbeat:
+The agent lifecycle tracks CONTENT, not just TIME. After 1 HEARTBEAT_OK,
+the brain takes over evaluation. No intermediate states — one proper
+heartbeat with nothing to do is enough to relay to the brain.
 
 ```python
 @dataclass
@@ -129,54 +131,49 @@ class AgentState:
     last_active_at: Optional[datetime] = None
     last_heartbeat_at: Optional[datetime] = None
     current_task_id: Optional[str] = None
-
-    # NEW: content-aware fields
-    consecutive_heartbeat_ok: int = 0     # how many HEARTBEAT_OK in a row
+    consecutive_heartbeat_ok: int = 0     # 1 = brain takes over
     last_heartbeat_data_hash: str = ""    # hash of data at last heartbeat
-    last_wake_trigger: str = ""           # what caused the last wake
-    drowsy_since: Optional[datetime] = None  # when did drowsy start
 ```
 
-The `consecutive_heartbeat_ok` counter is key. When the agent does
-a real heartbeat and responds HEARTBEAT_OK, the orchestrator
-increments this counter. After the PO's threshold (2-3), the agent
-transitions to a BRAIN-EVALUATED state.
+The `consecutive_heartbeat_ok` counter is key. After 1 HEARTBEAT_OK,
+`brain_evaluates` becomes True. The cron still fires, the brain
+intercepts, evaluates deterministically (free), and only fires a
+real Claude heartbeat if a wake trigger is found.
 
 The `last_heartbeat_data_hash` captures what the agent's pre-embed
 data looked like. If the hash hasn't changed, there's literally
-nothing new — the brain can skip the Claude call without even
-evaluating content.
+nothing new — the brain can skip evaluation entirely.
 
-### New Agent Status: DROWSY
-
-Between IDLE and SLEEPING, there's a new state:
+### Agent States (Rectified 2026-04-01)
 
 ```python
 class AgentStatus(str, Enum):
     ACTIVE = "active"       # Working on a task
-    IDLE = "idle"           # Awake, watching (1 HEARTBEAT_OK)
-    DROWSY = "drowsy"       # 2-3 HEARTBEAT_OK — brain can evaluate
-    SLEEPING = "sleeping"   # Brain evaluates, no Claude calls
-    OFFLINE = "offline"     # Extended sleep, longer wake time
+    IDLE = "idle"           # 1 HEARTBEAT_OK — brain takes over
+    SLEEPING = "sleeping"   # Been idle a long time (30min+)
+    OFFLINE = "offline"     # Been idle very long time (4h+)
 ```
 
-The lifecycle becomes:
+NO DROWSY state. States are VISIBILITY LABELS — they tell the PO
+and dashboard how long an agent has been idle. They do NOT change
+responsiveness. ALL states respond to wake triggers identically.
+
+The lifecycle:
 
 ```
-ACTIVE: Agent has work. Real heartbeats. Full Claude sessions.
-   ↓ (task completes, no new assignment)
-IDLE: 1 HEARTBEAT_OK. Still doing real heartbeats.
-   ↓ (2nd HEARTBEAT_OK)
-DROWSY: Agent signaled "nothing for me." Brain starts evaluating.
-   Real heartbeat still happens but at reduced frequency.
-   Brain compares data hash — if same, skip next heartbeat entirely.
-   ↓ (3rd+ HEARTBEAT_OK or brain determines nothing new)
-SLEEPING: No Claude calls. Brain evaluates every cycle (30s).
-   Deterministic check: mentions? assignments? contributions?
-   ↓ (mention, assignment, contribution, directive)
-WAKING: Brain triggers wake.
-   Prompt: fresh session, immediate attention.
-   Gradual: compact session, lightweight check next cycle.
+ACTIVE: Agent has work. Real Claude sessions.
+   ↓ (task completes, no new assignment, 1 HEARTBEAT_OK)
+IDLE: Brain takes over. Cron fires, brain intercepts.
+   Silent heartbeat if nothing. Real heartbeat if wake trigger.
+   Wake triggers: task assignment, @mention, tag, PO directive.
+   ↓ (30 min idle)
+SLEEPING: Same as IDLE — brain still intercepts every cron fire.
+   Status label for visibility: "this agent has been idle a while."
+   ↓ (4 hours idle)
+OFFLINE: Same as SLEEPING — status label for "idle very long."
+   ↓ (wake trigger detected by brain)
+ACTIVE: Brain fires real heartbeat with strategic config.
+   Agent works. Cycle restarts.
    ↓ (agent has work)
 ACTIVE
 ```
@@ -185,7 +182,7 @@ ACTIVE
 
 ## Brain-Evaluated Heartbeat — The Relay
 
-When an agent is DROWSY or SLEEPING, the brain does the heartbeat
+When an agent has brain_evaluates=True (after 1 HEARTBEAT_OK), the brain does the heartbeat
 evaluation INSTEAD of making a Claude call. This happens every
 orchestrator cycle (30s):
 
@@ -347,176 +344,139 @@ PYTHON LOGIC. Zero Claude tokens. Every 30 seconds. For free.
 ## Strategic Claude Call Decisions
 
 > "we dont do claude call just for fun... we do them strategically
-> with the right configurations appropriate to the case"
+> with the right configurations appropriate to the case, this include
+> everything including the effort setting and if we need to compact
+> to start a plan or something else and whatnot"
 
-When the brain DOES decide to wake an agent, it makes strategic
-decisions about HOW:
+When the brain decides to fire a real Claude heartbeat (HeartbeatGate
+found a wake trigger), it must configure the call strategically.
+This is NOT a simple on/off — there are MANY dimensions the brain
+weighs to determine the right configuration.
 
-### The Call Decision Model
+### The Decision Dimensions
 
-```python
-@dataclass
-class ClaudeCallDecision:
-    """What the brain decides for each Claude call."""
+Every Claude call has multiple configuration axes. The brain weighs
+ALL of them for every call:
 
-    should_call: bool           # call Claude at all?
-    model: str = "sonnet"       # opus, sonnet (future: localai)
-    effort: str = "high"        # low, medium, high, max
-    session_strategy: str = ""  # fresh, continue, compact
-    max_turns: int = 10
-    mode: str = "think"         # think, edit, act
-    reason: str = ""            # why this configuration
-```
+**1. Model Selection**
+- Which model fits this work? Opus for deep reasoning (architecture,
+  security, planning). Sonnet for standard work (implementation,
+  review, routine). Future: LocalAI for simple evaluations.
+- Constrained by: budget mode (economic blocks opus), work mode
+  (conservative may cap at sonnet), task complexity, agent role.
+- The 3-tier model applies: brain (free) → LocalAI (free) → Claude (paid).
+  Use the cheapest tier that can handle it.
 
-### Decision Matrix
+**2. Effort Level**
+- Claude Code effort setting affects quality vs speed vs token usage.
+- Constrained by: budget pressure, task importance, agent role.
+- Higher effort = better output = more tokens = more cost.
 
-| Situation | Model | Effort | Session | Turns | Why |
-|-----------|-------|--------|---------|-------|-----|
-| Agent sleeping, nothing new | NO CALL | — | — | — | Brain handles deterministically |
-| Agent sleeping, gradual wake | sonnet | medium | compact | 5 | Lightweight check, minimal cost |
-| Agent sleeping, prompt wake (mention) | sonnet | high | fresh | 10 | Direct request, clean context |
-| Agent sleeping, prompt wake (task) | Per task complexity | high | fresh | 15 | Real work, appropriate model |
-| Agent active, heartbeat check | sonnet | medium | continue | 5 | Status check, keep context |
-| Agent active, complex task work | opus | high | continue | 25 | Deep reasoning, full effort |
-| Agent active, simple contribution | sonnet | medium | fresh | 10 | Focused micro-task |
-| Agent active, context bloated | sonnet | high | compact then continue | 15 | Strip drift first |
-| Agent needs planning | opus | high | plan mode | 20 | Structured planning |
-| Crisis response | opus | max | fresh | 30 | Full power, urgent |
-| Budget at 80%+ | sonnet | medium | compact | 5 | Conserve budget |
-| Budget at 90%+ | NO CALL | — | — | — | Pause fleet |
+**3. Context Size / Strategy**
+- How much context does this call carry? 1M vs 200K.
+- Does the agent have an existing session to continue, or start fresh?
+- Constrained by: rate limit position (don't start 1M near rollover),
+  agent context state (how much is already loaded), task relatedness
+  (continue if same work, fresh if different).
+- Session management (brain Step 10) feeds directly into this.
 
-### How the Brain Decides
+**4. Max Turns**
+- How many tool-call cycles before stopping?
+- Depends on: task complexity, stage (work stage needs more turns
+  than a status check), whether this is a focused micro-task or
+  a multi-cycle effort.
 
-```python
-async def decide_claude_call(
-    agent_state: AgentState,
-    wake_decision: WakeDecision,
-    task: Optional[Task],
-    budget: BudgetMonitor,
-    effort_profile: EffortProfile,
-) -> ClaudeCallDecision:
-    """Strategic decision about whether and how to call Claude."""
+**5. Mode**
+- Think (read-only analysis), Edit (file modifications),
+  Act (run commands).
+- Depends on: methodology stage (work stage needs edit,
+  analysis stage needs think only).
 
-    # Budget gate — if budget is critical, don't call
-    safe, reason = budget.check_quota()
-    if not safe:
-        return ClaudeCallDecision(
-            should_call=False,
-            reason=f"Budget blocked: {reason}",
-        )
+**6. Budget Constraints**
+- Current budget mode constrains which models and effort levels
+  are allowed. Economic = sonnet only. Frugal = LocalAI only.
+- Rate limit session position affects whether expensive calls
+  are appropriate at this time.
+- Effort profile (full/conservative/minimal/paused) sets fleet-wide
+  caps on what's allowed.
 
-    # Sleeping agent with no wake trigger → no call
-    if not wake_decision.should_wake:
-        return ClaudeCallDecision(
-            should_call=False,
-            reason="Agent sleeping, nothing new",
-        )
+**7. Agent Role**
+- PM and fleet-ops default to opus (strategic reasoning).
+- Workers default to sonnet (implementation work).
+- Overridable per task complexity.
+- Per agent-yaml-standard.md model selection table.
 
-    # Effort profile gate — is this agent allowed?
-    if not is_agent_active(effort_profile, agent_state.name):
-        return ClaudeCallDecision(
-            should_call=False,
-            reason=f"Agent not active in {effort_profile.name} profile",
-        )
+**8. Task Properties**
+- Task type (epic vs subtask = different complexity).
+- Task stage (conversation vs work = different capabilities needed).
+- Delivery phase (production needs more thoroughness than POC).
+- Story points (higher SP = more complex = potentially higher model).
 
-    # Determine model based on task complexity + profile
-    model = "sonnet"  # default
-    if task and task.custom_fields.complexity == "high":
-        model = "opus" if effort_profile.allow_opus else "sonnet"
-    if task and task.custom_fields.task_type == "epic":
-        model = "opus" if effort_profile.allow_opus else "sonnet"
-    if wake_decision.urgency == "gradual":
-        model = "sonnet"  # gradual wake = lightweight
+**9. Fleet State**
+- Storm severity affects what's allowed.
+- How many agents are currently active (resource distribution).
+- Aggregate fleet context vs remaining rate limit quota.
 
-    # Determine effort based on situation
-    effort = "high"  # default
-    if wake_decision.urgency == "gradual":
-        effort = "medium"
-    if agent_state.consecutive_heartbeat_ok > 0 and not task:
-        effort = "medium"  # just checking, not working
-    if budget._last_reading and budget._last_reading.weekly_all_pct > 70:
-        effort = "medium"  # budget conscious
+### What This Means in Practice
 
-    # Determine session strategy
-    session = wake_decision.session_strategy or "continue"
-    if agent_state.status == AgentStatus.SLEEPING:
-        session = "fresh"  # sleeping agents get clean context
-    if agent_state.status == AgentStatus.DROWSY:
-        session = "compact"  # drowsy agents get lean context
+The brain doesn't have a fixed lookup table. It weighs these
+dimensions together for each call. The infrastructure already
+supports the configuration axes:
 
-    # Determine max turns
-    turns = 10
-    if wake_decision.urgency == "gradual":
-        turns = 5
-    if task and task.custom_fields.task_type in ("epic", "story"):
-        turns = 20
-    if task and task.custom_fields.task_stage == "work":
-        turns = 25
+- `fleet_mode.py`: work_mode, backend_mode, cycle_phase
+- `budget_monitor.py`: quota gates (safe to dispatch?)
+- `budget_modes.py`: model constraints per mode
+- `agent_lifecycle.py`: agent state + brain_evaluates flag
+- `session_telemetry.py`: context size, rate limit position
+- `storm_monitor.py`: severity affects allowed operations
+- `agent.yaml`: per-agent default model
+- `config/fleet.yaml`: configurable thresholds
 
-    # Determine mode
-    mode = "think"
-    if task and task.custom_fields.task_stage == "work":
-        mode = "edit"  # work stage needs file access
+The SPECIFIC values (which exact effort level for which exact
+situation) will be determined through live testing and fine-tuning.
+The structure supports adaptation — thresholds are in config YAML,
+not hardcoded. The PO can adjust as the fleet operates and patterns
+emerge.
 
-    return ClaudeCallDecision(
-        should_call=True,
-        model=model,
-        effort=effort,
-        session_strategy=session,
-        max_turns=turns,
-        mode=mode,
-        reason=f"Wake {wake_decision.urgency}: {wake_decision.reason}",
-    )
-```
+> "like I said this will need find-tuning but we can come up with the
+> right starting logic and make sure we can adapt and scale and make
+> sure we can handle multple cases"
 
 ---
 
-## Session Strategy — When to Compact, Fresh, Continue
+## Session Strategy — Separate from Lifecycle
 
 > "this include everything including the effort setting and if we need
 > to compact to start a plan or something else"
 
-### Fresh Session
-Create a new session from scratch. Clean context, no accumulated drift.
+**Session decisions (compact, fresh, continue) are NOT lifecycle
+decisions.** An agent that was SLEEPING for 30 minutes and wakes to
+continue the SAME task doesn't need a fresh session — it still has
+its context, its artifacts, its task state. Whether to compact or
+continue depends on:
 
-When:
-- Agent was SLEEPING and prompt wakes (clean slate)
-- New task assigned (different context than previous)
-- Agent was pruned by immune system (regrowth)
-- Context is so bloated that compact won't help
+- The context state (how much is loaded, is it still relevant?)
+- The cost situation (rate limit position, budget pressure)
+- The task (same task continuing? different task? unrelated work?)
+- Whether the agent was pruned by immune system (forced fresh)
 
-How (existing infrastructure):
+A SLEEPING agent continuing its task = continue session.
+A SLEEPING agent getting a completely unrelated new task = maybe fresh.
+An agent near rate limit rollover with heavy context = compact.
+An agent pruned by the immune system = forced fresh (regrowth).
+
+These are session management decisions (brain Step 10, System 22 §4.7),
+not lifecycle transitions. Lifecycle tells you the agent is IDLE or
+SLEEPING. Session management decides what to do about the context.
+
+Existing infrastructure for session operations:
 ```python
-await prune_agent(session_key)           # kill old session
+# gateway_client.py
+await prune_agent(session_key)           # kill session (immune system)
+await force_compact(session_key)         # reduce context
 await create_fresh_session(session_key)  # new session
-# Gateway reads agent files on next heartbeat → clean context
+await inject_content(session_key, msg)   # add to session
 ```
-
-### Compact Session
-Reduce existing session context. Strip drift, keep essentials.
-
-When:
-- Agent is DROWSY and gradual wakes (lean check)
-- Agent has been active for many cycles (context accumulated)
-- Before starting a plan (clean thinking space)
-- Budget is getting high (reduce per-call token count)
-
-How (existing infrastructure):
-```python
-await force_compact(session_key)  # gateway compacts session
-# Next heartbeat has leaner context
-```
-
-### Continue Session
-Keep existing session. Context preserved for progressive work.
-
-When:
-- Agent is ACTIVE with in-progress task (multi-cycle work)
-- Agent's artifact is partially built (needs continuity)
-- Context is still clean (not bloated yet)
-
-How:
-Nothing to do — gateway continues the existing session naturally.
 
 ---
 
@@ -527,20 +487,16 @@ Nothing to do — gateway continues the existing session naturally.
 ```
 1. Read tasks and agents from MC
 2. Update FleetLifecycle with current activity
-   → each agent's status updated: ACTIVE/IDLE/DROWSY/SLEEPING
-3. For each SLEEPING/DROWSY agent:
-   → _evaluate_sleeping_agent() — deterministic, free
-   → If wake needed: decide_claude_call() — strategic config
-   → If wake prompt: gateway command (fresh/compact session)
-   → If wake gradual: mark for next heartbeat with config
-   → If no wake: skip — zero cost
+   → each agent's status updated: ACTIVE/IDLE/SLEEPING/OFFLINE
+3. Cron fires for agents needing heartbeat:
+   → HeartbeatGate evaluates: wake trigger found?
+   → YES: fire real Claude heartbeat
+   → NO: silent heartbeat OK ($0)
+   → Wake triggers: task, mention, tag, directive, role-specific
 4. Check BudgetMonitor — safe to dispatch?
-5. Read EffortProfile — which agents allowed?
-6. Run rest of cycle (doctor, dispatch, chains, etc.)
-7. For agents that need heartbeats (per lifecycle intervals):
-   → Write context/ files with pre-embed data
-   → Gateway picks up on next heartbeat
-   → Heartbeat fires with brain's chosen config
+5. Read FleetControlState — which agents allowed?
+6. Run rest of cycle (13 steps per brain spec)
+7. Write context/ files for agents with work
 ```
 
 ### Agent Heartbeat Flow
@@ -554,26 +510,25 @@ Gateway fires heartbeat for agent
 → Agent processes heartbeat:
    If work → ACTIVE, reset consecutive_heartbeat_ok
    If HEARTBEAT_OK → increment consecutive_heartbeat_ok
-   If consecutive_heartbeat_ok >= threshold → signal drowsy
+   If HEARTBEAT_OK → brain_evaluates = True (brain takes over)
 → Brain reads result:
-   If HEARTBEAT_OK and consecutive >= 2 → status = DROWSY
-   If HEARTBEAT_OK and consecutive >= 3 → status = SLEEPING
+   If HEARTBEAT_OK → brain_evaluates = True (brain takes over)
+   If idle > 30 min → status = SLEEPING (visibility label)
+   If idle > 4 hours → status = OFFLINE (visibility label)
    If agent worked → status = ACTIVE, consecutive = 0
 ```
 
 ### Cost Flow
 
 ```
-Agent ACTIVE:    Claude calls at normal intervals, normal cost
-Agent IDLE:      Claude calls at 30min intervals, reduced cost
-Agent DROWSY:    Claude calls at 60min intervals, minimal effort
-Agent SLEEPING:  ZERO Claude calls, brain evaluates for free
-Agent WAKING:    ONE Claude call with strategic config, targeted cost
+Agent ACTIVE:   Real Claude sessions, agent drives work        $$$
+Agent IDLE:     Cron fires → brain intercepts → silent OK ($0) $0
+Agent SLEEPING: Same as IDLE, longer cron interval             $0
+Agent WAKING:   Brain detects trigger → real heartbeat         $
 
-10 agents, 7 sleeping:
+10 agents, 7 idle/sleeping:
   3 active × normal cost
-  7 sleeping × $0
-  Brain evaluation × $0 (Python logic)
+  7 idle/sleeping × $0 (brain evaluates for free)
   = ~70% cost reduction on idle agents
 ```
 
@@ -584,96 +539,99 @@ Agent WAKING:    ONE Claude call with strategic config, targeted cost
 ### Per-Agent Lifecycle Config
 
 ```yaml
-# config/fleet.yaml — lifecycle section
+# config/agent-autonomy.yaml (rectified 2026-04-01)
 
-lifecycle:
-  defaults:
-    drowsy_after_heartbeat_ok: 2    # HEARTBEAT_OK count → drowsy
-    sleeping_after_heartbeat_ok: 3  # HEARTBEAT_OK count → sleeping
-    offline_after_hours: 4          # hours sleeping → offline
+defaults:
+  idle_after_heartbeat_ok: 1       # 1 HEARTBEAT_OK → brain takes over
+  sleeping_after_seconds: 1800     # 30 min idle → SLEEPING (status label)
+  offline_after_seconds: 14400     # 4 hours → OFFLINE (status label)
 
-  # Role-specific overrides
-  overrides:
-    project-manager:
-      drowsy_after_heartbeat_ok: 4  # PM stays awake longer
-      sleeping_after_heartbeat_ok: 6
-      wake_sensitivity: high        # wakes on indirect triggers too
-    fleet-ops:
-      drowsy_after_heartbeat_ok: 4
-      sleeping_after_heartbeat_ok: 6
-      wake_sensitivity: high
-    architect:
-      drowsy_after_heartbeat_ok: 2
-      sleeping_after_heartbeat_ok: 3
-      wake_sensitivity: medium
-    software-engineer:
-      drowsy_after_heartbeat_ok: 2
-      sleeping_after_heartbeat_ok: 3
-      wake_sensitivity: low         # only direct assignment/mention
-    # ... other agents use defaults
+overrides:
+  project-manager:
+    wake_triggers:
+      - unassigned_inbox
+      - po_directive
+      - blocked_task
+  fleet-ops:
+    wake_triggers:
+      - pending_approval
+      - security_alert
+      - storm_warning
+      - health_alert
+  # ... see config/agent-autonomy.yaml for full list
 ```
 
 ### Strategic Call Config
 
-```yaml
-# config/fleet.yaml — call strategy section
+Model and effort selection is handled by `model_selection.py` based on
+task complexity (SP) and agent role. Session strategy depends on context
+state. Turn counts are TBD — need live testing data.
 
-call_strategy:
-  models:
-    complex_task: opus              # architecture, security, investigation
-    standard_task: sonnet           # implementation, review, routine
-    lightweight_check: sonnet       # heartbeat check, status
-    future_local: hermes-3b         # LocalAI target for simple ops
-
-  effort:
-    complex_reasoning: high
-    standard_work: high
-    status_check: medium
-    gradual_wake: medium
-    budget_conscious: medium        # when weekly > 70%
-
-  session:
-    sleeping_prompt_wake: fresh
-    sleeping_gradual_wake: compact
-    drowsy_check: compact
-    active_progressive: continue
-    active_new_task: fresh
-    active_bloated: compact
-    before_planning: compact        # clean space for plan mode
-    after_prune: fresh              # regrowth
-
-  max_turns:
-    heartbeat_check: 5
-    simple_contribution: 10
-    standard_task: 15
-    complex_task: 25
-    crisis: 30
-```
+These are NOT config values — they are runtime decisions made by
+existing code (model_selection.py, backend_router.py).
 
 ---
 
 ## Interaction With Existing Systems
 
 ### agent_lifecycle.py Changes
-- Add DROWSY status between IDLE and SLEEPING
+- Add brain_evaluates property (True after 1 HEARTBEAT_OK)
 - Add `consecutive_heartbeat_ok` counter
 - Add `last_heartbeat_data_hash` for content-aware comparison
 - Transition logic: time-based → content-aware (HEARTBEAT_OK count)
 - Keep time-based as FALLBACK (if agent never responds, time still works)
 
-### effort_profiles.py Changes
-- Profiles now interact with lifecycle: profile can force specific
-  agents to sleep (minimal profile sleeps all except fleet-ops)
-- Profile determines model/effort caps that strategic decisions
-  respect (conservative profile caps at sonnet)
-- Profile can set wake_sensitivity overrides
+### fleet_mode.py Changes
+- work_mode gates dispatch (pause/resume/finish-current)
+- backend_mode determines which backends the router can use (7 combos)
+- cycle_phase filters active agents by phase
 
 ### budget_monitor.py Changes
-- Budget status feeds into strategic call decisions
-- At 70%+ weekly → effort drops to medium, model stays sonnet
-- At 80%+ weekly → reduce heartbeat frequency for active agents
-- At 90%+ weekly → pause all except fleet-ops monitoring
+- Budget status feeds into dispatch decisions
+- check_quota() gates dispatch: weekly ≥ 90% → PAUSE
+- Fast climb detection: +5% in 10min → PAUSE
 - Fast-climb → immediate pause signal to lifecycle
+
+### Session Management — Rate Limit Awareness (NEW — 2026-04-01)
+
+PO requirement (verbatim):
+> "if we reach the end of the reset I can surely tell you that we
+> will force compact all conversation that are too last and will cause
+> a spike, this is why we are aware and will not display a 1m context
+> big quest when approaching that time"
+
+> "if you are over 40 to 80 000 tokens or that you do not need to
+> persist your session context... dump (as smart artifacts) it for a
+> synthesised re-injection later if needed and/or simply a new task
+> if not related. Only smart things. the brain is smart."
+
+The `decide_claude_call` function and the brain's Step 10 must factor
+rate limit session cycle awareness into every decision:
+
+| Situation | Decision |
+|-----------|----------|
+| Rate limit at 85% used | Progressive awareness — no new 1M dispatches |
+| Rate limit at 90% used | Active management — prepare heavy-context agents |
+| Near rollover, agent >40-80K, no predicted work | Force compact / dump to artifacts |
+| Near rollover, agent >40-80K, related work coming | Prepare synthesised re-injection |
+| Near rollover, agent context unrelated to next work | Fresh session, no re-injection |
+| Aggregate fleet context > 50% of remaining quota | Storm risk — stagger compactions |
+| After rollover | Put agents back on track — fresh or re-inject |
+| Compacting itself needs budget | Allow going over 90% for compaction cost |
+
+The decision matrix (§Strategic Claude Call Decisions) needs these rows:
+```
+| Near rollover, heavy context | NO NEW DISPATCH | compact heavy agents | — | Prevent rollover spike |
+| Near rollover, agent idle >40K | sonnet | medium | compact+dump | 5 | Dump to artifacts |
+| After rollover, work continues | Per task | high | re-inject | 15 | Synthesised context |
+| After rollover, new work | Per task | high | fresh | 15 | Clean start |
+```
+
+This connects to:
+- Brain Step 10 (session management) in 04-the-brain.md
+- System 22 §4.7 (rate limit session cycle awareness)
+- Budget monitor (allows >90% for compaction cost)
+- Storm prevention (aggregate context = storm indicator)
 
 ### change_detector.py Changes
 - Add per-agent change tracking (what changed FOR each agent)
@@ -710,7 +668,7 @@ The complete analogy:
 |---------------|-------------|-------------|
 | At desk, working | ACTIVE | Full Claude sessions, productive work |
 | At desk, no work | IDLE | Claude checks "anything for me?" |
-| Stepped away, phone on | DROWSY | Brain monitors, agent checks less often |
+| Stepped away, phone on | IDLE (brain takes over) | Brain monitors, agent still on call |
 | At home, on call | SLEEPING | Brain monitors, zero calls, paged if needed |
 | On vacation | OFFLINE | Extended absence, slow wake |
 | Phone rings — direct | WAKING (prompt) | Drop everything, full attention |
@@ -753,7 +711,7 @@ The lifecycle provides the FRAMEWORK for deciding what goes where.
 
 ## Testing Requirements
 
-- Lifecycle transitions: ACTIVE → IDLE → DROWSY → SLEEPING based
+- Lifecycle transitions: ACTIVE → IDLE → SLEEPING → OFFLINE based
   on consecutive HEARTBEAT_OK count
 - Brain evaluation: correctly identifies wake triggers for each role
 - Prompt vs gradual wake: right urgency for right trigger
@@ -772,8 +730,8 @@ The lifecycle provides the FRAMEWORK for deciding what goes where.
 
 | File | Change |
 |------|--------|
-| `fleet/core/agent_lifecycle.py` | Add DROWSY, consecutive counter, data hash, content-aware transitions |
-| `fleet/core/effort_profiles.py` | Lifecycle interaction, model/effort caps per profile |
+| `fleet/core/agent_lifecycle.py` | Add brain_evaluates property, 1 HEARTBEAT_OK threshold, ACTIVE→IDLE→SLEEPING→OFFLINE |
+| `fleet/core/fleet_mode.py` | Lifecycle interaction, model/effort caps per profile |
 | `fleet/core/budget_monitor.py` | Feed decisions to lifecycle, budget-aware call reduction |
 | `fleet/core/change_detector.py` | Per-agent change tracking, mention/contribution detection |
 | `fleet/infra/gateway_client.py` | configure_heartbeat() for brain-controlled parameters |

@@ -142,9 +142,9 @@ When the fleet elevation is complete, this is true:
 **End state 4 (brain handles deterministic work):**
 ← Sleeping agents cost $0 (brain evaluates)
 ← Brain decides whether/how to call Claude per agent
-← Lifecycle tracks ACTIVE/IDLE/DROWSY/SLEEPING
+← Lifecycle tracks ACTIVE/IDLE/IDLE/SLEEPING
 ← ALREADY EXISTS: agent_lifecycle.py has 4 states
-← EXTENSION: add DROWSY, content-aware transitions, strategic calls
+← EXTENSION: add IDLE, content-aware transitions, strategic calls
 
 **End state 5 (PO-defined phases):**
 ← Standards library applies phase-specific quality bars
@@ -295,7 +295,7 @@ can it be done by extending an existing module instead?
 **Gap:** Phase I is near the end. But strategic calls affect COST
 from day one. If the fleet is burning budget during implementation,
 the lifecycle savings should come earlier.
-**Fix:** The lifecycle changes (DROWSY state, content-aware sleep)
+**Fix:** The lifecycle changes (IDLE state, content-aware sleep)
 could be partially implemented in Phase A (foundation) since
 agent_lifecycle.py already exists and the change is small.
 

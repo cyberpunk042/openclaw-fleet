@@ -59,7 +59,6 @@ def build_review_gates(
     task_type: str,
     has_code: bool,
     confidence_tier: str = "standard",
-    budget_mode: str = "standard",
 ) -> list[ReviewGate]:
     """Build review gates based on task type, code, and confidence tier.
 
@@ -67,7 +66,6 @@ def build_review_gates(
         task_type: The task type (epic, story, subtask, etc.)
         has_code: Whether the task produced code changes
         confidence_tier: The confidence tier of the work
-        budget_mode: Current budget mode (challenges disabled in frugal+)
 
     Returns:
         Ordered list of ReviewGate objects.
@@ -75,10 +73,7 @@ def build_review_gates(
     gates: list[ReviewGate] = []
 
     # ─── Confidence-tier gates (run first) ──────────────────────
-    needs_challenge = (
-        confidence_tier in CHALLENGE_REQUIRED_TIERS
-        and budget_mode not in ("frugal", "survival", "blackout")
-    )
+    needs_challenge = confidence_tier in CHALLENGE_REQUIRED_TIERS
 
     if needs_challenge:
         gates.append(ReviewGate(

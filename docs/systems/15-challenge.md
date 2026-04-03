@@ -79,8 +79,8 @@ ChallengeDecision:
 If not required:
   → proceed to review (readiness 80 → 90)
   
-If deferred (frugal/survival/blackout):
-  → labor stamp: challenge_skipped=True, reason="frugal mode" (W2)
+If deferred:
+  → labor stamp: challenge_skipped=True, reason
   → task tagged: needs-deferred-challenge
   → DeferredChallengeQueue.enqueue(task) → persist to JSON
   → proceed to review (with flag: "challenge deferred")
@@ -158,23 +158,13 @@ ChallengeRound evaluated:
 
 ### 2.2 Challenge Depth by Budget Mode (W1 Wiring)
 
-The challenge depth adapts to budget. W1 wiring means challenge_deferred.py
-imports `MODE_ORDER` from budget_modes — no hardcoded constants.
-
-| Budget Mode | Challenge Strategy | Cost |
-|------------|-------------------|------|
-| blitz | Full: automated + agent + cross-model for SP≥5. Automated for rest. | $$$ |
-| standard | Agent for SP≥5 or trainee tier. Automated for rest. | $$ |
-| economic | Automated only (free). Agent only for security-tagged tasks. | $ |
-| frugal | Automated only. Agent/cross-model/scenario all DEFERRED. | ¢ |
-| survival | ALL challenges deferred. Tag task for later. | $0 |
-| blackout | No work, no challenges. | $0 |
+Challenge depth is determined by confidence tier and task complexity,
+not by budget mode. Budget mode is a tempo setting only.
 
 When challenge is deferred:
-- Labor stamp: `challenge_skipped=True, challenge_skip_reason="frugal mode"` (W2 wiring)
+- Labor stamp: `challenge_skipped=True, challenge_skip_reason`
 - Task tagged: `needs-deferred-challenge`
 - Deferred queue persists to `state/deferred_challenges.json`
-- When budget improves (e.g., frugal → standard), brain drains queue
 
 ### 2.3 Challenge by Confidence Tier
 
@@ -216,14 +206,8 @@ DeferredChallengeQueue:
   Ordering: FIFO + priority boost for high story points
   Status: OK (<10) / warning (10-25) / critical (>25)
   
-should_defer_challenge("frugal") → True  (DEFERRAL_MODES)
-should_defer_challenge("standard") → False (PROCESSING_MODES)
-
-can_process_deferred(previous="frugal", current="standard") → True
-  Budget improved → drain deferred queue
-
-drain_batch_size by mode:
-  blitz=10, standard=5, economic=3  (process N deferred per cycle)
+compute_drain_batch_size(queue_size, max_per_cycle=3)
+  Processes deferred challenges FIFO with priority boost
 ```
 
 ### 2.6 Finding Lifecycle
@@ -378,11 +362,8 @@ ChallengeDecision dataclass: required, reason, challenge_type, challenger, max_r
 
 | Constant/Function | What It Does |
 |-------------------|-------------|
-| `DEFERRAL_MODES` | {"frugal", "survival", "blackout"} — defer challenges |
-| `PROCESSING_MODES` | {"blitz", "standard", "economic"} — process challenges |
-| `MODE_STRICTNESS` | Derived from budget_modes.MODE_ORDER (W1 wiring) |
-| `should_defer_challenge(mode)` | True if mode in DEFERRAL_MODES |
 | `DeferredChallengeQueue` | FIFO + priority. Persist to JSON. Drain by batch size. Status alerts. |
+| `compute_drain_batch_size(queue_size, max_per_cycle)` | How many deferred to process per cycle |
 
 ### 4.8 `challenge_analytics.py` — Metrics (341 lines)
 
@@ -455,9 +436,8 @@ Each type targets different failure modes:
 
 Permanent skip = trainee work NEVER validated. The PO said: "challenged
 and challenged." Deferring means: "we can't afford it NOW but we WILL
-validate." The queue persists to JSON. When budget improves (frugal →
-standard), the brain drains the queue. Nothing permanently escapes
-validation.
+validate." The queue persists to JSON. When conditions improve,
+the brain drains the queue. Nothing permanently escapes validation.
 
 ### Why max_rounds by tier, not fixed?
 

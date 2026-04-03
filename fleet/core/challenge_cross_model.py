@@ -59,7 +59,6 @@ class CrossModelConfig:
 def select_cross_model_config(
     task_type: str,
     story_points: int,
-    budget_mode: str,
     localai_available: bool = True,
 ) -> CrossModelConfig:
     """Select the cross-model challenger based on task context.
@@ -68,29 +67,15 @@ def select_cross_model_config(
       - Simple tasks (SP <= 3): LocalAI if available, else OpenRouter free
       - Complex tasks (SP >= 5): OpenRouter free (different vendor)
       - Security/blocker: OpenRouter free (independent verification)
-      - Frugal/survival: LocalAI only (zero external cost)
 
     Args:
         task_type: Type of task being challenged.
         story_points: Task complexity.
-        budget_mode: Current budget mode.
         localai_available: Whether LocalAI is reachable.
 
     Returns:
         CrossModelConfig for the challenger.
     """
-    # Budget-constrained: LocalAI only
-    if budget_mode in ("frugal", "survival"):
-        if localai_available:
-            return CrossModelConfig(
-                challenger_model="hermes-3b",
-                challenger_backend="localai",
-            )
-        # Can't do cross-model without a free backend
-        return CrossModelConfig(
-            challenger_model="hermes-3b",
-            challenger_backend="localai",
-        )
 
     # Security/critical: different vendor for independence
     if task_type in ("blocker", "concern"):

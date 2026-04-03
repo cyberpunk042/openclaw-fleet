@@ -1,11 +1,10 @@
 """Flow 5: Session Telemetry — Session JSON → All Systems.
 
 Tests that Claude Code session data feeds real values into
-LaborStamp, ClaudeHealth, StormMonitor, and CostTicker.
+LaborStamp, ClaudeHealth, and StormMonitor.
 """
 
 from fleet.core.backend_health import ClaudeHealth
-from fleet.core.budget_ui import CostTicker
 from fleet.core.labor_stamp import LaborStamp
 from fleet.core.session_telemetry import (
     ingest,
@@ -42,7 +41,6 @@ def test_telemetry_to_labor():
     stamp = LaborStamp(
         agent_name="worker",
         backend="claude-code",
-        budget_mode="standard",
         **{k: v for k, v in fields.items() if k in (
             "model", "model_version", "duration_seconds",
             "estimated_tokens", "estimated_cost_usd",
@@ -131,36 +129,18 @@ def test_telemetry_context_storm():
     assert "quota_pressure_5h" in monitor._indicators
 
 
-def test_telemetry_cost_feed():
-    """Session cost feeds CostTicker, crosses threshold."""
+def test_telemetry_cost_delta():
+    """to_cost_delta computes incremental cost from session snapshots."""
     snap = ingest(SAMPLE_SESSION_JSON)
 
     # First call — full cost
     delta = to_cost_delta(snap, previous_cost=0.0)
     assert delta == 0.15
 
-    ticker = CostTicker(budget_mode="frugal")  # $5 envelope
-    ticker.add_cost(delta)
-    assert ticker.cost_today_usd == 0.15
-    assert ticker.cost_used_pct == 3.0  # 0.15 / 5.0 * 100
-
-    # Simulate more session cost
+    # Second call — incremental
     snap2 = ingest({
         **SAMPLE_SESSION_JSON,
         "cost": {**SAMPLE_SESSION_JSON["cost"], "total_cost_usd": 4.50},
     })
     delta2 = to_cost_delta(snap2, previous_cost=0.15)
     assert abs(delta2 - 4.35) < 0.01
-
-    ticker.add_cost(delta2)
-    assert ticker.cost_used_pct == 90.0  # 4.50 / 5.0 * 100
-    assert not ticker.over_budget  # 90% < 100%
-
-    # One more push over
-    snap3 = ingest({
-        **SAMPLE_SESSION_JSON,
-        "cost": {**SAMPLE_SESSION_JSON["cost"], "total_cost_usd": 5.50},
-    })
-    delta3 = to_cost_delta(snap3, previous_cost=4.50)
-    ticker.add_cost(delta3)
-    assert ticker.over_budget is True
