@@ -16,7 +16,7 @@
 #   - LocalAI running on port 8090
 #   - Fleet venv with uv
 
-set -uo pipefail
+set -u
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="${FLEET_DIR}/.venv"
@@ -73,21 +73,25 @@ ensure_dirs() {
 clean() {
     echo "Cleaning LightRAG storage..."
 
-    # Stop LightRAG
-    docker compose -f "$COMPOSE" stop lightrag || true
-    docker compose -f "$COMPOSE" rm -f lightrag || true
-
-    # Remove graph volume
-    docker volume rm openclaw-fleet_lightrag_storage || true
+    echo "  Stopping LightRAG..."
+    docker compose -f "$COMPOSE" stop lightrag 2>&1 || echo "  (not running)"
+    echo "  Removing container..."
+    docker compose -f "$COMPOSE" rm -f lightrag 2>&1 || echo "  (not found)"
+    echo "  Removing volume..."
+    docker volume rm openclaw-fleet_lightrag_storage 2>&1 || echo "  (not found)"
     echo -e "  ${GREEN}[ok]${NC} LightRAG storage wiped"
 
-    # Flush Redis DB 1 (LightRAG KV)
-    if docker compose -f "$COMPOSE" ps redis 2>/dev/null | grep -q "running"; then
-        docker exec openclaw-fleet-redis-1 redis-cli -n 1 FLUSHDB || true
-        echo -e "  ${GREEN}[ok]${NC} Redis DB 1 flushed"
+    echo "  Flushing Redis DB 1..."
+    docker exec openclaw-fleet-redis-1 redis-cli -n 1 FLUSHDB 2>&1 || echo "  (Redis not running — starting it)"
+    # If Redis wasn't running, start it and flush
+    if ! docker exec openclaw-fleet-redis-1 redis-cli PING 2>&1 | grep -q PONG; then
+        docker compose -f "$COMPOSE" up -d redis 2>&1
+        sleep 3
+        docker exec openclaw-fleet-redis-1 redis-cli -n 1 FLUSHDB 2>&1 || echo "  (flush failed)"
     fi
+    echo -e "  ${GREEN}[ok]${NC} Redis DB 1 flushed"
 
-    # Remove sync state
+    echo "  Clearing sync state..."
     rm -f "${FLEET_DIR}/.kb-graph-sync.json"
     echo -e "  ${GREEN}[ok]${NC} Sync state cleared"
 }
