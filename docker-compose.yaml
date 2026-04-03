@@ -203,9 +203,11 @@ services:
       MAX_ASYNC: "1"
       MAX_PARALLEL_INSERT: "2"
 
-      # Cache — reduce repeated LLM calls during indexing
+      # Cache — LLM cache for queries, NOT for extraction
+      # KB sync uses direct graph API (no LLM extraction needed)
+      # LLM extraction only for non-KB documents (external content)
       ENABLE_LLM_CACHE: "true"
-      ENABLE_LLM_CACHE_FOR_EXTRACT: "true"
+      ENABLE_LLM_CACHE_FOR_EXTRACT: "false"
 
       # Auth
       LIGHTRAG_API_KEY: ${LIGHTRAG_API_KEY:-}

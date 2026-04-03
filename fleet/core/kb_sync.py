@@ -78,7 +78,10 @@ def _normalize_type(raw: str) -> str:
 SKIP_PREFIXES = [
     "NOT YET", "CRITICAL", "PERFORMANCE", "HISTORICAL",
     "CAUTION", "TIER", "KEY INSIGHT", "ANTI-CORRUPTION",
-    "KEY PRINCIPLE", "ZERO RISK", "DANGER",
+    "KEY PRINCIPLE", "ZERO RISK", "DANGER", "DOES NOT",
+    "ONE OF", "WHAT", "WHY", "HOW", "THE ", "IS ",
+    "SAME ", "ENTIRELY", "PROGRESSIVE", "MISSING",
+    "PENDING", "FUTURE", "NOTE", "DATA NOTE",
 ]
 
 
@@ -134,11 +137,22 @@ def parse_kb_file(filepath: Path) -> tuple[Entity, list[Relationship]]:
             entity_type = _normalize_type(line.split("**Type:**")[1].strip())
             break
 
-    # Description from What It Does / Purpose / Mission
+    # Branch (parent directory name — systems, tools, hooks, etc.)
+    branch = filepath.parent.name
+
+    # Roles from metadata
+    roles = []
+    for line in lines[:25]:
+        if "**Roles:**" in line or "**Installed for:**" in line:
+            roles_raw = line.split(":**")[1].strip()
+            roles = [r.strip() for r in roles_raw.split(",") if r.strip()]
+
+    # Description — try multiple section headers
     description = title
     for section_name in ["What It Does", "What It Actually Does", "Purpose",
                          "What This System Does", "What It Is", "Mission",
-                         "What the Navigator Is"]:
+                         "What the Navigator Is", "What This Project Is",
+                         "What Claude-Mem Is", "What LightRAG Is"]:
         section = _extract_section(text, section_name)
         if section:
             first_para = section.strip().split("\n\n")[0].strip()
@@ -146,11 +160,30 @@ def parse_kb_file(filepath: Path) -> tuple[Entity, list[Relationship]]:
                 description = first_para[:400]
                 break
 
+    # If no section found, try first non-metadata paragraph
+    if description == title:
+        in_body = False
+        for line in lines:
+            if line.startswith("## "):
+                in_body = True
+                continue
+            if in_body and line.strip() and not line.startswith("**") and not line.startswith("|") and not line.startswith("-"):
+                description = line.strip()[:300]
+                break
+
+    # Build description with metadata
+    desc_parts = [description]
+    if branch and branch != "kb":
+        desc_parts.append(f"Branch: {branch}.")
+    if roles:
+        desc_parts.append(f"Used by: {', '.join(roles)}.")
+    description = " ".join(desc_parts)
+
     source_file = str(filepath.relative_to(FLEET_DIR))
     entity = Entity(name=title, entity_type=entity_type,
-                    description=description, source_file=source_file)
+                    description=description[:500], source_file=source_file)
 
-    # Relationships
+    # Relationships from ## Relationships section
     relationships = []
     rel_section = _extract_section(text, "Relationships")
     if rel_section:
@@ -160,6 +193,23 @@ def parse_kb_file(filepath: Path) -> tuple[Entity, list[Relationship]]:
                 continue
             rels = _parse_rel_line(line[2:].strip(), title, source_file)
             relationships.extend(rels)
+
+    # Additional relationships from roles metadata
+    for role in roles:
+        relationships.append(Relationship(
+            src=title, tgt=role, rel_type="used by",
+            description=f"{title} used by {role}",
+            source_file=source_file,
+        ))
+
+    # Additional relationship: entity belongs to its branch
+    if branch and branch not in ("kb",):
+        relationships.append(Relationship(
+            src=title, tgt=f"KB:{branch}",
+            rel_type="belongs to",
+            description=f"{title} belongs to {branch} branch of the knowledge map",
+            source_file=source_file,
+        ))
 
     return entity, relationships
 
@@ -191,9 +241,15 @@ def _parse_rel_line(line: str, source: str, source_file: str) -> list[Relationsh
         if not part or len(part) < 2:
             continue
 
+        # Strip ALL parentheticals from entity name
+        context = ""
         ctx_match = re.search(r"\(([^)]+)\)", part)
-        context = ctx_match.group(1) if ctx_match else ""
-        part_clean = part[:ctx_match.start()].strip() if ctx_match else part
+        if ctx_match:
+            context = ctx_match.group(1)
+        # Remove all parenthetical content from target name
+        part_clean = re.sub(r"\s*\([^)]*\)\s*", " ", part).strip()
+        # Clean up any remaining parens or trailing punctuation
+        part_clean = part_clean.rstrip(".,;:()").strip()
 
         if part_clean.lower() in ("none", "n/a", "yes", "no", "all"):
             continue
