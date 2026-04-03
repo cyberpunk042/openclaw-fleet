@@ -1,127 +1,176 @@
 #!/usr/bin/env bash
 # setup-lightrag.sh — Complete LightRAG setup for fleet knowledge graph
 #
-# Installs dependencies, starts the service, indexes knowledge base.
+# Installs dependencies, starts services, syncs KB to graph.
 # Idempotent — safe to run multiple times.
 #
 # Usage:
-#   ./scripts/setup-lightrag.sh              # full setup
+#   ./scripts/setup-lightrag.sh              # full setup + sync
+#   ./scripts/setup-lightrag.sh --clean      # wipe graph + Redis cache, fresh sync
+#   ./scripts/setup-lightrag.sh --sync       # incremental sync (changed KB only)
 #   ./scripts/setup-lightrag.sh --deps-only  # install dependencies only
-#   ./scripts/setup-lightrag.sh --index-only # index KB only (assumes running)
+#   ./scripts/setup-lightrag.sh --verify     # verify health only
 #
 # Prerequisites:
 #   - Docker + docker compose
-#   - LocalAI running on port 8090 (for LLM + embeddings)
-#   - Python 3.11+ with pip
+#   - LocalAI running on port 8090
+#   - Fleet venv with uv
 
 set -euo pipefail
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="${FLEET_DIR}/.venv"
+COMPOSE="${FLEET_DIR}/docker-compose.yaml"
+LIGHTRAG_URL="${LIGHTRAG_URL:-http://localhost:9621}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# ── Install daniel-lightrag-mcp (MCP server for agent access) ──────
+# ── Activate venv ─────────────────────────────────────────────────
 
-install_mcp_dependency() {
-    echo "Installing LightRAG MCP server dependency..."
-
+activate_venv() {
     if [ -d "$VENV" ]; then
         source "$VENV/bin/activate"
+    else
+        echo -e "${RED}ERROR:${NC} venv not found at $VENV"
+        exit 1
     fi
+}
 
-    # Install daniel-lightrag-mcp in fleet venv
-    if uv pip show daniel-lightrag-mcp &>/dev/null; then
-        echo -e "  ${YELLOW}[skip]${NC} daniel-lightrag-mcp already installed"
+# ── Install dependencies ──────────────────────────────────────────
+
+install_deps() {
+    echo "Installing dependencies..."
+    activate_venv
+
+    if uv pip show daniel-lightrag-mcp &>/dev/null 2>&1; then
+        echo -e "  ${YELLOW}[skip]${NC} daniel-lightrag-mcp"
     else
         echo -e "  ${GREEN}[install]${NC} daniel-lightrag-mcp (from GitHub)"
         uv pip install --no-deps "git+https://github.com/desimpkins/daniel-lightrag-mcp.git" 2>&1 | tail -1
     fi
+
+    for pkg in anthropic openai pytest-mcp; do
+        if uv pip show "$pkg" &>/dev/null 2>&1; then
+            echo -e "  ${YELLOW}[skip]${NC} $pkg"
+        else
+            echo -e "  ${GREEN}[install]${NC} $pkg"
+            uv pip install "$pkg" 2>&1 | tail -1
+        fi
+    done
 }
 
-# ── Ensure data directories ────────────────────────────────────────
+# ── Ensure data directories ───────────────────────────────────────
 
-ensure_directories() {
-    echo "Ensuring data directories..."
+ensure_dirs() {
     mkdir -p "${FLEET_DIR}/data/lightrag/inputs"
-    echo -e "  ${GREEN}[ok]${NC} data/lightrag/inputs/"
 }
 
-# ── Start LightRAG container ──────────────────────────────────────
+# ── Clean — wipe graph storage + Redis cache ──────────────────────
 
-start_service() {
-    echo "Starting LightRAG service..."
+clean() {
+    echo "Cleaning LightRAG storage..."
 
-    # Check if already running
-    if docker compose -f "${FLEET_DIR}/docker-compose.yaml" ps lightrag 2>/dev/null | grep -q "running"; then
-        echo -e "  ${YELLOW}[skip]${NC} LightRAG already running"
-        return
+    # Stop LightRAG
+    docker compose -f "$COMPOSE" stop lightrag 2>/dev/null || true
+    docker compose -f "$COMPOSE" rm -f lightrag 2>/dev/null || true
+
+    # Remove graph volume
+    docker volume rm openclaw-fleet_lightrag_storage 2>/dev/null || true
+    echo -e "  ${GREEN}[ok]${NC} LightRAG storage wiped"
+
+    # Flush Redis DB 1 (LightRAG KV)
+    if docker compose -f "$COMPOSE" ps redis 2>/dev/null | grep -q "running"; then
+        docker exec openclaw-fleet-redis-1 redis-cli -n 1 FLUSHDB 2>/dev/null || true
+        echo -e "  ${GREEN}[ok]${NC} Redis DB 1 flushed"
     fi
 
-    docker compose -f "${FLEET_DIR}/docker-compose.yaml" up -d lightrag
-    echo -e "  ${GREEN}[started]${NC} LightRAG on port 9621"
+    # Remove sync state
+    rm -f "${FLEET_DIR}/.kb-graph-sync.json"
+    echo -e "  ${GREEN}[ok]${NC} Sync state cleared"
+}
+
+# ── Start services ────────────────────────────────────────────────
+
+start_services() {
+    echo "Starting services..."
+
+    # Ensure Redis is up (LightRAG depends on it)
+    docker compose -f "$COMPOSE" up -d redis 2>/dev/null
+    sleep 2
+
+    # Start LightRAG
+    docker compose -f "$COMPOSE" up -d lightrag
+    echo -e "  ${GREEN}[started]${NC} LightRAG"
 
     # Wait for health
-    echo "  Waiting for LightRAG to be ready..."
+    echo "  Waiting for LightRAG..."
     local attempts=0
     while (( attempts < 30 )); do
-        if curl -s -o /dev/null "${LIGHTRAG_URL:-http://localhost:9621}/health" 2>/dev/null; then
-            echo -e "  ${GREEN}[ready]${NC} LightRAG is healthy"
-            return
+        if curl -s -o /dev/null "$LIGHTRAG_URL/health" 2>/dev/null; then
+            echo -e "  ${GREEN}[ready]${NC} LightRAG healthy at $LIGHTRAG_URL"
+            return 0
         fi
         sleep 2
         attempts=$((attempts + 1))
     done
     echo -e "  ${RED}[timeout]${NC} LightRAG not ready after 60s"
+    return 1
 }
 
-# ── Index knowledge base ───────────────────────────────────────────
+# ── Sync KB to graph ──────────────────────────────────────────────
 
-index_kb() {
+sync_full() {
     echo ""
-    echo "Indexing fleet knowledge base..."
-    bash "${FLEET_DIR}/scripts/lightrag-index.sh" --all
+    echo "Syncing KB to knowledge graph (full)..."
+    activate_venv
+    python -m fleet.core.kb_sync --full --url "$LIGHTRAG_URL"
 }
 
-# ── Verify setup ──────────────────────────────────────────────────
+sync_incremental() {
+    echo ""
+    echo "Syncing KB to knowledge graph (incremental)..."
+    activate_venv
+    python -m fleet.core.kb_sync --sync --url "$LIGHTRAG_URL"
+}
+
+# ── Verify ────────────────────────────────────────────────────────
 
 verify() {
     echo ""
-    echo "Verifying setup..."
+    echo "Verifying..."
 
-    # Check MCP package
-    if uv pip show daniel-lightrag-mcp &>/dev/null; then
-        echo -e "  ${GREEN}[✓]${NC} daniel-lightrag-mcp installed"
-    else
-        echo -e "  ${RED}[✗]${NC} daniel-lightrag-mcp NOT installed"
-    fi
+    local pass=0 fail=0
 
-    # Check container
-    if docker compose -f "${FLEET_DIR}/docker-compose.yaml" ps lightrag 2>/dev/null | grep -q "running"; then
-        echo -e "  ${GREEN}[✓]${NC} LightRAG container running"
-    else
-        echo -e "  ${RED}[✗]${NC} LightRAG container NOT running"
-    fi
+    check() {
+        if [ "$2" = "ok" ]; then
+            echo -e "  ${GREEN}[✓]${NC} $1"
+            pass=$((pass + 1))
+        else
+            echo -e "  ${RED}[✗]${NC} $1"
+            fail=$((fail + 1))
+        fi
+    }
 
-    # Check health
-    if curl -s -o /dev/null "${LIGHTRAG_URL:-http://localhost:9621}/health" 2>/dev/null; then
-        echo -e "  ${GREEN}[✓]${NC} LightRAG API responding"
-    else
-        echo -e "  ${RED}[✗]${NC} LightRAG API NOT responding"
-    fi
+    activate_venv 2>/dev/null || true
 
-    # Check agent-tooling has lightrag MCP
-    if grep -q "lightrag" "${FLEET_DIR}/config/agent-tooling.yaml"; then
-        echo -e "  ${GREEN}[✓]${NC} LightRAG MCP in agent-tooling.yaml"
-    else
-        echo -e "  ${RED}[✗]${NC} LightRAG MCP NOT in agent-tooling.yaml"
-    fi
+    uv pip show daniel-lightrag-mcp &>/dev/null 2>&1 && check "daniel-lightrag-mcp" "ok" || check "daniel-lightrag-mcp" "fail"
+    curl -s -o /dev/null "$LIGHTRAG_URL/health" 2>/dev/null && check "LightRAG API" "ok" || check "LightRAG API" "fail"
+    curl -s -o /dev/null "http://localhost:8090/v1/models" 2>/dev/null && check "LocalAI API" "ok" || check "LocalAI API" "fail"
+    grep -q "lightrag" "${FLEET_DIR}/config/agent-tooling.yaml" && check "LightRAG MCP in tooling" "ok" || check "LightRAG MCP in tooling" "fail"
+
+    # Check graph has content
+    local nodes
+    nodes=$(curl -s "$LIGHTRAG_URL/graph/label/popular?limit=1" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo "0")
+    [ "$nodes" -gt 0 ] 2>/dev/null && check "Graph has entities ($nodes labels)" "ok" || check "Graph has entities" "fail"
+
+    echo ""
+    echo -e "  ${GREEN}$pass passed${NC}, ${RED}$fail failed${NC}"
 }
 
-# ── Main ───────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────
 
 echo "═══════════════════════════════════════════════════════"
 echo "  Fleet LightRAG Setup"
@@ -129,23 +178,33 @@ echo "════════════════════════�
 echo ""
 
 case "${1:-}" in
-    --deps-only)
-        install_mcp_dependency
-        ensure_directories
+    --clean)
+        clean
+        install_deps
+        ensure_dirs
+        start_services
+        sync_full
         verify
         ;;
-    --index-only)
-        index_kb
+    --sync)
+        sync_incremental
+        ;;
+    --deps-only)
+        install_deps
+        ensure_dirs
+        ;;
+    --verify)
+        verify
         ;;
     ""|--all)
-        install_mcp_dependency
-        ensure_directories
-        start_service
-        index_kb
+        install_deps
+        ensure_dirs
+        start_services
+        sync_full
         verify
         ;;
     *)
-        echo "Usage: $0 [--all|--deps-only|--index-only]"
+        echo "Usage: $0 [--all|--clean|--sync|--deps-only|--verify]"
         exit 1
         ;;
 esac
