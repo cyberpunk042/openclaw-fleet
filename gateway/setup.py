@@ -423,29 +423,53 @@ def run_setup() -> int:
         except Exception as e:
             print(f"   WARN: Could not set board config: {e}")
 
-    # Step 6: Register agents
+    # Step 6: Register agents (and reprovision offline ones)
     if board:
         board_id = board.get("id", "")
         print("\n5. Registering agents...")
         local_agents = setup.load_local_agents()
         existing = setup.list_agents(board_id)
-        existing_names = {a.get("name", "") for a in existing}
+        existing_by_name = {a.get("name", ""): a for a in existing}
+
+        import time
 
         registered = 0
+        reprovisioned = 0
         for agent_cfg in local_agents:
             name = agent_cfg.get("name", "?")
-            if name in existing_names:
-                print(f"   SKIP: {name} (already registered)")
+            existing_agent = existing_by_name.get(name)
+
+            if existing_agent and existing_agent.get("status") not in ("offline", "provisioning"):
+                print(f"   SKIP: {name} (already online)")
+            elif existing_agent:
+                # Agent exists but is offline/provisioning — force reprovision
+                agent_id = existing_agent["id"]
+                try:
+                    r = httpx.patch(
+                        f"{setup.mc_url}/api/v1/agents/{agent_id}?force=true",
+                        json={"name": name},
+                        headers=setup.headers,
+                        timeout=30.0,
+                    )
+                    if r.status_code == 200:
+                        print(f"   REPROVISION: {name}")
+                        reprovisioned += 1
+                        # Wait for gateway SIGUSR1 restart to complete
+                        time.sleep(8)
+                    else:
+                        print(f"   WARN: {name} reprovision returned {r.status_code}")
+                except Exception as e:
+                    print(f"   WARN: {name} reprovision failed: {e}")
             else:
                 result = setup.register_agent(board_id, agent_cfg)
                 if result:
                     print(f"   OK: {name}")
                     registered += 1
-                    # Let gateway process config.patch + SIGUSR1 before next agent
-                    import time; time.sleep(3)
+                    # Wait for gateway SIGUSR1 restart to complete
+                    time.sleep(8)
                 else:
                     print(f"   WARN: {name} failed")
-        print(f"   Registered {registered}/{len(local_agents)} agents")
+        print(f"   Registered {registered}, Reprovisioned {reprovisioned}/{len(local_agents)} agents")
 
         # Step 6b: Set fleet-ops as board lead
         print("\n6b. Setting fleet-ops as board lead...")
