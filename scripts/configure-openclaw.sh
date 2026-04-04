@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Configure OpenClaw for headless fleet operation.
+# Configure gateway vendor for headless fleet operation.
 # Sets exec approval, CLI backend, and agent workspace permissions.
-echo "=== Configuring OpenClaw Fleet Settings ==="
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$FLEET_DIR/scripts/lib/vendor.sh"
+echo "=== Configuring $VENDOR_NAME Fleet Settings ==="
 OPENCLAW_CONFIG="$VENDOR_CONFIG_FILE"
 EXEC_APPROVALS="${VENDOR_CONFIG_DIR}/exec-approvals.json"
 

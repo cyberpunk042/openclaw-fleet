@@ -26,7 +26,7 @@ if [[ -z "$VENDOR_BIN" ]]; then
 fi
 VENDOR_BIN_DIR=$(dirname "$VENDOR_BIN")
 
-echo "=== Installing OpenClaw Fleet Service ==="
+echo "=== Installing $VENDOR_NAME Fleet Service ==="
 echo "  Fleet dir:    $FLEET_DIR"
 echo "  $VENDOR_NAME bin: $VENDOR_BIN"
 echo "  User:         $USER"
