@@ -448,73 +448,26 @@ def run_setup() -> int:
                 time.sleep(1)
             return False
 
-        # Pause gateway restarts during bulk registration.
-        # Write commands.restart=false directly to the config file on disk.
-        # Using config.patch RPC would trigger a restart itself (chicken-and-egg).
-        import time
-        oc_config = _resolve_vendor_config()
-        restart_paused = False
-        try:
-            with open(oc_config) as _f:
-                gw_cfg = json.load(_f)
-            gw_cfg.setdefault("commands", {})["restart"] = False
-            with open(oc_config, "w") as _f:
-                json.dump(gw_cfg, _f, indent=2)
-            restart_paused = True
-            print("   Gateway restarts paused for bulk registration")
-        except Exception as e:
-            print(f"   WARN: Could not pause gateway restarts ({e})")
-
+        # Register new agents in MC only. Do NOT reprovision offline agents here.
+        # The gateway-side setup (seed-gateway-agents.sh + clean-gateway-config.sh)
+        # handles writing agents to gateway config and setting heartbeat intervals
+        # directly on disk — no config.patch RPC, no SIGUSR1 restart cascade.
+        # The gateway restarts once after seeding, picking up all agents.
         registered = 0
-        reprovisioned = 0
         for agent_cfg in local_agents:
             name = agent_cfg.get("name", "?")
             existing_agent = existing_by_name.get(name)
 
-            if existing_agent and existing_agent.get("status") not in ("offline", "provisioning"):
-                print(f"   SKIP: {name} (already online)")
-            elif existing_agent:
-                agent_id = existing_agent["id"]
-                try:
-                    r = httpx.patch(
-                        f"{setup.mc_url}/api/v1/agents/{agent_id}?force=true",
-                        json={"name": name},
-                        headers=setup.headers,
-                        timeout=60.0,
-                    )
-                    if r.status_code == 200:
-                        print(f"   REPROVISION: {name}")
-                        reprovisioned += 1
-                        if not restart_paused:
-                            _wait_for_gateway()
-                    else:
-                        print(f"   WARN: {name} reprovision returned {r.status_code}")
-                except Exception as e:
-                    print(f"   WARN: {name} reprovision failed: {e}")
+            if existing_agent:
+                print(f"   SKIP: {name} (exists, status={existing_agent.get('status', '?')})")
             else:
                 result = setup.register_agent(board_id, agent_cfg)
                 if result:
                     print(f"   OK: {name}")
                     registered += 1
-                    if not restart_paused:
-                        _wait_for_gateway()
+                    _wait_for_gateway()
                 else:
                     print(f"   WARN: {name} failed")
-
-        # Re-enable restarts and trigger one restart to pick up all agents
-        if restart_paused:
-            try:
-                with open(oc_config) as _f:
-                    gw_cfg = json.load(_f)
-                gw_cfg.setdefault("commands", {})["restart"] = True
-                with open(oc_config, "w") as _f:
-                    json.dump(gw_cfg, _f, indent=2)
-                print("   Gateway restarts re-enabled — sending SIGUSR1 for single restart")
-                import subprocess as _sp
-                _sp.run(["pkill", "-USR1", "-f", "openarms-gateway"], capture_output=True)
-            except Exception as e:
-                print(f"   WARN: Could not re-enable restarts ({e})")
-            _wait_for_gateway()
 
         print(f"   Registered {registered}, Reprovisioned {reprovisioned}/{len(local_agents)} agents")
 
