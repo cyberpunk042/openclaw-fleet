@@ -447,6 +447,20 @@ def run_setup() -> int:
                 time.sleep(1)
             return False
 
+        # Pause gateway restarts during bulk registration.
+        # Each agent provision triggers a config write + SIGUSR1. With restarts
+        # disabled, all agents register without interruption, then one restart
+        # at the end picks them all up.
+        from fleet.infra.gateway_client import gateway_config_patch
+        restart_paused = False
+        try:
+            import asyncio
+            asyncio.run(gateway_config_patch({"commands": {"restart": False}}))
+            restart_paused = True
+            print("   Gateway restarts paused for bulk registration")
+        except Exception:
+            print("   WARN: Could not pause gateway restarts (will restart per agent)")
+
         registered = 0
         reprovisioned = 0
         for agent_cfg in local_agents:
@@ -456,20 +470,19 @@ def run_setup() -> int:
             if existing_agent and existing_agent.get("status") not in ("offline", "provisioning"):
                 print(f"   SKIP: {name} (already online)")
             elif existing_agent:
-                # Agent exists but is offline/provisioning — force reprovision
                 agent_id = existing_agent["id"]
                 try:
                     r = httpx.patch(
                         f"{setup.mc_url}/api/v1/agents/{agent_id}?force=true",
                         json={"name": name},
                         headers=setup.headers,
-                        timeout=30.0,
+                        timeout=60.0,
                     )
                     if r.status_code == 200:
                         print(f"   REPROVISION: {name}")
                         reprovisioned += 1
-                        # Wait for gateway to be healthy after SIGUSR1 restart
-                        _wait_for_gateway()
+                        if not restart_paused:
+                            _wait_for_gateway()
                     else:
                         print(f"   WARN: {name} reprovision returned {r.status_code}")
                 except Exception as e:
@@ -479,10 +492,20 @@ def run_setup() -> int:
                 if result:
                     print(f"   OK: {name}")
                     registered += 1
-                    # Wait for gateway to be healthy after SIGUSR1 restart
-                    _wait_for_gateway()
+                    if not restart_paused:
+                        _wait_for_gateway()
                 else:
                     print(f"   WARN: {name} failed")
+
+        # Re-enable restarts and trigger one restart to pick up all agents
+        if restart_paused:
+            try:
+                asyncio.run(gateway_config_patch({"commands": {"restart": True}}))
+                print("   Gateway restarts re-enabled — restarting once")
+            except Exception:
+                print("   WARN: Could not re-enable restarts")
+            _wait_for_gateway()
+
         print(f"   Registered {registered}, Reprovisioned {reprovisioned}/{len(local_agents)} agents")
 
         # Step 6b: Set fleet-ops as board lead

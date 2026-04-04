@@ -16,12 +16,12 @@ import os
 import uuid
 from typing import Optional
 
-from fleet.infra.config_loader import resolve_vendor_config, resolve_vendor_dir
+from fleet.infra.config_loader import resolve_vendor_config, resolve_vendor_client_id, resolve_vendor_dir
 
 logger = logging.getLogger(__name__)
 
 # Default gateway WebSocket URL
-GATEWAY_WS_URL = "ws://localhost:18789"
+GATEWAY_WS_URL = f"ws://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}"
 
 
 async def _gateway_rpc(
@@ -57,7 +57,7 @@ async def _gateway_rpc(
     try:
         async with websockets.connect(
             GATEWAY_WS_URL,
-            origin="http://localhost:18789",
+            origin=f"http://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}",
         ) as ws:
             # Read challenge
             await asyncio.wait_for(ws.recv(), timeout=timeout)
@@ -76,7 +76,7 @@ async def _gateway_rpc(
                         "operator.approvals", "operator.pairing",
                     ],
                     "client": {
-                        "id": "fleet-doctor",
+                        "id": resolve_vendor_client_id(),
                         "version": "1.0.0",
                         "platform": "python",
                         "mode": "daemon",
@@ -113,6 +113,21 @@ async def _gateway_rpc(
     except Exception as exc:
         logger.error("Gateway RPC error: %s: %s", method, exc)
         return False, {"error": str(exc)}
+
+
+# ─── Config Tools ──────────────────────────────────────────────────────
+
+
+async def gateway_config_patch(patch: dict) -> bool:
+    """Send a config.patch RPC to the gateway.
+
+    Used to pause/resume gateway restarts during bulk operations.
+    Example: await gateway_config_patch({"commands": {"restart": False}})
+    """
+    ok, resp = await _gateway_rpc("config.patch", {"raw": patch})
+    if not ok:
+        logger.error("config.patch failed: %s", resp)
+    return ok
 
 
 # ─── Doctor's Tools ─────────────────────────────────────────────────────
