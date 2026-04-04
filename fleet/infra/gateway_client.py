@@ -16,7 +16,7 @@ import os
 import uuid
 from typing import Optional
 
-from fleet.infra.config_loader import resolve_vendor_config
+from fleet.infra.config_loader import resolve_vendor_config, resolve_vendor_dir
 
 logger = logging.getLogger(__name__)
 
@@ -185,15 +185,27 @@ async def inject_content(session_key: str, content: str) -> bool:
     return ok
 
 
+def _resolve_cron_path():
+    """Find the cron jobs.json file — check active vendor dir first, then legacy."""
+    from pathlib import Path as _P
+    for base in [resolve_vendor_dir(), os.path.expanduser("~/.openclaw"), os.path.expanduser("~/.openarms")]:
+        p = _P(base) / "cron" / "jobs.json"
+        if p.exists():
+            return p
+    return _P(resolve_vendor_dir()) / "cron" / "jobs.json"
+
+
 def disable_gateway_cron_jobs() -> int:
     """Disable ALL gateway cron jobs via JSON file edit.
 
     Called when: MC is down, fleet is paused, daemon shuts down.
+    CRITICAL: This is the primary budget protection mechanism.
+    When MC is down, disabling cron jobs prevents the gateway from
+    firing heartbeats that call Claude API — ZERO consumption.
     """
     import json as _json
-    from pathlib import Path as _Path
 
-    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    cron_path = _resolve_cron_path()
     if not cron_path.exists():
         return 0
     try:
@@ -221,7 +233,7 @@ def enable_gateway_cron_jobs() -> int:
     import json as _json
     from pathlib import Path as _Path
 
-    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    cron_path = _resolve_cron_path()
     if not cron_path.exists():
         return 0
     try:
@@ -266,7 +278,7 @@ def check_cron_circuit_breaker(max_consecutive_errors: int = 5) -> int:
     FATAL_ERROR_PATTERNS = ["401", "auth", "token", "expired", "connection refused",
                             "rate limit", "quota"]
 
-    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    cron_path = _resolve_cron_path()
     if not cron_path.exists():
         return 0
     try:
@@ -312,7 +324,7 @@ def update_cron_tempo(tempo_multiplier: float) -> int:
     MIN_INTERVAL_MS = 300_000    # 5 minutes floor
     MAX_INTERVAL_MS = 7_200_000  # 2 hours ceiling
 
-    cron_path = _Path.home() / ".openclaw" / "cron" / "jobs.json"
+    cron_path = _resolve_cron_path()
     if not cron_path.exists():
         return 0
     try:

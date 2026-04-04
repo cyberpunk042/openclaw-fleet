@@ -15,7 +15,7 @@ from pathlib import Path
 
 import websockets
 
-from fleet.infra.config_loader import ConfigLoader, resolve_vendor_config, resolve_vendor_client_id
+from fleet.infra.config_loader import ConfigLoader, resolve_vendor_config, resolve_vendor_client_id, resolve_vendor_dir
 from fleet.infra.irc_client import IRCClient
 from fleet.infra.mc_client import MCClient
 from fleet.templates.irc import format_event
@@ -170,7 +170,7 @@ async def _run_dispatch(
 def _refresh_auth(loader: ConfigLoader) -> None:
     """Refresh auth token if Claude Code rotated it."""
     creds_path = Path.home() / ".claude" / ".credentials.json"
-    oc_env_path = Path.home() / ".openclaw" / ".env"
+    oc_env_path = Path(resolve_vendor_dir()) / ".env"
 
     if not creds_path.exists():
         return

@@ -6,9 +6,29 @@ set -euo pipefail
 # Takes you from a fresh clone to a running fleet.
 # Run: ./setup.sh
 #
+# BUDGET PROTECTION — READ THIS BEFORE MODIFYING
+# ================================================
+# The fleet's #1 safety invariant: OCMC down = ZERO Claude API calls.
+#
+# How it works:
+#   1. Systemd service (fleet-gateway.service) has ExecStartPre that checks
+#      OCMC health. Gateway refuses to start if OCMC is down.
+#   2. Orchestrator daemon watches MC every 30s. MC unreachable →
+#      disable_gateway_cron_jobs() → heartbeats stop → zero Claude calls.
+#   3. When OCMC comes back up, orchestrator re-enables cron jobs.
+#
+# DO NOT:
+#   - Change Restart=on-failure to Restart=always (causes restart storm)
+#   - Remove ExecStartPre MC health check
+#   - Start the gateway without MC being up
+#   - Hardcode vendor paths (use vendor.sh / resolve_vendor_dir)
+#
+# Violation = thousands of dollars burned on heartbeats to dead MC.
+# ================================================
+#
 # What it does:
-# 1. Installs OpenClaw
-# 2. Configures OpenClaw gateway (bind, controlUi)
+# 1. Installs gateway vendor (OpenArms or OpenClaw)
+# 2. Configures gateway (bind, controlUi)
 # 3. Configures auth (Claude Code subscription bridge)
 # 4. Configures exec approval, CLI backend, workspace permissions
 # 5. Sets up IRC channel

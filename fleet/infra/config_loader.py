@@ -13,6 +13,14 @@ from typing import Optional
 import yaml
 
 
+def resolve_vendor_dir() -> str:
+    """Resolve vendor config directory (~/.openarms or ~/.openclaw)."""
+    openarms = os.path.expanduser("~/.openarms")
+    if os.path.exists(os.path.join(openarms, "openarms.json")):
+        return openarms
+    return os.path.expanduser("~/.openclaw")
+
+
 def resolve_vendor_config() -> str:
     """Resolve vendor config path (~/.openarms or ~/.openclaw)."""
     openarms = os.path.expanduser("~/.openarms/openarms.json")

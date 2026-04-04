@@ -222,7 +222,7 @@ async def _run_auth_daemon(interval: int = 120) -> None:
                     try:
                         import httpx as _httpx
                         async with _httpx.AsyncClient(timeout=3) as _mc_check:
-                            mc_resp = await _mc_check.get("http://localhost:8000/healthz")
+                            mc_resp = await _mc_check.get("http://localhost:8000/health")
                             mc_up = mc_resp.status_code == 200
                     except Exception:
                         mc_up = False
@@ -355,7 +355,7 @@ def run_daemon(args: list[str] | None = None) -> int:
         # If MC is up, this is just a restart — leave cron enabled.
         try:
             import httpx
-            resp = httpx.get("http://localhost:8000/healthz", timeout=3)
+            resp = httpx.get("http://localhost:8000/health", timeout=3)
             mc_up = resp.status_code == 200
         except Exception:
             mc_up = False
