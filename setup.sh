@@ -20,9 +20,10 @@ set -euo pipefail
 
 FLEET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$FLEET_DIR"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 
 echo "╔══════════════════════════════════════╗"
-echo "║     OpenClaw Fleet Setup             ║"
+echo "║     Fleet Setup                      ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
@@ -138,27 +139,22 @@ print(f'  Prefix:     {identity.agent_prefix}')
 fi
 echo ""
 
-# Step 1: Install OpenClaw (skip if already at latest)
-if command -v openclaw >/dev/null 2>&1; then
-    echo "=== OpenClaw ==="
-    echo "  $(openclaw --version 2>/dev/null | head -1)"
-else
-    bash scripts/install-openclaw.sh
-fi
+# Step 1: Install gateway vendor
+bash scripts/install-openclaw.sh
+source "$FLEET_DIR/scripts/lib/vendor.sh"  # re-source after install
 echo ""
 
-# Step 2: Configure OpenClaw (if not already set up)
-if [[ ! -f "${HOME}/.openclaw/openclaw.json" ]]; then
-    echo "=== Configuring OpenClaw ==="
-    openclaw onboard --non-interactive --accept-risk --workspace "$FLEET_DIR" --skip-health
-    echo ""
+# Step 2: Configure gateway vendor (if not already set up)
+if [[ -n "$VENDOR_CLI" ]] && [[ ! -f "$VENDOR_CONFIG_FILE" ]]; then
+    echo "=== Configuring $VENDOR_NAME ==="
+    $VENDOR_CLI onboard --non-interactive --accept-risk --workspace "$FLEET_DIR" --skip-health
 fi
 
 # Step 3: Configure OpenClaw gateway settings
 echo "=== Configuring Gateway ==="
 python3 -c "
 import json, os
-config_path = os.path.expanduser('~/.openclaw/openclaw.json')
+config_path = os.path.expanduser('$VENDOR_CONFIG_FILE')
 with open(config_path) as f:
     cfg = json.load(f)
 
@@ -187,9 +183,9 @@ if cfg.get('agents', {}).get('defaults', {}).get('workspace') != '$FLEET_DIR':
 if changed:
     with open(config_path, 'w') as f:
         json.dump(cfg, f, indent=2)
-    print('OpenClaw config updated')
+    print('Gateway config updated')
 else:
-    print('OpenClaw config OK')
+    print('Gateway config OK')
 "
 echo ""
 
@@ -310,7 +306,7 @@ if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
         | python3 -c "
 import json,sys; data=json.load(sys.stdin)
 items=data.get('items',data) if isinstance(data,dict) else data
-print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'OpenClaw' in g.get('name','')))
+print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'Fleet' in g.get('name','')))
 " 2>/dev/null || true)
     if [[ -n "${GW_ID:-}" ]]; then
         # Sync WITHOUT force_bootstrap — agents already exist in gateway.
@@ -452,8 +448,8 @@ GW_PORT="${OCF_GATEWAY_PORT:-18789}"
 echo "Everything is running:"
 echo "  Mission Control UI:  http://localhost:${FRONTEND_PORT:-3000}"
 echo "  Mission Control API: http://localhost:${BACKEND_PORT:-8000}"
-echo "  OpenClaw Gateway:    ws://localhost:${GW_PORT}"
-echo "  OpenClaw Control UI: http://localhost:${GW_PORT}"
+echo "  $VENDOR_NAME Gateway:    ws://localhost:${GW_PORT}"
+echo "  $VENDOR_NAME Control UI: http://localhost:${GW_PORT}"
 echo "  LightRAG:            http://localhost:${LIGHTRAG_PORT:-9621}"
 echo "  IRC Server:          localhost:6667"
 echo "  The Lounge (IRC UI): http://localhost:${LOUNGE_PORT:-9000}  (fleet/fleet)"
@@ -471,5 +467,5 @@ echo "  make status    — fleet overview"
 echo "  make watch     — real-time agent events"
 echo "  make sync      — sync tasks ↔ PRs"
 echo "  make mc-up     — start Mission Control"
-echo "  make gateway   — start OpenClaw gateway"
+echo "  make gateway   — start gateway"
 echo "  make logs      — view gateway logs"
