@@ -172,7 +172,7 @@ async def send():
             'params': {
                 'minProtocol': 3, 'maxProtocol': 3, 'role': 'operator',
                 'scopes': ['operator.read', 'operator.admin', 'operator.approvals', 'operator.pairing'],
-                'client': {'id': 'openclaw-control-ui', 'version': '1.0.0', 'platform': 'python', 'mode': 'ui'},
+                'client': {'id': '${VENDOR_CLI}-control-ui', 'version': '1.0.0', 'platform': 'python', 'mode': 'ui'},
                 'auth': {'token': oc_token},
             },
         }))

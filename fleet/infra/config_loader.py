@@ -29,6 +29,14 @@ def resolve_vendor_env() -> str:
     return os.path.expanduser("~/.openclaw/.env")
 
 
+def resolve_vendor_client_id() -> str:
+    """Resolve gateway client ID based on active vendor."""
+    openarms = os.path.expanduser("~/.openarms/openarms.json")
+    if os.path.exists(openarms):
+        return "openarms-control-ui"
+    return "openclaw-control-ui"
+
+
 from fleet.core.interfaces import ConfigLoader as ConfigLoaderInterface
 from fleet.core.models import Project
 

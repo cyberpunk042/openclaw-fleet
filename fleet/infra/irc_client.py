@@ -14,6 +14,7 @@ from typing import Optional
 import websockets
 
 from fleet.core.interfaces import NotificationClient
+from fleet.infra.config_loader import resolve_vendor_client_id
 
 
 class IRCClient(NotificationClient):
@@ -59,7 +60,7 @@ class IRCClient(NotificationClient):
                         "role": "operator",
                         "scopes": ["operator.read", "operator.admin"],
                         "client": {
-                            "id": "openclaw-control-ui",
+                            "id": resolve_vendor_client_id(),
                             "version": "1.0.0",
                             "platform": "python",
                             "mode": "ui",

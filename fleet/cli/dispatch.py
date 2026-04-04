@@ -15,7 +15,7 @@ from pathlib import Path
 
 import websockets
 
-from fleet.infra.config_loader import ConfigLoader, resolve_vendor_config
+from fleet.infra.config_loader import ConfigLoader, resolve_vendor_config, resolve_vendor_client_id
 from fleet.infra.irc_client import IRCClient
 from fleet.infra.mc_client import MCClient
 from fleet.templates.irc import format_event
@@ -386,7 +386,7 @@ async def _send_chat(session_key: str, message: str) -> tuple[bool, str]:
                     "scopes": ["operator.read", "operator.admin",
                                "operator.approvals", "operator.pairing"],
                     "client": {
-                        "id": "openclaw-control-ui",
+                        "id": resolve_vendor_client_id(),
                         "version": "1.0.0",
                         "platform": "python",
                         "mode": "ui",
