@@ -448,18 +448,21 @@ def run_setup() -> int:
             return False
 
         # Pause gateway restarts during bulk registration.
-        # Each agent provision triggers a config write + SIGUSR1. With restarts
-        # disabled, all agents register without interruption, then one restart
-        # at the end picks them all up.
-        from fleet.infra.gateway_client import gateway_config_patch
+        # Write commands.restart=false directly to the config file on disk.
+        # Using config.patch RPC would trigger a restart itself (chicken-and-egg).
+        import time
+        oc_config = _resolve_vendor_config()
         restart_paused = False
         try:
-            import asyncio
-            asyncio.run(gateway_config_patch({"commands": {"restart": False}}))
+            with open(oc_config) as _f:
+                gw_cfg = json.load(_f)
+            gw_cfg.setdefault("commands", {})["restart"] = False
+            with open(oc_config, "w") as _f:
+                json.dump(gw_cfg, _f, indent=2)
             restart_paused = True
             print("   Gateway restarts paused for bulk registration")
-        except Exception:
-            print("   WARN: Could not pause gateway restarts (will restart per agent)")
+        except Exception as e:
+            print(f"   WARN: Could not pause gateway restarts ({e})")
 
         registered = 0
         reprovisioned = 0
@@ -500,10 +503,16 @@ def run_setup() -> int:
         # Re-enable restarts and trigger one restart to pick up all agents
         if restart_paused:
             try:
-                asyncio.run(gateway_config_patch({"commands": {"restart": True}}))
-                print("   Gateway restarts re-enabled — restarting once")
-            except Exception:
-                print("   WARN: Could not re-enable restarts")
+                with open(oc_config) as _f:
+                    gw_cfg = json.load(_f)
+                gw_cfg.setdefault("commands", {})["restart"] = True
+                with open(oc_config, "w") as _f:
+                    json.dump(gw_cfg, _f, indent=2)
+                print("   Gateway restarts re-enabled — sending SIGUSR1 for single restart")
+                import subprocess as _sp
+                _sp.run(["pkill", "-USR1", "-f", "openarms-gateway"], capture_output=True)
+            except Exception as e:
+                print(f"   WARN: Could not re-enable restarts ({e})")
             _wait_for_gateway()
 
         print(f"   Registered {registered}, Reprovisioned {reprovisioned}/{len(local_agents)} agents")

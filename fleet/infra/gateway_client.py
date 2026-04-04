@@ -124,7 +124,7 @@ async def gateway_config_patch(patch: dict) -> bool:
     Used to pause/resume gateway restarts during bulk operations.
     Example: await gateway_config_patch({"commands": {"restart": False}})
     """
-    ok, resp = await _gateway_rpc("config.patch", {"raw": patch})
+    ok, resp = await _gateway_rpc("config.patch", {"raw": json.dumps(patch)})
     if not ok:
         logger.error("config.patch failed: %s", resp)
     return ok
