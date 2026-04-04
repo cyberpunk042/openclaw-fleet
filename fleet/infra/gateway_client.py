@@ -79,7 +79,7 @@ async def _gateway_rpc(
                         "id": resolve_vendor_client_id(),
                         "version": "1.0.0",
                         "platform": "python",
-                        "mode": "daemon",
+                        "mode": "ui",
                     },
                     "auth": {"token": oc_token},
                 },
