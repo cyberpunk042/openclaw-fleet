@@ -433,6 +433,20 @@ def run_setup() -> int:
 
         import time
 
+        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
+
+        def _wait_for_gateway(max_wait=30):
+            """Wait for gateway to be healthy after SIGUSR1 restart."""
+            for i in range(max_wait):
+                try:
+                    r = httpx.get(f"http://localhost:{gw_port}/health", timeout=2.0)
+                    if r.status_code == 200:
+                        return True
+                except Exception:
+                    pass
+                time.sleep(1)
+            return False
+
         registered = 0
         reprovisioned = 0
         for agent_cfg in local_agents:
@@ -454,8 +468,8 @@ def run_setup() -> int:
                     if r.status_code == 200:
                         print(f"   REPROVISION: {name}")
                         reprovisioned += 1
-                        # Wait for gateway SIGUSR1 restart to complete
-                        time.sleep(8)
+                        # Wait for gateway to be healthy after SIGUSR1 restart
+                        _wait_for_gateway()
                     else:
                         print(f"   WARN: {name} reprovision returned {r.status_code}")
                 except Exception as e:
@@ -465,8 +479,8 @@ def run_setup() -> int:
                 if result:
                     print(f"   OK: {name}")
                     registered += 1
-                    # Wait for gateway SIGUSR1 restart to complete
-                    time.sleep(8)
+                    # Wait for gateway to be healthy after SIGUSR1 restart
+                    _wait_for_gateway()
                 else:
                     print(f"   WARN: {name} failed")
         print(f"   Registered {registered}, Reprovisioned {reprovisioned}/{len(local_agents)} agents")
