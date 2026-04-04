@@ -12,6 +12,7 @@ set -euo pipefail
 # Requires: MC running, gateway running, .env with LOCAL_AUTH_TOKEN
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 source "$FLEET_DIR/.env" 2>/dev/null || true
 
 # Auto-refresh auth token if rotated (silent, no gateway restart)
@@ -157,7 +158,7 @@ import asyncio, json, uuid
 import websockets
 
 async def send():
-    with open('$HOME/.openclaw/openclaw.json') as f:
+    with open('$VENDOR_CONFIG_FILE') as f:
         cfg = json.load(f)
     oc_token = cfg.get('gateway', {}).get('auth', {}).get('token', '')
 

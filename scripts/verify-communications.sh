@@ -6,6 +6,7 @@ set -euo pipefail
 # Must pass all checks before proceeding.
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 
 echo "=== Fleet Communication Verification ==="
 echo ""
@@ -50,7 +51,7 @@ async def verify():
 
     # IRC
     try:
-        oc_path = os.path.expanduser('~/.openclaw/openclaw.json')
+        oc_path = '$VENDOR_CONFIG_FILE'
         with open(oc_path) as f:
             oc_cfg = json.load(f)
         gw_token = oc_cfg.get('gateway', {}).get('auth', {}).get('token', '')

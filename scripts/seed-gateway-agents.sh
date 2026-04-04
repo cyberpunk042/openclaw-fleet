@@ -15,6 +15,7 @@ set -euo pipefail
 #   - Gateway starts (so agents exist from first boot)
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 
 set -a
 source "$FLEET_DIR/.env" 2>/dev/null || true
@@ -71,7 +72,7 @@ mc_data = json.loads('''$MC_AGENTS''')
 items = mc_data.get("items", mc_data) if isinstance(mc_data, dict) else mc_data
 
 # Read current gateway config
-config_path = os.path.expanduser("~/.openclaw/openclaw.json")
+config_path = "$VENDOR_CONFIG_FILE"
 with open(config_path) as f:
     cfg = json.load(f)
 
@@ -104,7 +105,7 @@ for agent in items:
         "id": gw_agent_id,
         "name": name,
         "workspace": os.path.join(fleet_dir, f"workspace-{gw_agent_id}"),
-        "agentDir": os.path.expanduser(f"~/.openclaw/agents/{gw_agent_id}/agent"),
+        "agentDir": os.path.join("$VENDOR_CONFIG_DIR", "agents", gw_agent_id, "agent"),
         "heartbeat": {
             "every": hb_every,
             "target": "last",
@@ -125,7 +126,7 @@ with open(config_path, "w") as f:
     json.dump(cfg, f, indent=2)
 
 # Reset config health checkpoint so gateway accepts the larger file
-health_path = os.path.expanduser("~/.openclaw/logs/config-health.json")
+health_path = os.path.join("$VENDOR_CONFIG_DIR", "logs", "config-health.json")
 if os.path.exists(health_path):
     os.remove(health_path)
 

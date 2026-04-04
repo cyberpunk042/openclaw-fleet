@@ -13,6 +13,7 @@ set -euo pipefail
 #     → [<agent>] EVENT: <title> — <url>
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 
 # Parse args
 AGENT=""
@@ -58,7 +59,7 @@ import asyncio, json, uuid, os
 import websockets
 
 async def send_irc():
-    with open('$HOME/.openclaw/openclaw.json') as f:
+    with open('$VENDOR_CONFIG_FILE') as f:
         cfg = json.load(f)
     oc_token = cfg.get('gateway', {}).get('auth', {}).get('token', '')
 

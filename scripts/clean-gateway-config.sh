@@ -104,11 +104,11 @@ cfg["agents"]["list"] = cleaned
 
 # Sync agent IDs with MC database (IDs change after Docker reset)
 import os
-env_path = os.path.join(os.path.dirname(os.path.dirname(config_path.replace("/.openclaw/openclaw.json", ""))), "openclaw-fleet", ".env")
+fleet_dir = "$FLEET_DIR"
 # Try to read LOCAL_AUTH_TOKEN and sync with MC
 try:
     token = ""
-    fleet_env = os.path.expanduser("~/openclaw-fleet/.env")
+    fleet_env = os.path.join(fleet_dir, ".env")
     if os.path.exists(fleet_env):
         for line in open(fleet_env):
             if line.startswith("LOCAL_AUTH_TOKEN="):
