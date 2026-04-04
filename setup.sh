@@ -360,9 +360,9 @@ if [[ -n "${LIGHTRAG_PID:-}" ]] && kill -0 "$LIGHTRAG_PID" 2>/dev/null; then
 
         if [[ -f "$LIGHTRAG_LOG" ]]; then
             # Find the last progress line "    N/M (X ok, Y fail)"
-            PROGRESS=$(grep -oP '\s+\d+/\d+ \(\d+ ok, \d+ fail\)' "$LIGHTRAG_LOG" 2>/dev/null | tail -1 || true)
+            PROGRESS=$(grep -aoP '\s+\d+/\d+ \(\d+ ok, \d+ fail\)' "$LIGHTRAG_LOG" 2>/dev/null | tail -1 || true)
             # Find the current phase
-            PHASE=$(grep -oP '(Installing|Waiting|Syncing|Inserting|Verifying|Source entities|Source relationships|Entities done|Relationships done|Result:).*' "$LIGHTRAG_LOG" 2>/dev/null | tail -1 || true)
+            PHASE=$(grep -aoP '(Installing|Waiting|Syncing|Inserting|Verifying|Source entities|Source relationships|Entities done|Relationships done|Result:).*' "$LIGHTRAG_LOG" 2>/dev/null | tail -1 || true)
 
             DISPLAY=""
             if [[ "$PROGRESS" =~ ([0-9]+)/([0-9]+)\ \(([0-9]+)\ ok,\ ([0-9]+)\ fail ]]; then
