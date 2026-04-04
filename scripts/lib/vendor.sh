@@ -70,23 +70,23 @@ _vendor_cutover() {
     echo "  Config migrated. Legacy config preserved at ${VENDOR_LEGACY_CONFIG_DIR}"
 }
 
-# --- Cutover: stop legacy gateway if switching ---
+# --- Cutover: stop and disable legacy gateway if switching ---
 _vendor_stop_legacy() {
     [[ "$VENDOR_CLI" == "openarms" ]] || return 0
     [[ -n "$VENDOR_LEGACY_CLI" ]] || return 0
 
-    # Stop legacy systemd service
-    if systemctl --user is-active openclaw-fleet-gateway.service >/dev/null 2>&1; then
-        echo "  Stopping legacy openclaw systemd service..."
-        systemctl --user stop openclaw-fleet-gateway.service 2>/dev/null || true
+    # Disable and stop legacy systemd service completely
+    if systemctl --user is-enabled fleet-gateway.service >/dev/null 2>&1; then
+        echo "  Disabling legacy openclaw systemd service..."
+        systemctl --user stop fleet-gateway.service 2>/dev/null || true
+        systemctl --user disable fleet-gateway.service 2>/dev/null || true
+        systemctl --user reset-failed fleet-gateway.service 2>/dev/null || true
     fi
 
-    # Kill legacy gateway processes
-    if pgrep -f "openclaw gateway" >/dev/null 2>&1; then
-        echo "  Killing legacy openclaw gateway..."
-        pkill -f "openclaw gateway" 2>/dev/null || true
-    fi
-    if pgrep -f "openclaw$" >/dev/null 2>&1; then
-        pkill -f "openclaw$" 2>/dev/null || true
+    # Kill ALL legacy openclaw processes
+    if pgrep -f "openclaw" >/dev/null 2>&1; then
+        echo "  Killing all openclaw processes..."
+        pkill -f "openclaw" 2>/dev/null || true
+        sleep 2
     fi
 }

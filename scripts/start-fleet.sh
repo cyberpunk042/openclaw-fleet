@@ -38,9 +38,9 @@ echo "=== Starting $VENDOR_NAME Gateway ==="
 _vendor_stop_legacy
 
 # Stop systemd-managed gateway if running (it would respawn after kill)
-if systemctl --user is-active openclaw-fleet-gateway.service >/dev/null 2>&1; then
+if systemctl --user is-active fleet-gateway.service >/dev/null 2>&1; then
     echo "  Stopping systemd gateway service..."
-    systemctl --user stop openclaw-fleet-gateway.service 2>/dev/null || true
+    systemctl --user stop fleet-gateway.service 2>/dev/null || true
     sleep 2
 fi
 
@@ -67,10 +67,10 @@ if [[ -n "$PORT_PID" ]]; then
 fi
 
 # Install/update systemd service if template exists, then start via systemd
-if [[ -f "$FLEET_DIR/systemd/openclaw-fleet-gateway.service.template" ]]; then
+if [[ -f "$FLEET_DIR/systemd/fleet-gateway.service.template" ]]; then
     bash "$FLEET_DIR/scripts/install-service.sh" 2>&1 | sed 's/^/  /'
     echo "  Starting via systemd..."
-    systemctl --user start openclaw-fleet-gateway.service
+    systemctl --user start fleet-gateway.service
 else
     # Fallback: start directly if no systemd template
     export NODE_OPTIONS="--max-old-space-size=4096"
@@ -89,8 +89,8 @@ for i in $(seq 1 30); do
 done
 
 echo "  ERROR: Gateway failed to start within 60 seconds."
-if systemctl --user is-active openclaw-fleet-gateway.service >/dev/null 2>&1; then
-    echo "  Check logs: journalctl --user -u openclaw-fleet-gateway -n 50"
+if systemctl --user is-active fleet-gateway.service >/dev/null 2>&1; then
+    echo "  Check logs: journalctl --user -u fleet-gateway -n 50"
 else
     echo "  Check logs: tail -50 $FLEET_DIR/.gateway.log"
 fi

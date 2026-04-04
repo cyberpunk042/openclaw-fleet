@@ -11,7 +11,7 @@ set -euo pipefail
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$FLEET_DIR/scripts/lib/vendor.sh"
-TEMPLATE="$FLEET_DIR/systemd/openclaw-fleet-gateway.service.template"
+TEMPLATE="$FLEET_DIR/systemd/fleet-gateway.service.template"
 
 if [[ ! -f "$TEMPLATE" ]]; then
     echo "ERROR: Template not found: $TEMPLATE" >&2
@@ -35,7 +35,7 @@ echo "  Home:         $HOME"
 # Render template
 SERVICE_DIR="${HOME}/.config/systemd/user"
 mkdir -p "$SERVICE_DIR"
-SERVICE_FILE="$SERVICE_DIR/openclaw-fleet-gateway.service"
+SERVICE_FILE="$SERVICE_DIR/fleet-gateway.service"
 
 sed \
     -e "s|{{FLEET_DIR}}|$FLEET_DIR|g" \
@@ -48,14 +48,14 @@ echo "  Service file: $SERVICE_FILE"
 
 # Enable and start
 systemctl --user daemon-reload
-systemctl --user enable openclaw-fleet-gateway.service
+systemctl --user enable fleet-gateway.service
 echo ""
 echo "Service installed and enabled."
 echo ""
 echo "Commands:"
-echo "  systemctl --user start openclaw-fleet-gateway    # start now"
-echo "  systemctl --user stop openclaw-fleet-gateway     # stop"
-echo "  systemctl --user status openclaw-fleet-gateway   # check status"
-echo "  journalctl --user -u openclaw-fleet-gateway -f   # view logs"
+echo "  systemctl --user start fleet-gateway    # start now"
+echo "  systemctl --user stop fleet-gateway     # stop"
+echo "  systemctl --user status fleet-gateway   # check status"
+echo "  journalctl --user -u fleet-gateway -f   # view logs"
 echo ""
 echo "To auto-start on login: loginctl enable-linger $USER"
