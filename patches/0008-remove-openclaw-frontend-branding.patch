@@ -19,7 +19,10 @@ Subject: [PATCH] rename: remove openclaw branding from frontend
  frontend/src/components/templates/DashboardShell.tsx | 2 +-
  frontend/src/components/templates/LandingShell.tsx   | 8 ++++----
  frontend/src/lib/gateway-form.ts                     | 2 +-
- 15 files changed, 23 insertions(+), 23 deletions(-)
+ frontend/src/app/layout.tsx                          | 2 +-
+ frontend/src/components/molecules/HeroCopy.tsx       | 2 +-
+ frontend/src/components/organisms/LandingHero.tsx    | 2 +-
+ 18 files changed, 26 insertions(+), 26 deletions(-)
 
 diff --git a/compose.yml b/compose.yml
 index b22ca20..dbcde73 100644
@@ -264,12 +267,51 @@ index d63f37e..ce3825d 100644
 +++ b/frontend/src/lib/gateway-form.ts
 @@ -1,6 +1,6 @@
  import { gatewaysStatusApiV1GatewaysStatusGet } from "@/api/generated/gateways/gateways";
- 
+
 -export const DEFAULT_WORKSPACE_ROOT = "~/.openclaw";
 +export const DEFAULT_WORKSPACE_ROOT = "~/.openarms";
- 
+
  export type GatewayCheckStatus = "idle" | "checking" | "success" | "error";
- 
--- 
+
+diff --git a/frontend/src/app/layout.tsx b/frontend/src/app/layout.tsx
+index a1b2c3d..e4f5a6b 100644
+--- a/frontend/src/app/layout.tsx
++++ b/frontend/src/app/layout.tsx
+@@ -10,7 +10,7 @@ import { GlobalLoader } from "@/components/ui/global-loader";
+
+ export const metadata: Metadata = {
+-  title: "OpenClaw Mission Control",
++  title: "Mission Control",
+   description: "A calm command center for every task.",
+ };
+
+diff --git a/frontend/src/components/molecules/HeroCopy.tsx b/frontend/src/components/molecules/HeroCopy.tsx
+index b1c2d3e..f4a5b6c 100644
+--- a/frontend/src/components/molecules/HeroCopy.tsx
++++ b/frontend/src/components/molecules/HeroCopy.tsx
+@@ -3,7 +3,7 @@ import { HeroKicker } from "@/components/atoms/HeroKicker";
+
+ export function HeroCopy() {
+   return (
+     <div className="space-y-6">
+-      <HeroKicker>OpenClaw Mission Control</HeroKicker>
++      <HeroKicker>Mission Control</HeroKicker>
+       <div className="space-y-4">
+         <h1 className="font-heading text-4xl font-semibold leading-tight text-strong sm:text-5xl lg:text-6xl">
+           Command autonomous work.
+diff --git a/frontend/src/components/organisms/LandingHero.tsx b/frontend/src/components/organisms/LandingHero.tsx
+index c1d2e3f..a4b5c6d 100644
+--- a/frontend/src/components/organisms/LandingHero.tsx
++++ b/frontend/src/components/organisms/LandingHero.tsx
+@@ -34,7 +34,7 @@ export function LandingHero() {
+     <>
+       <section className="hero">
+         <div className="hero-content">
+-          <div className="hero-label">OpenClaw Mission Control</div>
++          <div className="hero-label">Mission Control</div>
+           <h1>
+             Command <span className="hero-highlight">autonomous work.</span>
+             <br />
+--
 2.50.1
 
