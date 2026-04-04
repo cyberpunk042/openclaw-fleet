@@ -70,6 +70,7 @@ services:
       LOCAL_AUTH_TOKEN: ${LOCAL_AUTH_TOKEN}
       BASE_URL: ${BASE_URL:-http://localhost:8000}
       RQ_REDIS_URL: redis://redis:6379/0
+      GATEWAY_CLIENT_ID: ${GATEWAY_CLIENT_ID:-openclaw-control-ui}
     depends_on:
       db:
         condition: service_healthy

@@ -1,0 +1,21 @@
+diff --git a/backend/app/services/openclaw/gateway_rpc.py b/backend/app/services/openclaw/gateway_rpc.py
+index 85a6712..2a89494 100644
+--- a/backend/app/services/openclaw/gateway_rpc.py
++++ b/backend/app/services/openclaw/gateway_rpc.py
+@@ -8,6 +8,7 @@ operate within a single scope (no `app.integrations.*` plumbing).
+ from __future__ import annotations
+ 
+ import asyncio
++import os
+ import json
+ import ssl
+ from dataclasses import dataclass
+@@ -37,7 +38,7 @@ GATEWAY_OPERATOR_SCOPES = (
+ )
+ DEFAULT_GATEWAY_CLIENT_ID = "gateway-client"
+ DEFAULT_GATEWAY_CLIENT_MODE = "backend"
+-CONTROL_UI_CLIENT_ID = "openclaw-control-ui"
++CONTROL_UI_CLIENT_ID = os.environ.get("GATEWAY_CLIENT_ID", "openclaw-control-ui")
+ CONTROL_UI_CLIENT_MODE = "ui"
+ GatewayConnectMode = Literal["device", "control_ui"]
+ 

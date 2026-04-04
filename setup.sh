@@ -143,6 +143,12 @@ echo ""
 bash scripts/install-openclaw.sh
 source "$FLEET_DIR/scripts/lib/vendor.sh"  # re-source after install
 _vendor_cutover  # migrate config from openclaw if switching to openarms
+# Set GATEWAY_CLIENT_ID in .env for MC backend
+if grep -q "GATEWAY_CLIENT_ID" "$FLEET_DIR/.env" 2>/dev/null; then
+    sed -i "s/GATEWAY_CLIENT_ID=.*/GATEWAY_CLIENT_ID=${VENDOR_CLI}-control-ui/" "$FLEET_DIR/.env"
+else
+    echo "GATEWAY_CLIENT_ID=${VENDOR_CLI}-control-ui" >> "$FLEET_DIR/.env"
+fi
 echo ""
 
 # Step 2: Configure gateway vendor (if not already set up)
