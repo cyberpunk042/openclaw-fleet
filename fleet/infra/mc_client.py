@@ -475,6 +475,20 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
         except Exception:
             return False
 
+    async def heartbeat_agent(self, agent_id: str) -> bool:
+        """Touch an agent's last_seen_at via the heartbeat API.
+
+        Returns True if the heartbeat was accepted.
+        """
+        try:
+            resp = await self._client.post(
+                f"/api/v1/agents/{agent_id}/heartbeat",
+                json={},
+            )
+            return resp.status_code == 200
+        except Exception:
+            return False
+
     # ─── Helpers ────────────────────────────────────────────────────────
 
     @staticmethod
