@@ -113,6 +113,58 @@ def execute_task(
         return {"result": result.stdout, "usage": {}, "error": None}
 
 
+def execute_via_openai_compat(
+    prompt: str,
+    model: str,
+    base_url: str,
+    api_key: str = "",
+    timeout: int = 120,
+) -> Dict[str, Any]:
+    """Execute via OpenAI-compatible API (LocalAI, OpenRouter).
+
+    Args:
+        prompt: The task prompt
+        model: Model ID (e.g., "hermes-3b", "qwen/qwen3-235b-a22b")
+        base_url: API base URL (e.g., "http://localhost:8090/v1")
+        api_key: API key (empty for LocalAI)
+        timeout: Max seconds
+
+    Returns: dict with 'result', 'usage', 'error'
+    """
+    import httpx as _httpx
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        r = _httpx.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 4096,
+            },
+            timeout=timeout,
+        )
+        if r.status_code != 200:
+            return {"result": None, "error": f"API returned {r.status_code}: {r.text[:200]}", "usage": {}}
+
+        data = r.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        usage = data.get("usage", {})
+        return {
+            "result": content,
+            "usage": usage,
+            "cost_usd": 0,
+            "model": model,
+            "error": None,
+        }
+    except Exception as e:
+        return {"result": None, "error": str(e), "usage": {}}
+
+
 def _load_agent_config(agent_dir: Path) -> Dict[str, Any]:
     config_path = agent_dir / "agent.yaml"
     if config_path.exists():

@@ -137,12 +137,48 @@ async def _run_dispatch(
     # Build dispatch message
     message = _build_message(task, task_id, board_id, project_name, work_dir, agent_name)
 
-    # Send via gateway
-    print("\nDispatching...")
-    ok, run_id = await _send_chat(session_key, message)
+    # Route to appropriate backend based on routing decision
+    if routing.backend in ("localai",) and localai_available:
+        from gateway.executor import execute_via_openai_compat
+        print("\nExecuting via LocalAI...")
+        result = execute_via_openai_compat(
+            prompt=message,
+            model=routing.model or "hermes-3b",
+            base_url="http://localhost:8090/v1",
+        )
+        ok = result.get("error") is None
+        run_id = ""
+        if ok:
+            print(f"Executed via LocalAI: model={result.get('model')}")
+        else:
+            print(f"ERROR: LocalAI execution failed: {result.get('error')}")
+            await mc.close()
+            return 1
+    elif routing.backend in ("openrouter-free", "openrouter-qwen36plus"):
+        from gateway.executor import execute_via_openai_compat
+        import os as _os
+        print("\nExecuting via OpenRouter...")
+        result = execute_via_openai_compat(
+            prompt=message,
+            model=routing.model or "qwen/qwen3-235b-a22b",
+            base_url="https://openrouter.ai/api/v1",
+            api_key=_os.environ.get("OPENROUTER_API_KEY", ""),
+        )
+        ok = result.get("error") is None
+        run_id = ""
+        if ok:
+            print(f"Executed via OpenRouter: model={result.get('model')}")
+        else:
+            print(f"ERROR: OpenRouter execution failed: {result.get('error')}")
+            await mc.close()
+            return 1
+    else:
+        # Default: Claude Code via gateway (existing behavior)
+        print("\nDispatching via gateway...")
+        ok, run_id = await _send_chat(session_key, message)
 
     if ok:
-        print(f"Dispatched: runId={run_id}")
+        print(f"Dispatched: runId={run_id}" if run_id else "Dispatched: complete")
     else:
         print(f"ERROR: Dispatch failed")
         await mc.close()
