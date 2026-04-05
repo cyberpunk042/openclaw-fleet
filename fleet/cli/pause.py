@@ -4,7 +4,7 @@ Usage:
   python -m fleet pause [--reason "..."]
   python -m fleet resume
 
-Pause: kills all fleet daemons, stops gateway heartbeats, notifies IRC/ntfy.
+Pause: kills all fleet daemons, notifies IRC/ntfy. Heartbeats stay enabled.
 Resume: restarts daemons (must be done explicitly — no auto-resume).
 """
 
@@ -61,21 +61,20 @@ async def _pause(reason: str = "") -> int:
         except Exception:
             pass
 
-    # 4. Disable gateway cron jobs — this is the CRITICAL step.
-    # Even if the gateway restarts somehow, disabled cron jobs
-    # will NOT fire Claude calls. Fleet OFF = zero consumption.
-    print("4. Disabling gateway cron jobs...")
+    # 3b. Disable gateway CRON jobs (heartbeats call Claude API = budget burn)
     try:
         from fleet.infra.gateway_client import disable_gateway_cron_jobs
         disabled = disable_gateway_cron_jobs()
-        print(f"   Disabled {disabled} cron job(s)")
-        actions += 1
-    except Exception as e:
-        print(f"   WARNING: Could not disable cron jobs: {e}")
+        if disabled:
+            print(f"   Disabled {disabled} gateway cron jobs")
+        else:
+            print("   No cron jobs to disable")
+    except Exception:
+        print("   WARN: Could not disable cron jobs")
 
-    # 5. Set work mode to paused in config
+    # 4. Set work mode to paused in config
     fleet_dir = str(Path(__file__).resolve().parent.parent.parent)
-    print("5. Setting work mode to 'paused'...")
+    print("4. Setting work mode to 'paused'...")
     try:
         import yaml
         config_path = os.path.join(fleet_dir, "config", "fleet.yaml")
@@ -89,15 +88,15 @@ async def _pause(reason: str = "") -> int:
     except Exception as e:
         print(f"   WARNING: Could not update config: {e}")
 
-    # 6. Write pause marker
+    # 5. Write pause marker
     pause_file = os.path.join(fleet_dir, ".fleet-paused")
     with open(pause_file, "w") as f:
         f.write(f"paused_at: {datetime.now().isoformat()}\n")
         if reason:
             f.write(f"reason: {reason}\n")
-    print(f"\n6. Pause marker written: {pause_file}")
+    print(f"\n5. Pause marker written: {pause_file}")
 
-    # 6b. Update fleet_config in MC (so UI shows paused)
+    # 5b. Update fleet_config in MC (so UI shows paused)
     try:
         from fleet.infra.mc_client import MCClient
         mc = MCClient()
