@@ -64,8 +64,15 @@ def find_gateway_processes() -> list[GatewayProcess]:
             return processes
 
         for line in result.stdout.splitlines():
-            # Match gateway processes — OpenClaw runs as a node process
-            if "openclaw" in line.lower() and ("gateway" in line.lower() or "server" in line.lower()):
+            # Match gateway processes — openarms/openclaw runs as a node process
+            # Must match the actual gateway binary, not MCP servers or fleet daemons
+            lower = line.lower()
+            is_gateway = (
+                ("openarms-gateway" in lower or "openclaw-gateway" in lower) or
+                ("openarms gateway" in lower or "openclaw gateway" in lower) or
+                (("openarms" in lower or "openclaw" in lower) and "gateway run" in lower)
+            )
+            if is_gateway:
                 parts = line.split()
                 if len(parts) >= 2:
                     try:
