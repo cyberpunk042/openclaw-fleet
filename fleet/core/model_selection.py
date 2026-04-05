@@ -43,19 +43,45 @@ class ModelConfig:
 def select_model_for_task(
     task: Task,
     agent_name: str = "",
+    backend_mode: str = "claude",
 ) -> ModelConfig:
     """Select model and effort based on task + agent.
 
     Priority:
-    1. Explicit model override in task custom field
-    2. Story points (>= 8 → opus, >= 5 → consider, < 5 → sonnet)
-    3. Task type (epic/story/blocker → opus)
-    4. Agent role (deep reasoning agents get opus on medium+ tasks)
-    5. Default: sonnet with medium effort
+    1. Backend mode override (localai/hybrid short-circuits all logic below)
+    2. Explicit model override in task custom field
+    3. Story points (>= 8 → opus, >= 5 → consider, < 5 → sonnet)
+    4. Task type (epic/story/blocker → opus)
+    5. Agent role (deep reasoning agents get opus on medium+ tasks)
+    6. Default: sonnet with medium effort
 
     Returns:
         ModelConfig with model, effort, and reason for the selection.
     """
+    # Backend mode override
+    if backend_mode == "localai":
+        return ModelConfig(
+            model="localai",
+            effort="medium",
+            reason="Backend mode: localai",
+        )
+
+    if backend_mode == "hybrid":
+        # Use localai for low-complexity tasks, claude for everything else
+        complexity = task.custom_fields.complexity or "" if task.custom_fields else ""
+        story_points = task.custom_fields.story_points or 0 if task.custom_fields else 0
+        try:
+            story_points = int(story_points)
+        except (TypeError, ValueError):
+            story_points = 0
+        if story_points <= 2 and complexity in ("", "low", "routine"):
+            return ModelConfig(
+                model="localai",
+                effort="medium",
+                reason=f"Hybrid mode: low complexity (sp={story_points})",
+            )
+        # Fall through to normal claude selection for complex tasks
+
     return _select_unconstrained(task, agent_name)
 
 

@@ -112,6 +112,8 @@ async def _run_dispatch(
     print(f"Model:    {routing.model} (effort={routing.effort})")
     print(f"          {routing.reason}")
 
+    model_config = select_model_for_task(task, agent_name=agent_name, backend_mode=backend_mode)
+
     # Record dispatch intent — the provenance chain starts here
     dispatch_record = DispatchRecord(
         task_id=task_id,
