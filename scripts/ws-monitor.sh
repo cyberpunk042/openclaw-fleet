@@ -57,7 +57,7 @@ async def monitor():
         cfg = json.load(f)
     oc_token = cfg.get('gateway', {}).get('auth', {}).get('token', '')
 
-    async with websockets.connect('ws://localhost:${OCF_GATEWAY_PORT:-9400}', origin='http://localhost:${OCF_GATEWAY_PORT:-9400}') as ws:
+    async with websockets.connect('ws://localhost:18789', origin='http://localhost:18789') as ws:
         # Connect
         await asyncio.wait_for(ws.recv(), timeout=5)
         await ws.send(json.dumps({

@@ -50,7 +50,7 @@ sleep 20
 # Step 3: Verify gateway is responding
 echo "3. Verifying gateway..."
 for i in $(seq 1 10); do
-    if curl -sf "http://localhost:${OCF_GATEWAY_PORT:-9400}/" >/dev/null 2>&1; then
+    if curl -sf "http://localhost:18789/" >/dev/null 2>&1; then
         echo "   Gateway is up"
         break
     fi

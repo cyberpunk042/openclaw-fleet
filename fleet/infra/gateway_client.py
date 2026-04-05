@@ -4,7 +4,7 @@ Provides the doctor's tools: prune (sessions.delete), force compact
 (sessions.compact), inject content (chat.send), and fresh session
 creation (sessions.patch).
 
-The gateway communicates via WebSocket JSON-RPC on ws://localhost:9400.
+The gateway communicates via WebSocket JSON-RPC on ws://localhost:18789.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from fleet.infra.config_loader import resolve_vendor_config, resolve_vendor_clie
 logger = logging.getLogger(__name__)
 
 # Default gateway WebSocket URL
-GATEWAY_WS_URL = f"ws://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}"
+GATEWAY_WS_URL = "ws://localhost:18789"
 
 
 async def _gateway_rpc(
@@ -57,7 +57,7 @@ async def _gateway_rpc(
     try:
         async with websockets.connect(
             GATEWAY_WS_URL,
-            origin=f"http://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}",
+            origin="http://localhost:18789",
         ) as ws:
             # Read challenge
             await asyncio.wait_for(ws.recv(), timeout=timeout)

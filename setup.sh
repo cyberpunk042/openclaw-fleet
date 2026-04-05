@@ -536,7 +536,7 @@ echo "║     Fleet Setup Complete             ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 source "$FLEET_DIR/.env" 2>/dev/null || true
-GW_PORT="${OCF_GATEWAY_PORT:-9400}"
+GW_PORT="18789"
 echo "Everything is running:"
 echo "  Mission Control UI:  http://localhost:${FRONTEND_PORT:-3000}"
 echo "  Mission Control API: http://localhost:${BACKEND_PORT:-8000}"

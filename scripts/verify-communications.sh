@@ -81,7 +81,7 @@ async def verify():
     # Gateway
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get('http://localhost:${OCF_GATEWAY_PORT:-9400}/')
+            resp = await client.get('http://localhost:18789/')
             results['gateway'] = f'OK — HTTP {resp.status_code}'
     except Exception as e:
         results['gateway'] = f'FAIL — {e}'

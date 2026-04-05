@@ -408,10 +408,9 @@ async def _send_chat(session_key: str, message: str) -> tuple[bool, str]:
     oc_token = cfg.get("gateway", {}).get("auth", {}).get("token", "")
 
     try:
-        _gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
         async with websockets.connect(
-            f"ws://localhost:{_gw_port}",
-            origin=f"http://localhost:{_gw_port}",
+            "ws://localhost:18789",
+            origin="http://localhost:18789",
         ) as ws:
             await asyncio.wait_for(ws.recv(), timeout=5)
             await ws.send(json.dumps({

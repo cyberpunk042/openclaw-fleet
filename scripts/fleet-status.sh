@@ -25,7 +25,7 @@ echo -e "${BOLD}╚════════════════════�
 # 1. Infrastructure
 echo ""
 echo -e "${BOLD}Infrastructure${NC}"
-GW_PORT="${OCF_GATEWAY_PORT:-9400}"
+GW_PORT="18789"
 if curl -sf "http://localhost:${GW_PORT}" > /dev/null 2>&1; then
     echo -e "  OpenClaw Gateway:  ${GREEN}UP${NC} (ws://localhost:${GW_PORT})"
 else

@@ -350,7 +350,7 @@ def run_setup() -> int:
         import socket
         host_ip = socket.gethostbyname(socket.gethostname())
         # Gateway URL: Docker containers reach the host via host.docker.internal
-        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
+        gw_port = "18789"
         gw_host = os.environ.get("OCF_GATEWAY_HOST", "host.docker.internal")
         fleet_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         gw = setup.register_gateway("OCF Gateway", f"ws://{gw_host}:{gw_port}", workspace_root=fleet_dir)
@@ -360,7 +360,7 @@ def run_setup() -> int:
             print("   WARN: Could not register gateway")
     else:
         # Update gateway URL and workspace_root if stale
-        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
+        gw_port = "18789"
         gw_host = os.environ.get("OCF_GATEWAY_HOST", "host.docker.internal")
         expected_url = f"ws://{gw_host}:{gw_port}"
         fleet_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -460,7 +460,7 @@ def run_setup() -> int:
 
         import time
 
-        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
+        gw_port = "18789"
 
         def _wait_for_gateway(max_wait=30):
             """Wait for gateway to be healthy after SIGUSR1 restart."""
@@ -580,7 +580,7 @@ def run_setup() -> int:
     print("\n=== Setup complete ===")
     print(f"Mission Control UI: http://localhost:3000")
     print(f"Mission Control API: {mc_url}")
-    print(f"OCF Gateway: http://localhost:9400")
+    print(f"OCF Gateway: http://localhost:18789")
     return 0
 
 
