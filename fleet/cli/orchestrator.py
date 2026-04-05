@@ -1436,16 +1436,10 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
                     # Gateway just came up — remove lock
                     os.remove(lock_path)
 
-                # Provision agents once after gateway is confirmed alive
-                if gateway_alive and not _agents_provisioned:
-                    prov_script = os.path.join(fleet_dir, "scripts", "provision-agents.sh")
-                    if os.path.exists(prov_script):
-                        _sp.Popen(["bash", prov_script],
-                                  stdout=open(os.path.join(fleet_dir, ".provision.log"), "w"),
-                                  stderr=_sp.STDOUT)
-                        ts = datetime.now().strftime("%H:%M:%S")
-                        print(f"[{ts}] [orchestrator] Provisioning agents...")
-                    _agents_provisioned = True
+                # NOTE: Provisioning is handled by setup.sh (seed + template sync).
+                # Do NOT run provision-agents.sh here — it triggers template sync
+                # with rotate_tokens=true which causes a gateway restart storm,
+                # killing the daemon on its second cycle.
             except Exception:
                 pass
 
