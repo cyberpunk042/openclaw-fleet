@@ -199,26 +199,13 @@ async def run_orchestrator_cycle(
                     pass  # CRON sync must not break orchestrator
     _previous_fleet_state = fleet_state
 
-    # ─── Keepalive: touch last_seen_at for all agents ──────────────────
-    # Runs every cycle regardless of pause state — agents should be visible
-    # even when paused. Only CLI hard-pause (kills orchestrator) makes
-    # agents go offline.
-    try:
-        _keepalive_counter = getattr(run_orchestrator_cycle, '_keepalive_counter', 0) + 1
-        run_orchestrator_cycle._keepalive_counter = _keepalive_counter
-        # Touch every 5th cycle (~2.5 min) to stay well within 10min timeout
-        if _keepalive_counter % 5 == 0:
-            for agent in agents:
-                if "Gateway" in agent.name:
-                    continue
-                try:
-                    await mc.heartbeat_agent(agent.id)
-                except Exception:
-                    pass
-    except Exception:
-        pass  # Keepalive must never break orchestrator
+    # ─── Agent liveness is managed by the brain evaluation step below ──
+    # The brain calls mc.heartbeat_agent() for SILENT decisions (touches
+    # last_seen_at) and posts "(silent)" to board memory. No separate
+    # keepalive loop needed — it was generating spam "Heartbeat received"
+    # messages without the brain decision tag.
 
-    # ─── Pause gates (block dispatch only, not keepalive/context) ──────
+    # ─── Pause gates (block dispatch only, not context/brain) ──────
     dispatch_blocked = False
 
     # Check OCMC board-level pause (separate from fleet work_mode)
