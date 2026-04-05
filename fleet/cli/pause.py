@@ -97,6 +97,26 @@ async def _pause(reason: str = "") -> int:
             f.write(f"reason: {reason}\n")
     print(f"\n6. Pause marker written: {pause_file}")
 
+    # 6b. Update fleet_config in MC (so UI shows paused)
+    try:
+        from fleet.infra.mc_client import MCClient
+        mc = MCClient()
+        board_id = await mc.get_board_id()
+        if board_id:
+            board = await mc.get_board(board_id)
+            current_config = board.get("fleet_config") or {}
+            current_work_mode = current_config.get("work_mode", "full-autonomous")
+            await mc.update_board_fleet_config(board_id, {
+                "work_mode": "work-paused",
+                "work_mode_before_pause": current_work_mode if current_work_mode != "work-paused" else current_config.get("work_mode_before_pause", "full-autonomous"),
+                "updated_at": datetime.now().isoformat(),
+                "updated_by": "cli",
+            })
+            print("   Fleet config updated in MC (work-paused)")
+        await mc.close()
+    except Exception as e:
+        print(f"   WARN: Could not update MC fleet_config: {e}")
+
     # 7. Notify via ntfy if available
     try:
         from fleet.infra.ntfy_client import NtfyClient
@@ -127,8 +147,28 @@ async def _resume() -> int:
             print(f"Fleet was paused:")
             print(f"  {f.read().strip()}")
         os.remove(pause_file)
-        print()
 
+    # Restore work_mode from work_mode_before_pause
+    try:
+        from fleet.infra.mc_client import MCClient
+        mc = MCClient()
+        board_id = await mc.get_board_id()
+        if board_id:
+            board = await mc.get_board(board_id)
+            current_config = board.get("fleet_config") or {}
+            restore_mode = current_config.get("work_mode_before_pause", "full-autonomous")
+            await mc.update_board_fleet_config(board_id, {
+                "work_mode": restore_mode,
+                "work_mode_before_pause": None,
+                "updated_at": datetime.now().isoformat(),
+                "updated_by": "cli",
+            })
+            print(f"   Fleet config updated in MC (restored to {restore_mode})")
+        await mc.close()
+    except Exception as e:
+        print(f"   WARN: Could not update MC fleet_config: {e}")
+
+    print()
     print("Fleet resumed. Pause marker removed.")
     print()
     print("To start daemons: python -m fleet daemon all")
