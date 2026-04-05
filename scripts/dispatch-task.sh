@@ -49,7 +49,7 @@ AGENT_INFO=$(curl -s -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" "$MC_URL/api/v
 import json, sys
 for a in json.load(sys.stdin).get('items', []):
     if a.get('name') == '$AGENT_NAME':
-        print(json.dumps({'id': str(a['id']), 'board_id': str(a.get('board_id','')), 'session': a.get('openclaw_session_id','')}))
+        print(json.dumps({'id': str(a['id']), 'board_id': str(a.get('board_id','')), 'session': a.get('session_id','')}))
         break
 " 2>/dev/null)
 

@@ -10,7 +10,7 @@ echo ""
 found=0
 
 # Check gateway
-GW=$(pgrep -a -f "openclaw-gateway" 2>/dev/null || true)
+GW=$(pgrep -a -f "openarms-gateway\|openclaw-gateway" 2>/dev/null || true)
 if [[ -n "$GW" ]]; then
   echo "⚠️  GATEWAY RUNNING:"
   echo "$GW" | while read line; do echo "   $line"; done
@@ -18,7 +18,7 @@ if [[ -n "$GW" ]]; then
 fi
 
 # Check openclaw main
-OC=$(pgrep -a -f "openclaw$" 2>/dev/null | grep -v grep || true)
+OC=$(pgrep -a -f "openarms$\|openclaw$" 2>/dev/null | grep -v grep || true)
 if [[ -n "$OC" ]]; then
   echo "⚠️  OPENCLAW MAIN:"
   echo "$OC" | while read line; do echo "   $line"; done
@@ -55,6 +55,6 @@ if [[ $found -eq 0 ]]; then
 else
   echo "❌ $found fleet process group(s) detected."
   echo ""
-  echo "To kill all: pkill -f openclaw; pkill -f 'fleet daemon'; pkill -f 'fleet.mcp'"
+  echo "To kill all: pkill -f \"openarms\|openclaw\"; pkill -f 'fleet daemon'; pkill -f 'fleet.mcp'"
   echo "Then verify: bash scripts/check-fleet-processes.sh"
 fi

@@ -6,6 +6,7 @@ set -euo pipefail
 # Idempotent — safe to run multiple times.
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$FLEET_DIR/scripts/lib/vendor.sh"
 IDENTITIES="$FLEET_DIR/config/agent-identities.yaml"
 
 echo "=== Registering Fleet Agents ==="
@@ -25,11 +26,11 @@ with open("$IDENTITIES") as f:
 agents = cfg.get("agents", {})
 registered = 0
 
-# Get existing agents ONCE (not per-agent — openclaw CLI is slow to start)
+# Get existing agents ONCE (not per-agent — vendor CLI is slow to start)
 existing_agents = ""
 try:
     result = subprocess.run(
-        ["openclaw", "agents", "list"],
+        ["$VENDOR_CLI", "agents", "list"],
         capture_output=True, text=True, timeout=15
     )
     existing_agents = result.stdout
@@ -52,14 +53,14 @@ for agent_name, info in agents.items():
     # Register
     try:
         subprocess.run(
-            ["openclaw", "agents", "add", agent_name,
+            ["$VENDOR_CLI", "agents", "add", agent_name,
              "--workspace", workspace],
             capture_output=True, text=True, timeout=60
         )
         print(f"  REGISTERED: {agent_name} ({display})")
         registered += 1
     except subprocess.TimeoutExpired:
-        print(f"  TIMEOUT: {agent_name} — openclaw CLI hung (60s), skipping")
+        print(f"  TIMEOUT: {agent_name} — $VENDOR_CLI CLI hung (60s), skipping")
     except Exception as e:
         print(f"  ERROR: {agent_name} — {e}")
 

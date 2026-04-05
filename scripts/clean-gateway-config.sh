@@ -129,7 +129,7 @@ try:
             if name in mc_agents:
                 mc_agent = mc_agents[name]
                 # Derive gateway agent ID from openclaw_session_id (format: agent:{gw_id}:main)
-                session_id = mc_agent.get("openclaw_session_id", "")
+                session_id = mc_agent.get("session_id", "")
                 parts = session_id.split(":") if session_id else []
                 if len(parts) >= 2:
                     gw_agent_id = parts[1]
