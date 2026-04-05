@@ -45,12 +45,10 @@ const BACKEND_MODES = [
 ];
 
 const BUDGET_MODES = [
-  { value: "blitz", label: "Blitz", desc: "No cost limits" },
-  { value: "standard", label: "Standard", desc: "Normal ops" },
-  { value: "economic", label: "Economic", desc: "Cost-aware" },
-  { value: "frugal", label: "Frugal", desc: "Local-first" },
-  { value: "survival", label: "Survival", desc: "Free only" },
-  { value: "blackout", label: "Blackout", desc: "No AI spend" },
+  { value: "turbo", label: "Turbo", desc: "5s cycle" },
+  { value: "aggressive", label: "Aggressive", desc: "15s cycle" },
+  { value: "standard", label: "Standard", desc: "30s cycle" },
+  { value: "economic", label: "Economic", desc: "60s cycle" },
 ];
 
 interface FleetControlBarProps {
