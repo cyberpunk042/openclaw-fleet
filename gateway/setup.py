@@ -424,6 +424,32 @@ def run_setup() -> int:
         except Exception as e:
             print(f"   WARN: Could not set board config: {e}")
 
+        # Initialize fleet_config with default work mode
+        try:
+            current = board.get("fleet_config") or {}
+            if not current.get("work_mode"):
+                from datetime import datetime
+                r = httpx.patch(
+                    f"{mc_url}/api/v1/boards/{board_id_cfg}",
+                    headers=setup.headers,
+                    json={
+                        "fleet_config": {
+                            **current,
+                            "work_mode": "work-paused",
+                            "cycle_phase": "execution",
+                            "backend_mode": "claude",
+                            "budget_mode": "standard",
+                            "updated_at": datetime.now().isoformat(),
+                            "updated_by": "setup",
+                        },
+                    },
+                    timeout=10.0,
+                )
+                if r.status_code == 200:
+                    print("   OK: Fleet config initialized (work-paused)")
+        except Exception as e:
+            print(f"   WARN: Could not initialize fleet_config: {e}")
+
     # Step 6: Register agents (and reprovision offline ones)
     if board:
         board_id = board.get("id", "")

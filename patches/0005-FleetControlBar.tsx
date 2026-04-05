@@ -97,18 +97,20 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
       try {
         const board = await customFetch<any>(`/api/v1/boards/${resolvedBoardId}`, { method: "GET" });
         const config = board.fleet_config || {};
-        setWorkMode(config.work_mode || "full-autonomous");
-        setCyclePhase(config.cycle_phase || "execution");
-        setBackendMode(config.backend_mode || "claude");
-        setBudgetMode(config.budget_mode || "standard");
-        setCostUsedPct(config.cost_used_pct || 0);
-        setWorkModeBeforePause(config.work_mode_before_pause || null);
+        if (config.work_mode) setWorkMode(config.work_mode);
+        if (config.cycle_phase) setCyclePhase(config.cycle_phase);
+        if (config.backend_mode) setBackendMode(config.backend_mode);
+        if (config.budget_mode) setBudgetMode(config.budget_mode);
+        if (config.cost_used_pct != null) setCostUsedPct(config.cost_used_pct);
+        if (config.work_mode_before_pause !== undefined) setWorkModeBeforePause(config.work_mode_before_pause);
       } catch {
         // Silent fail — keep defaults
       }
     };
 
     fetchConfig();
+    const interval = setInterval(fetchConfig, 30000);
+    return () => clearInterval(interval);
   }, [resolvedBoardId]);
 
   // Update fleet_config on the board
