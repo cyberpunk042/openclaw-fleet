@@ -1,4 +1,5 @@
 {
+  "id": "fleet-heartbeat-gate",
   "name": "fleet-heartbeat-gate",
   "version": "1.0.0",
   "description": "Gates heartbeat Claude calls using brain decisions from the fleet orchestrator",
