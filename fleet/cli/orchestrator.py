@@ -271,6 +271,52 @@ async def run_orchestrator_cycle(
             _fleet_lifecycle.get_or_create(a.name)
     _fleet_lifecycle.update_all(now, active_agents)
 
+    # Brain evaluation — evaluate idle/sleeping agents, write decisions, report to MC
+    try:
+        from fleet.core.brain_writer import write_brain_decisions
+        brain_results = write_brain_decisions(
+            lifecycle=_fleet_lifecycle,
+            now=now,
+            tasks=tasks,
+            agents=agents,
+            board_memory=[],
+            fleet_dir=os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent)),
+        )
+        for agent_name, evaluation in brain_results.items():
+            decision = evaluation.decision.value
+            if decision == "silent":
+                agent = agent_name_map.get(agent_name)
+                if agent:
+                    try:
+                        await mc.heartbeat_agent(agent.id)
+                    except Exception:
+                        pass
+                try:
+                    await mc.post_board_memory(
+                        board_id,
+                        f"Heartbeat received from {agent_name}. (silent)",
+                        tags=["heartbeat", "silent", agent_name],
+                    )
+                except Exception:
+                    pass
+            elif decision == "strategic":
+                try:
+                    model = evaluation.model_override or "opus"
+                    await mc.post_board_memory(
+                        board_id,
+                        f"Heartbeat received from {agent_name}. (strategic: {model})",
+                        tags=["heartbeat", "strategic", agent_name],
+                    )
+                except Exception:
+                    pass
+        if brain_results:
+            silent_count = sum(1 for e in brain_results.values() if e.decision.value == "silent")
+            wake_count = sum(1 for e in brain_results.values() if e.decision.value != "silent")
+            state.notes.append(f"Brain: {silent_count} silent, {wake_count} wake")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Brain evaluation failed: %s", e)
+
     # Step 0: Refresh agent context files — pre-embed full data for heartbeats
     # Always runs — agents need fresh context even when dispatch is paused.
     await _refresh_agent_contexts(tasks, agents, board_id, mc, fleet_state)

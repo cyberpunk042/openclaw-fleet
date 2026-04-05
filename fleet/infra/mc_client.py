@@ -489,6 +489,23 @@ class MCClient(TaskClient, MemoryClient, ApprovalClient, AgentClient):
         except Exception:
             return False
 
+    async def post_board_memory(self, board_id: str, content: str, tags: list[str] | None = None) -> bool:
+        """Post an entry to board memory (activity log).
+
+        Used for heartbeat activity reporting.
+        """
+        try:
+            resp = await self._client.post(
+                f"/api/v1/boards/{board_id}/memory",
+                json={
+                    "content": content,
+                    "tags": tags or [],
+                },
+            )
+            return resp.status_code in (200, 201)
+        except Exception:
+            return False
+
     # ─── Helpers ────────────────────────────────────────────────────────
 
     @staticmethod
