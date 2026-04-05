@@ -256,7 +256,15 @@ else
 fi
 echo ""
 
-# Step 7b: Start the fleet gateway (MC containers are up, health check passes)
+# Step 7b: Install fleet extensions to gateway vendor
+if [[ -d "$FLEET_DIR/extensions/fleet-heartbeat-gate" ]]; then
+    VENDOR_EXT_DIR="$VENDOR_CONFIG_DIR/extensions/fleet-heartbeat-gate"
+    mkdir -p "$VENDOR_EXT_DIR"
+    cp -r "$FLEET_DIR/extensions/fleet-heartbeat-gate/"* "$VENDOR_EXT_DIR/"
+    echo "Fleet heartbeat gate plugin installed"
+fi
+
+# Step 7c: Start the fleet gateway (MC containers are up, health check passes)
 bash scripts/start-fleet.sh
 echo ""
 
