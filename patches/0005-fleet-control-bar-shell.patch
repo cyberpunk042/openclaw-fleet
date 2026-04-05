@@ -19,7 +19,7 @@ index f88cd60..9afb4d6 100644
                <div className="max-w-[220px]">
                  <OrgSwitcher />
                </div>
-+              <FleetControlBar boardId={pathname.startsWith("/boards/") ? pathname.split("/")[2] : undefined} />
++              <FleetControlBar />
              </div>
            </SignedIn>
            <SignedIn>

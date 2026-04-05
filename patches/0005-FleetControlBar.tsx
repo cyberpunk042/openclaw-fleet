@@ -63,14 +63,43 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
   const [budgetMode, setBudgetMode] = useState("standard");
   const [costUsedPct, setCostUsedPct] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [resolvedBoardId, setResolvedBoardId] = useState<string | undefined>(boardId);
+  const [workModeBeforePause, setWorkModeBeforePause] = useState<string | null>(null);
+
+  // Auto-resolve board ID if not provided
+  useEffect(() => {
+    if (boardId) {
+      setResolvedBoardId(boardId);
+      return;
+    }
+    if (!isSignedIn) return;
+
+    const resolveBoard = async () => {
+      try {
+        const resp = await fetch("/api/v1/boards?limit=10&offset=0");
+        if (resp.ok) {
+          const data = await resp.json();
+          const boards = data.items || [];
+          const fleet = boards.find((b: any) => b.name === "Fleet Operations") || boards[0];
+          if (fleet) {
+            setResolvedBoardId(fleet.id);
+          }
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+
+    resolveBoard();
+  }, [isSignedIn, boardId]);
 
   // Fetch current fleet_config from board
   useEffect(() => {
-    if (!isSignedIn || !boardId) return;
+    if (!isSignedIn || !resolvedBoardId) return;
 
     const fetchConfig = async () => {
       try {
-        const resp = await fetch(`/api/v1/boards/${boardId}`);
+        const resp = await fetch(`/api/v1/boards/${resolvedBoardId}`);
         if (resp.ok) {
           const board = await resp.json();
           const config = board.fleet_config || {};
@@ -79,6 +108,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
           setBackendMode(config.backend_mode || "claude");
           setBudgetMode(config.budget_mode || "standard");
           setCostUsedPct(config.cost_used_pct || 0);
+          setWorkModeBeforePause(config.work_mode_before_pause || null);
         }
       } catch {
         // Silent fail — keep defaults
@@ -86,12 +116,12 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     };
 
     fetchConfig();
-  }, [isSignedIn, boardId]);
+  }, [isSignedIn, resolvedBoardId]);
 
   // Update fleet_config on the board
   const updateConfig = useCallback(
     async (updates: Record<string, string>) => {
-      if (!boardId || loading) return;
+      if (!resolvedBoardId || loading) return;
       setLoading(true);
 
       try {
@@ -106,7 +136,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
 
         const newConfig = { ...currentConfig, ...updates };
 
-        await fetch(`/api/v1/boards/${boardId}`, {
+        await fetch(`/api/v1/boards/${resolvedBoardId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fleet_config: newConfig }),
@@ -117,12 +147,18 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
         setLoading(false);
       }
     },
-    [boardId, workMode, cyclePhase, backendMode, budgetMode, loading],
+    [resolvedBoardId, workMode, cyclePhase, backendMode, budgetMode, loading],
   );
 
   const handleWorkModeChange = (value: string) => {
-    setWorkMode(value);
-    updateConfig({ work_mode: value });
+    if (workMode === "work-paused" && value !== "work-paused") {
+      // User selected a mode while paused — update the "resume to" mode
+      setWorkModeBeforePause(value);
+      updateConfig({ work_mode_before_pause: value });
+    } else {
+      setWorkMode(value);
+      updateConfig({ work_mode: value });
+    }
   };
 
   const handleCyclePhaseChange = (value: string) => {
@@ -145,7 +181,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     costUsedPct >= 70 ? "bg-amber-500" :
     "bg-emerald-500";
 
-  if (!boardId) return null;
+  if (!resolvedBoardId) return null;
 
   return (
     <div className="flex items-center gap-2">
