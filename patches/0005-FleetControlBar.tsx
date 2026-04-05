@@ -152,11 +152,11 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
   );
 
   const handleWorkModeChange = (value: string) => {
-    if (workMode === "work-paused" && value !== "work-paused") {
-      setWorkModeBeforePause(value);
-      updateConfig({ work_mode_before_pause: value });
+    setWorkMode(value);
+    if (value === "work-paused") {
+      // Pausing — save current mode so resume can restore it
+      updateConfig({ work_mode: value, work_mode_before_pause: workMode });
     } else {
-      setWorkMode(value);
       updateConfig({ work_mode: value });
     }
   };
