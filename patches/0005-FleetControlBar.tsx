@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * FleetControlBar — Three control dropdowns in the OCMC header.
+ * FleetControlBar — Fleet control dropdowns in the OCMC header.
  *
- * Always visible on every page. Three independent axes:
+ * Always visible on every page. Four independent axes:
  * - Work Mode: where new work comes from
  * - Cycle Phase: what kind of work agents do
  * - Backend Mode: which AI backend
+ * - Budget Mode: orchestrator tempo
  *
  * Reads/writes board.fleet_config via PATCH API.
  */
@@ -56,7 +57,7 @@ interface FleetControlBarProps {
 }
 
 export function FleetControlBar({ boardId }: FleetControlBarProps) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const [workMode, setWorkMode] = useState("full-autonomous");
   const [cyclePhase, setCyclePhase] = useState("execution");
   const [backendMode, setBackendMode] = useState("claude");
@@ -65,6 +66,16 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
   const [loading, setLoading] = useState(false);
   const [resolvedBoardId, setResolvedBoardId] = useState<string | undefined>(boardId);
   const [workModeBeforePause, setWorkModeBeforePause] = useState<string | null>(null);
+
+  // Helper: build auth headers for MC API calls
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const token = await getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  }, [getToken]);
 
   // Auto-resolve board ID if not provided
   useEffect(() => {
@@ -76,7 +87,8 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
 
     const resolveBoard = async () => {
       try {
-        const resp = await fetch("/api/v1/boards?limit=10&offset=0");
+        const headers = await authHeaders();
+        const resp = await fetch("/api/v1/boards?limit=10&offset=0", { headers });
         if (resp.ok) {
           const data = await resp.json();
           const boards = data.items || [];
@@ -91,7 +103,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     };
 
     resolveBoard();
-  }, [isSignedIn, boardId]);
+  }, [isSignedIn, boardId, authHeaders]);
 
   // Fetch current fleet_config from board
   useEffect(() => {
@@ -99,7 +111,8 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
 
     const fetchConfig = async () => {
       try {
-        const resp = await fetch(`/api/v1/boards/${resolvedBoardId}`);
+        const headers = await authHeaders();
+        const resp = await fetch(`/api/v1/boards/${resolvedBoardId}`, { headers });
         if (resp.ok) {
           const board = await resp.json();
           const config = board.fleet_config || {};
@@ -116,7 +129,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     };
 
     fetchConfig();
-  }, [isSignedIn, resolvedBoardId]);
+  }, [isSignedIn, resolvedBoardId, authHeaders]);
 
   // Update fleet_config on the board
   const updateConfig = useCallback(
@@ -125,6 +138,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
       setLoading(true);
 
       try {
+        const headers = await authHeaders();
         const currentConfig = {
           work_mode: workMode,
           cycle_phase: cyclePhase,
@@ -138,7 +152,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
 
         await fetch(`/api/v1/boards/${resolvedBoardId}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ fleet_config: newConfig }),
         });
       } catch {
@@ -147,12 +161,11 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
         setLoading(false);
       }
     },
-    [resolvedBoardId, workMode, cyclePhase, backendMode, budgetMode, loading],
+    [resolvedBoardId, workMode, cyclePhase, backendMode, budgetMode, loading, authHeaders],
   );
 
   const handleWorkModeChange = (value: string) => {
     if (workMode === "work-paused" && value !== "work-paused") {
-      // User selected a mode while paused — update the "resume to" mode
       setWorkModeBeforePause(value);
       updateConfig({ work_mode_before_pause: value });
     } else {
