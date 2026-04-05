@@ -362,6 +362,28 @@ for a in items:
         fi
     done
     echo "  $ONLINE agents online"
+
+    # Trigger template sync to recreate CRON jobs for all agents
+    GW_ID=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/gateways \
+        | python3 -c "
+import json,sys; data=json.load(sys.stdin)
+items=data.get('items',data) if isinstance(data,dict) else data
+for g in items:
+    if 'Gateway' not in g.get('name',''):
+        continue
+    print(g['id'])
+    break
+" 2>/dev/null || true)
+
+    if [[ -n "${GW_ID:-}" ]]; then
+        SYNC_RESULT=$(curl -sf -m 180 -X POST \
+            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync" \
+            -d '{}' 2>&1 || echo '{}')
+        echo "  Template sync: $(echo "$SYNC_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'updated={d.get(\"agents_updated\",0)}')" 2>/dev/null || echo "done")"
+    fi
 fi
 echo ""
 

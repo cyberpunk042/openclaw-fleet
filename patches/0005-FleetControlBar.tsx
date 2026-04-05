@@ -66,6 +66,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
   const [backendMode, setBackendMode] = useState("claude");
   const [budgetMode, setBudgetMode] = useState("standard");
   const [costUsedPct, setCostUsedPct] = useState(0);
+  const [sessionCostPct, setSessionCostPct] = useState(0);
   const [loading, setLoading] = useState(false);
   const [resolvedBoardId, setResolvedBoardId] = useState<string | undefined>(boardId);
   const [workModeBeforePause, setWorkModeBeforePause] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
         if (config.backend_mode) setBackendMode(config.backend_mode);
         if (config.budget_mode) setBudgetMode(config.budget_mode);
         if (config.cost_used_pct != null) setCostUsedPct(config.cost_used_pct);
+        if (config.session_cost_pct != null) setSessionCostPct(config.session_cost_pct);
         if (config.work_mode_before_pause !== undefined) setWorkModeBeforePause(config.work_mode_before_pause);
       } catch {
         // Silent fail — keep defaults
@@ -176,11 +178,6 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
     updateConfig({ budget_mode: value });
   };
 
-  const costBarColor =
-    costUsedPct >= 90 ? "bg-red-500" :
-    costUsedPct >= 70 ? "bg-amber-500" :
-    "bg-emerald-500";
-
   return (
     <div className="flex items-center gap-2">
       <Select value={workMode} onValueChange={handleWorkModeChange}>
@@ -248,15 +245,26 @@ export function FleetControlBar({ boardId }: FleetControlBarProps) {
         </SelectContent>
       </Select>
 
-      {/* Cost envelope progress bar */}
-      <div className="flex items-center gap-1.5" title={`Cost: ${costUsedPct}%`}>
-        <div className="h-2 w-16 rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${costBarColor}`}
-            style={{ width: `${Math.min(costUsedPct, 100)}%` }}
-          />
+      {/* Cost bars: 5h session + 7d weekly */}
+      <div className="flex items-center gap-1.5" title={`5h: ${sessionCostPct}% | 7d: ${costUsedPct}%`}>
+        <div className="flex flex-col gap-0.5">
+          <div className="h-1.5 w-12 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${sessionCostPct >= 90 ? "bg-red-500" : sessionCostPct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+              style={{ width: `${Math.min(sessionCostPct, 100)}%` }}
+            />
+          </div>
+          <div className="h-1.5 w-12 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${costUsedPct >= 90 ? "bg-red-500" : costUsedPct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+              style={{ width: `${Math.min(costUsedPct, 100)}%` }}
+            />
+          </div>
         </div>
-        <span className="text-[10px] font-mono text-slate-500">{costUsedPct}%</span>
+        <div className="flex flex-col text-[9px] font-mono text-slate-500 leading-tight">
+          <span>5h:{sessionCostPct}%</span>
+          <span>7d:{costUsedPct}%</span>
+        </div>
       </div>
     </div>
   );

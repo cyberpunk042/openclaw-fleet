@@ -199,6 +199,28 @@ async def run_orchestrator_cycle(
                     pass  # CRON sync must not break orchestrator
     _previous_fleet_state = fleet_state
 
+    # ─── Keepalive: touch last_seen_at for all agents ──────────────────
+    # Runs every cycle regardless of pause state — agents should be visible
+    # even when paused. Only CLI hard-pause (kills orchestrator) makes
+    # agents go offline.
+    try:
+        _keepalive_counter = getattr(run_orchestrator_cycle, '_keepalive_counter', 0) + 1
+        run_orchestrator_cycle._keepalive_counter = _keepalive_counter
+        # Touch every 5th cycle (~2.5 min) to stay well within 10min timeout
+        if _keepalive_counter % 5 == 0:
+            for agent in agents:
+                if "Gateway" in agent.name:
+                    continue
+                try:
+                    await mc.heartbeat_agent(agent.id)
+                except Exception:
+                    pass
+    except Exception:
+        pass  # Keepalive must never break orchestrator
+
+    # ─── Pause gates (block dispatch only, not keepalive/context) ──────
+    dispatch_blocked = False
+
     # Check OCMC board-level pause (separate from fleet work_mode)
     board_paused = False
     try:
@@ -207,7 +229,12 @@ async def run_orchestrator_cycle(
         pass
     if board_paused:
         state.notes.append("Board paused via OCMC pause button — dispatch blocked")
-        return state
+        dispatch_blocked = True
+
+    # Fleet mode gate — check if dispatch is allowed
+    if not fleet_should_dispatch(fleet_state):
+        state.notes.append(f"Fleet mode: {fleet_state.work_mode} — dispatch paused")
+        dispatch_blocked = True
 
     # Write fleet state back to MC (bidirectional sync)
     _sync_counter = getattr(run_orchestrator_cycle, '_sync_counter', 0) + 1
@@ -224,16 +251,12 @@ async def run_orchestrator_cycle(
                 reading = _budget_monitor._last_reading if _budget_monitor else None
                 if reading:
                     sync_updates["cost_used_pct"] = round(reading.weekly_all_pct, 1)
+                    sync_updates["session_cost_pct"] = round(reading.session_pct, 1)
             except Exception:
                 pass
             await mc.update_board_fleet_config(board_id, sync_updates)
         except Exception:
             pass  # Sync must not break orchestrator
-
-    # Fleet mode gate — check if dispatch is allowed
-    if not fleet_should_dispatch(fleet_state):
-        state.notes.append(f"Fleet mode: {fleet_state.work_mode} — dispatch paused")
-        return state
 
     # Detect changes since last cycle
     changes = _change_detector.detect(tasks, now)
@@ -249,7 +272,11 @@ async def run_orchestrator_cycle(
     _fleet_lifecycle.update_all(now, active_agents)
 
     # Step 0: Refresh agent context files — pre-embed full data for heartbeats
+    # Always runs — agents need fresh context even when dispatch is paused.
     await _refresh_agent_contexts(tasks, agents, board_id, mc, fleet_state)
+
+    if dispatch_blocked:
+        return state
 
     # Step 1: Security scan — check new/changed tasks for suspicious content
     await _security_scan(mc, irc, board_id, tasks, changes, state, dry_run)
