@@ -372,6 +372,13 @@ for a in items:
     done
     echo "  $ONLINE agents online"
 
+    # Clean stale cron jobs before template sync creates fresh ones
+    CRON_FILE="$VENDOR_CONFIG_DIR/cron/jobs.json"
+    if [[ -f "$CRON_FILE" ]]; then
+        rm -f "$CRON_FILE"
+        echo "  Cleaned stale cron jobs"
+    fi
+
     # Wait for gateway to fully initialize before template sync
     echo "  Waiting for gateway to stabilize..."
     sleep 15

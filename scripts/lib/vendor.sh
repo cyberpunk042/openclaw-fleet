@@ -83,12 +83,11 @@ _vendor_cutover() {
         cp -r "${VENDOR_LEGACY_CONFIG_DIR}/identity" "${VENDOR_CONFIG_DIR}/identity"
     fi
 
-    # BUDGET PROTECTION: Migrate cron directory and DISABLE all legacy cron jobs.
-    # If legacy cron jobs stay enabled, a stale gateway restart fires heartbeats
-    # that call Claude API — burning budget for nothing.
+    # BUDGET PROTECTION: Do NOT copy legacy cron jobs — they have stale agent IDs
+    # from previous installs. The gateway template sync creates fresh cron jobs
+    # with current agent IDs. Only disable legacy cron to prevent budget leak.
     if [[ -d "${VENDOR_LEGACY_CONFIG_DIR}/cron" ]]; then
-        cp -r "${VENDOR_LEGACY_CONFIG_DIR}/cron" "${VENDOR_CONFIG_DIR}/cron"
-        # Disable ALL legacy cron jobs to prevent budget leak if legacy gateway restarts
+        # Disable ALL legacy cron jobs (do NOT copy them to new vendor)
         if [[ -f "${VENDOR_LEGACY_CONFIG_DIR}/cron/jobs.json" ]]; then
             python3 -c "
 import json
