@@ -52,6 +52,7 @@ class FleetControlState:
     cycle_phase: str = "execution"
     backend_mode: str = "claude"
     budget_mode: str = "standard"
+    work_mode_before_pause: Optional[str] = None
     updated_at: Optional[str] = None
     updated_by: Optional[str] = None
 
@@ -71,6 +72,7 @@ def read_fleet_control(board_data: dict) -> FleetControlState:
         cycle_phase=config.get("cycle_phase", "execution"),
         backend_mode=config.get("backend_mode", "claude"),
         budget_mode=config.get("budget_mode", "standard"),
+        work_mode_before_pause=config.get("work_mode_before_pause"),
         updated_at=config.get("updated_at"),
         updated_by=config.get("updated_by"),
     )
