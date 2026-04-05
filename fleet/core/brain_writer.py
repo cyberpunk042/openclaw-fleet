@@ -42,8 +42,12 @@ def write_brain_decisions(
     results: dict[str, HeartbeatEvaluation] = {}
 
     for agent_state in lifecycle.agents_needing_heartbeat(now):
-        if not agent_state.brain_evaluates:
-            continue
+        # Bootstrap: brain evaluation is deterministic (no Claude calls),
+        # so evaluate ALL agents needing heartbeat. For idle agents with
+        # no work, the brain will decide "silent" and increment
+        # consecutive_heartbeat_ok, enabling brain_evaluates for future cycles.
+        # Without this, consecutive_heartbeat_ok stays at 0 forever
+        # (chicken-and-egg: counter only increments inside evaluation).
 
         agent_name = agent_state.name
         agent_role = agent_name

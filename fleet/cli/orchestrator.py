@@ -277,17 +277,9 @@ async def run_orchestrator_cycle(
                 agent = agent_name_map.get(agent_name)
                 if agent:
                     try:
-                        await mc.heartbeat_agent(agent.id)
+                        await mc.heartbeat_agent(agent.id, message="(silent)")
                     except Exception:
                         pass
-                try:
-                    await mc.post_board_memory(
-                        board_id,
-                        f"Heartbeat received from {agent_name}. (silent)",
-                        tags=["heartbeat", "silent", agent_name],
-                    )
-                except Exception:
-                    pass
             elif decision == "strategic":
                 try:
                     model = evaluation.model_override or "opus"

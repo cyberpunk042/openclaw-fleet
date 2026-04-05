@@ -1,6 +1,6 @@
-# OpenClaw Fleet
+# OpenFleet
 
-AI agent workforce powered by [OpenClaw](https://openclaw.ai) + [Mission Control](https://github.com/abhi1693/openclaw-mission-control).
+AI agent workforce powered by your prefered Personal AI Assistant [OpenClaw](https://github.com/openclaw/openclaw) OR [OpenArms]( https://github.com/cyberpunk042/openarms) + [Mission Control](https://github.com/abhi1693/openclaw-mission-control).
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ AI agent workforce powered by [OpenClaw](https://openclaw.ai) + [Mission Control
 
 ```bash
 git clone <this-repo>
-cd openclaw-fleet
+cd openfleet
 ./setup.sh
 ```
 
@@ -192,7 +192,7 @@ Human
 ## Project Structure
 
 ```
-openclaw-fleet/
+openfleet/
 ├── setup.sh                        # Full setup (11 steps)
 ├── Makefile                        # 35+ operation targets
 ├── docker-compose.yaml             # MC + The Lounge

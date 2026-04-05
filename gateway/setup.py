@@ -254,6 +254,14 @@ class FleetSetup:
                 )
                 if r.status_code in (200, 201):
                     return r.json()
+                # 409 = agent already exists (created by a prior 502 attempt where
+                # MC committed the record but gateway provisioning failed).
+                # Fetch the existing agent and return it as success.
+                if r.status_code == 409:
+                    existing = self.list_agents(board_id)
+                    match = next((a for a in existing if a.get("name") == name), None)
+                    if match:
+                        return match
                 # Retry on 502 (gateway provision transient failure)
                 if r.status_code == 502 and attempt < max_retries:
                     print(f"   RETRY: {name} (attempt {attempt}/{max_retries}, got {r.status_code})")

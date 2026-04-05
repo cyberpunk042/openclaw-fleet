@@ -1,0 +1,61 @@
+diff --git a/backend/app/schemas/agents.py b/backend/app/schemas/agents.py
+index 1234567..abcdefg 100644
+--- a/backend/app/schemas/agents.py
++++ b/backend/app/schemas/agents.py
+@@ -266,6 +266,10 @@ class AgentHeartbeat(SQLModel):
+         description="Agent health status string.",
+         examples=["healthy", "offline", "degraded"],
+     )
++    message: str | None = Field(
++        default=None,
++        description="Optional suffix appended to the activity message (e.g. '(silent)').",
++    )
+
+
+ class AgentHeartbeatCreate(AgentHeartbeat):
+diff --git a/backend/app/services/openclaw/provisioning_db.py b/backend/app/services/openclaw/provisioning_db.py
+index 1234567..abcdefg 100644
+--- a/backend/app/services/openclaw/provisioning_db.py
++++ b/backend/app/services/openclaw/provisioning_db.py
+@@ -942,11 +942,14 @@ class AgentLifecycleService:
+         OpenClawAuthorizationPolicy.require_board_write_access(allowed=allowed)
+
+     @staticmethod
+-    def record_heartbeat(session: AsyncSession, agent: Agent) -> None:
++    def record_heartbeat(session: AsyncSession, agent: Agent, message_suffix: str | None = None) -> None:
++        msg = f"Heartbeat received from {agent.name}."
++        if message_suffix:
++            msg = f"Heartbeat received from {agent.name}. {message_suffix}"
+         record_activity(
+             session,
+             event_type="agent.heartbeat",
+-            message=f"Heartbeat received from {agent.name}.",
++            message=msg,
+             agent_id=agent.id,
+             board_id=agent.board_id,
+         )
+@@ -1434,6 +1437,7 @@ class AgentLifecycleService:
+         self,
+         *,
+         agent: Agent,
+         status_value: str | None,
++        message_suffix: str | None = None,
+     ) -> AgentRead:
+         if status_value:
+             agent.status = status_value
+@@ -1447,7 +1451,7 @@ class AgentLifecycleService:
+         agent.last_provision_error = None
+         agent.updated_at = utcnow()
+-        self.record_heartbeat(self.session, agent)
++        self.record_heartbeat(self.session, agent, message_suffix=message_suffix)
+         self.session.add(agent)
+         await self.session.commit()
+         await self.session.refresh(agent)
+@@ -1680,6 +1684,7 @@ class AgentLifecycleService:
+         return await self.commit_heartbeat(
+             agent=agent,
+             status_value=payload.status,
++            message_suffix=payload.message,
+         )
+
+     async def heartbeat_or_create_agent(
