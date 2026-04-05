@@ -337,24 +337,31 @@ set -a
 source "$FLEET_DIR/.env" 2>/dev/null || true
 set +a
 if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
-    GW_ID=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
-        http://localhost:8000/api/v1/gateways \
-        | python3 -c "
-import json,sys; data=json.load(sys.stdin)
+    # Touch last_seen_at on all agents so they show online after gateway restart.
+    # The gateway HeartbeatRunner fires on its own schedule (30-90 min), but MC's
+    # OFFLINE_AFTER is only 10 min. Without this, agents go offline before the
+    # first heartbeat fires.
+    ONLINE=0
+    AGENTS_JSON=$(curl -sf -m 10 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/agents 2>/dev/null || echo '{"items":[]}')
+    for AGENT_ID in $(echo "$AGENTS_JSON" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
 items=data.get('items',data) if isinstance(data,dict) else data
-print(next(g['id'] for g in items if 'OCF' in g.get('name','') or 'Fleet' in g.get('name','')))
-" 2>/dev/null || true)
-    if [[ -n "${GW_ID:-}" ]]; then
-        # Sync WITHOUT force_bootstrap — agents already exist in gateway.
-        # force_bootstrap triggers agents.create → config.patch → SIGUSR1 storm → OOM.
-        RESULT=$(curl -sf -m 180 -X POST \
+for a in items:
+    if 'Gateway' not in a.get('name',''):
+        print(a['id'])
+" 2>/dev/null); do
+        RESP=$(curl -sf -m 10 -X POST \
             -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
             -H "Content-Type: application/json" \
-            "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync" \
-            -d '{}' 2>&1 || echo '{"agents_updated":"?"}')
-        UPDATED=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('agents_updated',0))" 2>/dev/null || echo "?")
-        echo "  $UPDATED agents online"
-    fi
+            "http://localhost:8000/api/v1/agents/${AGENT_ID}/heartbeat" \
+            -d '{}' 2>/dev/null || echo "")
+        if [[ -n "$RESP" ]]; then
+            ONLINE=$((ONLINE + 1))
+        fi
+    done
+    echo "  $ONLINE agents online"
 fi
 echo ""
 
