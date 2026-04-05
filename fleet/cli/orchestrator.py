@@ -151,8 +151,8 @@ async def run_orchestrator_cycle(
 
     # Detect mode changes and emit events
     global _previous_fleet_state
+    changes_detected = []
     if _previous_fleet_state is not None:
-        changes_detected = []
         if fleet_state.work_mode != _previous_fleet_state.work_mode:
             changes_detected.append(f"work_mode: {_previous_fleet_state.work_mode} → {fleet_state.work_mode}")
         if fleet_state.cycle_phase != _previous_fleet_state.cycle_phase:
@@ -198,6 +198,37 @@ async def run_orchestrator_cycle(
                 except Exception:
                     pass  # CRON sync must not break orchestrator
     _previous_fleet_state = fleet_state
+
+    # Check OCMC board-level pause (separate from fleet work_mode)
+    board_paused = False
+    try:
+        board_paused = await mc.is_board_paused(board_id)
+    except Exception:
+        pass
+    if board_paused:
+        state.notes.append("Board paused via OCMC pause button — dispatch blocked")
+        return state
+
+    # Write fleet state back to MC (bidirectional sync)
+    _sync_counter = getattr(run_orchestrator_cycle, '_sync_counter', 0) + 1
+    run_orchestrator_cycle._sync_counter = _sync_counter
+    should_sync = bool(_previous_fleet_state is not None and changes_detected) or (_sync_counter % 10 == 0)
+    if should_sync:
+        try:
+            sync_updates = {
+                "updated_at": now.isoformat(),
+                "updated_by": "orchestrator",
+            }
+            # Write cost data from budget monitor if available
+            try:
+                reading = _budget_monitor._last_reading if _budget_monitor else None
+                if reading:
+                    sync_updates["cost_used_pct"] = round(reading.weekly_all_pct, 1)
+            except Exception:
+                pass
+            await mc.update_board_fleet_config(board_id, sync_updates)
+        except Exception:
+            pass  # Sync must not break orchestrator
 
     # Fleet mode gate — check if dispatch is allowed
     if not fleet_should_dispatch(fleet_state):
