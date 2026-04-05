@@ -340,65 +340,18 @@ echo "=== Configuring Board ==="
 bash scripts/configure-board.sh
 echo ""
 
-# Step 15: Start fleet daemons (sync + monitor + orchestrator in conservative mode)
-echo "=== Starting Fleet Daemons ==="
-echo "NOTE: Fleet starts paused. Use 'fleet resume' when ready."
-if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
-    # Source .env for latest Plane credentials + fleet config
-    PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
-    disown
-    echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
-else
-    echo "ERROR: Python venv not found. Run: uv venv --python 3.11 && uv pip install -e ."
-fi
-echo ""
-
-# Step 16: Final template sync (refreshes last_seen_at so agents show "online")
-# Must be the LAST thing before the completion message — any delay >10min
-# causes MC to compute status as "offline".
+# Step 15: Final template sync — provisions remaining agents, pushes workspace files.
+# Must run BEFORE daemon start so all 10 agents have .mcp.json for framework push.
 echo "=== Final Agent Sync ==="
 set -a
 source "$FLEET_DIR/.env" 2>/dev/null || true
 set +a
 if [[ -n "${LOCAL_AUTH_TOKEN:-}" ]]; then
-    # Touch last_seen_at on all agents so they show online after gateway restart.
-    # The gateway HeartbeatRunner fires on its own schedule (30-90 min), but MC's
-    # OFFLINE_AFTER is only 10 min. Without this, agents go offline before the
-    # first heartbeat fires.
-    ONLINE=0
-    AGENTS_JSON=$(curl -sf -m 10 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
-        http://localhost:8000/api/v1/agents 2>/dev/null || echo '{"items":[]}')
-    for AGENT_ID in $(echo "$AGENTS_JSON" | python3 -c "
-import json,sys
-data=json.load(sys.stdin)
-items=data.get('items',data) if isinstance(data,dict) else data
-for a in items:
-    if 'Gateway' not in a.get('name',''):
-        print(a['id'])
-" 2>/dev/null); do
-        RESP=$(curl -sf -m 10 -X POST \
-            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
-            -H "Content-Type: application/json" \
-            "http://localhost:8000/api/v1/agents/${AGENT_ID}/heartbeat" \
-            -d '{}' 2>/dev/null || echo "")
-        if [[ -n "$RESP" ]]; then
-            ONLINE=$((ONLINE + 1))
-        fi
-    done
-    echo "  $ONLINE agents online"
-
-    # Clean stale cron jobs before template sync creates fresh ones
-    CRON_FILE="$VENDOR_CONFIG_DIR/cron/jobs.json"
-    if [[ -f "$CRON_FILE" ]]; then
-        rm -f "$CRON_FILE"
-        echo "  Cleaned stale cron jobs"
-    fi
-
-    # Wait for gateway to fully initialize before template sync
+    # Wait for gateway to fully initialize after the restart
     echo "  Waiting for gateway to stabilize..."
     sleep 15
 
-    # Trigger template sync to recreate CRON jobs for all agents
+    # Template sync: ensures all agents have workspaces, .mcp.json, TOOLS.md
     GW_ID=$(curl -sf -m 5 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
         http://localhost:8000/api/v1/gateways \
         | python3 -c "
@@ -419,6 +372,43 @@ for g in items:
             -d '{}' 2>&1 || echo '{}')
         echo "  Template sync: $(echo "$SYNC_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'updated={d.get(\"agents_updated\",0)}')" 2>/dev/null || echo "done")"
     fi
+
+    # Re-apply staggered heartbeat intervals — template sync overwrites them with MC defaults
+    echo "  Re-applying heartbeat intervals..."
+    bash scripts/clean-gateway-config.sh 2>&1 | grep -E '(intervals|Done)' | sed 's/^/  /'
+
+    # Touch last_seen_at on all agents so they show online
+    ONLINE=0
+    AGENTS_JSON=$(curl -sf -m 10 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/agents 2>/dev/null || echo '{"items":[]}')
+    for AGENT_ID in $(echo "$AGENTS_JSON" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+items=data.get('items',data) if isinstance(data,dict) else data
+for a in items:
+    if 'Gateway' not in a.get('name',''):
+        print(a['id'])
+" 2>/dev/null); do
+        curl -sf -m 10 -X POST \
+            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "http://localhost:8000/api/v1/agents/${AGENT_ID}/heartbeat" \
+            -d '{}' >/dev/null 2>&1 && ONLINE=$((ONLINE + 1)) || true
+    done
+    echo "  $ONLINE agents online"
+fi
+echo ""
+
+# Step 16: Start fleet daemons AFTER template sync + heartbeat touch.
+# This way the daemon doesn't race with template sync and all agents have .mcp.json.
+echo "=== Starting Fleet Daemons ==="
+echo "NOTE: Fleet starts paused. Use 'fleet resume' when ready."
+if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
+    PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
+    disown
+    echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
+else
+    echo "ERROR: Python venv not found. Run: uv venv --python 3.11 && uv pip install -e ."
 fi
 echo ""
 

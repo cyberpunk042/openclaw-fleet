@@ -326,47 +326,58 @@ def check_cron_circuit_breaker(max_consecutive_errors: int = 5) -> int:
 
 
 def update_cron_tempo(tempo_multiplier: float) -> int:
-    """Update gateway CRON intervals based on budget_mode tempo.
+    """Update HeartbeatRunner intervals in openarms.json based on budget_mode.
 
-    Applies tempo_multiplier to each job's base interval (stored in
-    schedule.baseEveryMs, falling back to current everyMs as base).
+    Applies tempo_multiplier to each agent's base heartbeat interval.
+    The base interval is stored in heartbeat.baseEvery (set on first tempo change).
+    The gateway hot-reloads config and restarts HeartbeatRunner with new intervals.
 
-    Returns number of jobs updated.
+    Returns number of agents updated.
     """
     import json as _json
-    from pathlib import Path as _Path
+    import re as _re
+    from fleet.infra.config_loader import resolve_vendor_config
 
-    MIN_INTERVAL_MS = 300_000    # 5 minutes floor
-    MAX_INTERVAL_MS = 7_200_000  # 2 hours ceiling
+    MIN_MINUTES = 5
+    MAX_MINUTES = 120
 
-    cron_path = _resolve_cron_path()
-    if not cron_path.exists():
-        return 0
+    config_path = resolve_vendor_config()
     try:
-        with open(cron_path) as f:
-            data = _json.load(f)
-        updated = 0
-        for job in data.get("jobs", []):
-            schedule = job.get("schedule", {})
-            if schedule.get("kind") != "every":
-                continue
-            # Store original interval as base on first tempo change
-            base_ms = schedule.get("baseEveryMs") or schedule.get("everyMs", 0)
-            if not base_ms:
-                continue
-            if "baseEveryMs" not in schedule:
-                schedule["baseEveryMs"] = base_ms
-            new_ms = int(base_ms * tempo_multiplier)
-            new_ms = max(MIN_INTERVAL_MS, min(MAX_INTERVAL_MS, new_ms))
-            if schedule.get("everyMs") != new_ms:
-                schedule["everyMs"] = new_ms
-                updated += 1
-        if updated > 0:
-            with open(cron_path, "w") as f:
-                _json.dump(data, f, indent=2)
-        return updated
+        with open(config_path) as f:
+            cfg = _json.load(f)
     except Exception:
         return 0
+
+    agents = cfg.get("agents", {}).get("list", [])
+    updated = 0
+    for agent in agents:
+        hb = agent.get("heartbeat", {})
+        every = hb.get("every", "")
+        if not every:
+            continue
+        # Store original interval as base on first tempo change
+        base_every = hb.get("baseEvery", every)
+        if "baseEvery" not in hb:
+            hb["baseEvery"] = base_every
+        # Parse "Nm" to minutes
+        match = _re.match(r"(\d+)m", base_every)
+        if not match:
+            continue
+        base_min = int(match.group(1))
+        new_min = int(base_min * tempo_multiplier)
+        new_min = max(MIN_MINUTES, min(MAX_MINUTES, new_min))
+        new_every = f"{new_min}m"
+        if hb.get("every") != new_every:
+            hb["every"] = new_every
+            updated += 1
+
+    if updated > 0:
+        try:
+            with open(config_path, "w") as f:
+                _json.dump(cfg, f, indent=2)
+        except Exception:
+            return 0
+    return updated
 
 
 async def create_fresh_session(session_key: str, label: str = "") -> bool:

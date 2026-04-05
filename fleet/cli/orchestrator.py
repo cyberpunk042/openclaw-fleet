@@ -1383,7 +1383,8 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
 
     from fleet.core.outage_detector import OutageDetector
     _outage = OutageDetector()
-    _agents_provisioned = False
+    _startup_at = datetime.now()
+    _STARTUP_GRACE_SECONDS = 120  # Don't restart gateway during first 2 minutes
 
     while True:
         # Check if we should run this cycle (outage/backoff)
@@ -1408,33 +1409,36 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
                 pass
 
             # Ensure gateway is running. Non-blocking start with lock file.
+            # Skip during startup grace period — setup.sh may still be running
+            # template sync which restarts the gateway. Launching start-fleet.sh
+            # during that window creates a restart storm that kills the daemon.
             try:
                 import subprocess as _sp
                 fleet_dir = os.path.dirname(os.path.dirname(
                     os.path.dirname(os.path.abspath(__file__))))
                 lock_path = os.path.join(fleet_dir, ".gateway-starting")
 
-                # Check if gateway is alive (pgrep OR lock file exists)
-                _gw = _sp.run(["pgrep", "-f", "openarms-gateway|openclaw-gateway"],
-                              capture_output=True, timeout=5)
-                gateway_alive = _gw.returncode == 0
+                seconds_since_start = (datetime.now() - _startup_at).total_seconds()
+                if seconds_since_start < _STARTUP_GRACE_SECONDS:
+                    pass  # Skip gateway check during grace period
+                else:
+                    _gw = _sp.run(["pgrep", "-f", "openarms-gateway|openclaw-gateway"],
+                                  capture_output=True, timeout=5)
+                    gateway_alive = _gw.returncode == 0
 
-                if not gateway_alive and not os.path.exists(lock_path):
-                    # Gateway is down and nobody is starting it.
-                    # Write lock, start in background, don't block.
-                    with open(lock_path, "w") as _lf:
-                        _lf.write(str(os.getpid()))
-                    start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
-                    if os.path.exists(start_script):
-                        _sp.Popen(["bash", start_script],
-                                  stdout=open(os.path.join(fleet_dir, ".gateway-start.log"), "w"),
-                                  stderr=_sp.STDOUT)
-                        ts = datetime.now().strftime("%H:%M:%S")
-                        print(f"[{ts}] [orchestrator] Starting gateway...")
+                    if not gateway_alive and not os.path.exists(lock_path):
+                        with open(lock_path, "w") as _lf:
+                            _lf.write(str(os.getpid()))
+                        start_script = os.path.join(fleet_dir, "scripts", "start-fleet.sh")
+                        if os.path.exists(start_script):
+                            _sp.Popen(["bash", start_script],
+                                      stdout=open(os.path.join(fleet_dir, ".gateway-start.log"), "w"),
+                                      stderr=_sp.STDOUT)
+                            ts = datetime.now().strftime("%H:%M:%S")
+                            print(f"[{ts}] [orchestrator] Starting gateway...")
 
-                elif gateway_alive and os.path.exists(lock_path):
-                    # Gateway just came up — remove lock
-                    os.remove(lock_path)
+                    elif gateway_alive and os.path.exists(lock_path):
+                        os.remove(lock_path)
 
                 # NOTE: Provisioning is handled by setup.sh (seed + template sync).
                 # Do NOT run provision-agents.sh here — it triggers template sync

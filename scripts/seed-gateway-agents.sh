@@ -54,18 +54,19 @@ try:
 except Exception:
     identity_map = {}
 
-# Default heartbeat intervals per agent (from agent-identities.yaml)
+# Default heartbeat intervals per agent.
+# Brain gate handles idle for free — faster intervals = faster response, zero idle cost.
 heartbeat_defaults = {
-    "fleet-ops": "30m",
-    "project-manager": "35m",
-    "devsecops-expert": "55m",
-    "architect": "60m",
-    "software-engineer": "65m",
-    "qa-engineer": "70m",
-    "devops": "75m",
-    "technical-writer": "80m",
-    "ux-designer": "85m",
-    "accountability-generator": "90m",
+    "fleet-ops": "10m",
+    "project-manager": "12m",
+    "architect": "14m",
+    "devsecops-expert": "16m",
+    "software-engineer": "18m",
+    "qa-engineer": "20m",
+    "devops": "22m",
+    "technical-writer": "24m",
+    "ux-designer": "26m",
+    "accountability-generator": "28m",
 }
 
 mc_data = json.loads('''$MC_AGENTS''')

@@ -77,18 +77,21 @@ print(f"Removed {len(removed)} entries:")
 for r in removed:
     print(f"  - {r}")
 
-# Set staggered heartbeat intervals
+# Set staggered heartbeat intervals.
+# Brain gate handles idle agents for free (silent heartbeats skip Claude).
+# Faster intervals = faster agent response to new work, zero extra cost when idle.
+# Staggered to avoid all agents firing at once.
 intervals = {
-    "fleet-ops": "30m",
-    "project-manager": "35m",
-    "devsecops-expert": "55m",
-    "architect": "60m",
-    "software-engineer": "65m",
-    "qa-engineer": "70m",
-    "devops": "75m",
-    "technical-writer": "80m",
-    "ux-designer": "85m",
-    "accountability-generator": "90m",
+    "fleet-ops": "10m",
+    "project-manager": "12m",
+    "devsecops-expert": "16m",
+    "architect": "14m",
+    "software-engineer": "18m",
+    "qa-engineer": "20m",
+    "devops": "22m",
+    "technical-writer": "24m",
+    "ux-designer": "26m",
+    "accountability-generator": "28m",
 }
 
 for a in cleaned:
