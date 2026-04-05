@@ -1,7 +1,7 @@
 {
   "id": "fleet-heartbeat-gate",
   "name": "Fleet Heartbeat Gate",
-  "description": "Gates heartbeat Claude calls using brain decisions from the fleet orchestrator",
+  "description": "Gates heartbeat Claude calls using brain decisions from the fleet orchestrator. Uses before_agent_start to minimize cost on silent heartbeats. True cancellation requires a before_heartbeat hook in OpenArms.",
   "enabledByDefault": true,
   "configSchema": {
     "type": "object",

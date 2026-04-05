@@ -1,8 +1,13 @@
 // Fleet Heartbeat Gate Plugin
 //
-// Reads .brain-decision.json from agent workspace before each heartbeat.
-// If decision is "silent", returns handled=true to skip the Claude call.
-// The orchestrator (Python) writes these files every cycle.
+// Uses before_agent_start hook to read .brain-decision.json from agent workspace.
+// If decision is "silent", overrides the prompt to return HEARTBEAT_OK immediately
+// without expensive reasoning.
+//
+// NOTE: before_agent_start cannot cancel the run, only modify it.
+// For true cancellation, OpenArms needs a before_heartbeat hook or
+// before_dispatch must fire for heartbeat triggers.
+// This is a temporary approach that minimizes cost by setting minimal prompt.
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -27,7 +32,6 @@ function readBrainDecision(workspaceDir: string): BrainDecision | null {
     const raw = readFileSync(path, "utf-8");
     const data = JSON.parse(raw) as BrainDecision;
 
-    // Check staleness — if decision is older than 5 min, ignore it (let Claude run)
     if (data.timestamp) {
       const age = Date.now() - new Date(data.timestamp).getTime();
       if (age > STALE_THRESHOLD_MS) return null;
@@ -41,35 +45,39 @@ function readBrainDecision(workspaceDir: string): BrainDecision | null {
 
 export default function register(api: any) {
   api.registerHook(
-    "before_dispatch",
+    "before_agent_start",
     async (event: any, ctx: any) => {
-      // Only gate heartbeats, not regular messages
+      // Only gate heartbeats
       if (ctx.trigger !== "heartbeat") {
-        return { handled: false };
+        return {};
       }
 
-      // Resolve agent workspace directory
-      const workspaceDir = ctx.agentDir || ctx.workspaceDir;
+      const workspaceDir = ctx.workspaceDir;
       if (!workspaceDir) {
-        return { handled: false };
+        return {};
       }
 
       const decision = readBrainDecision(workspaceDir);
       if (!decision) {
-        // No decision file or stale — let Claude run normally
-        return { handled: false };
+        return {};
       }
 
       if (decision.decision === "silent") {
-        // Brain says: nothing needs attention. Skip Claude call.
+        // Override prompt to minimal — agent will respond HEARTBEAT_OK quickly
+        // with minimal token usage. Not a true cancellation but reduces cost.
         return {
-          handled: true,
-          text: "HEARTBEAT_OK",
+          systemPrompt: "Respond with exactly: HEARTBEAT_OK",
+          prependContext: "",
         };
       }
 
-      // WAKE or STRATEGIC — let Claude run
-      return { handled: false };
+      if (decision.decision === "strategic" && decision.model_override) {
+        return {
+          modelOverride: decision.model_override,
+        };
+      }
+
+      return {};
     },
     { name: "fleet-heartbeat-gate" },
   );
