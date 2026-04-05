@@ -350,7 +350,7 @@ def run_setup() -> int:
         import socket
         host_ip = socket.gethostbyname(socket.gethostname())
         # Gateway URL: Docker containers reach the host via host.docker.internal
-        gw_port = os.environ.get("OCF_GATEWAY_PORT", "18789")
+        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
         gw_host = os.environ.get("OCF_GATEWAY_HOST", "host.docker.internal")
         fleet_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         gw = setup.register_gateway("OCF Gateway", f"ws://{gw_host}:{gw_port}", workspace_root=fleet_dir)
@@ -360,7 +360,7 @@ def run_setup() -> int:
             print("   WARN: Could not register gateway")
     else:
         # Update gateway URL and workspace_root if stale
-        gw_port = os.environ.get("OCF_GATEWAY_PORT", "18789")
+        gw_port = os.environ.get("OCF_GATEWAY_PORT", "9400")
         gw_host = os.environ.get("OCF_GATEWAY_HOST", "host.docker.internal")
         expected_url = f"ws://{gw_host}:{gw_port}"
         fleet_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

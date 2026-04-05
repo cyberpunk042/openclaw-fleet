@@ -4,7 +4,7 @@ Provides the doctor's tools: prune (sessions.delete), force compact
 (sessions.compact), inject content (chat.send), and fresh session
 creation (sessions.patch).
 
-The gateway communicates via WebSocket JSON-RPC on ws://localhost:18789.
+The gateway communicates via WebSocket JSON-RPC on ws://localhost:9400.
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ source "$FLEET_DIR/scripts/lib/vendor.sh"
 
 # Load config
 source "$FLEET_DIR/.env" 2>/dev/null || true
-GW_PORT="${OCF_GATEWAY_PORT:-18789}"
+GW_PORT="${OCF_GATEWAY_PORT:-9400}"
 
 # SAFETY: Check if fleet is paused. If paused, refuse to start.
 # Use "fleet resume" first, then start.

@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(docker compose:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(grep -n \"FleetHealthPanel\\\\|memoryEntries\\\\|memory\" /home/jfortin/openclaw-fleet/vendor/openclaw-mission-control/frontend/src/app/boards/[boardId]/page.tsx)",
+      "Bash(grep -A 5 \"<FleetHealthPanel\" /home/jfortin/openclaw-fleet/vendor/openclaw-mission-control/frontend/src/app/boards/[boardId]/page.tsx)",
+      "Bash(grep -n \"FleetHealthPanel\" /home/jfortin/openclaw-fleet/vendor/openclaw-mission-control/frontend/src/app/boards/[boardId]/page.tsx)",
+      "Read(//FleetHealthPanel/,/\\\\/>/**)",
+      "Bash(grep -n \"boardId=\" /home/jfortin/openclaw-fleet/vendor/openclaw-mission-control/frontend/src/app/boards/[boardId]/page.tsx)",
+      "Bash(grep -n \"FleetHealthPanel\\\\|boardId\\\\|memoryEntries\" /home/jfortin/openclaw-fleet/vendor/openclaw-mission-control/frontend/src/app/boards/[boardId]/page.tsx)"
     ]
   }
 }

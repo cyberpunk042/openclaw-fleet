@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from typing import Optional
 
@@ -22,7 +23,7 @@ class IRCClient(NotificationClient):
 
     def __init__(
         self,
-        gateway_url: str = "ws://localhost:18789",
+        gateway_url: str = f"ws://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}",
         gateway_token: str = "",
         account_id: str = "fleet",
     ):

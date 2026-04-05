@@ -7,6 +7,7 @@ Usage: python -m fleet status
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 from fleet.infra.config_loader import ConfigLoader
@@ -43,7 +44,7 @@ async def _run_status() -> int:
     print(f"\n{BOLD}Infrastructure{NC}")
     import httpx
     for name, url in [
-        ("Gateway", "http://localhost:18789"),
+        ("Gateway", f"http://localhost:{os.environ.get('OCF_GATEWAY_PORT', '9400')}"),
         ("MC Backend", "http://localhost:8000/health"),
         ("MC Frontend", "http://localhost:3000"),
         ("The Lounge", "http://localhost:9000"),

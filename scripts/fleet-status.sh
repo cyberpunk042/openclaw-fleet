@@ -25,8 +25,9 @@ echo -e "${BOLD}╚════════════════════�
 # 1. Infrastructure
 echo ""
 echo -e "${BOLD}Infrastructure${NC}"
-if curl -sf http://localhost:18789 > /dev/null 2>&1; then
-    echo -e "  OpenClaw Gateway:  ${GREEN}UP${NC} (ws://localhost:18789)"
+GW_PORT="${OCF_GATEWAY_PORT:-9400}"
+if curl -sf "http://localhost:${GW_PORT}" > /dev/null 2>&1; then
+    echo -e "  OpenClaw Gateway:  ${GREEN}UP${NC} (ws://localhost:${GW_PORT})"
 else
     echo -e "  OpenClaw Gateway:  ${RED}DOWN${NC}"
 fi
