@@ -301,9 +301,15 @@ if [[ -n "$VENDOR_CLI" ]]; then
     for agent in $AGENTS; do
         [[ "$agent" == "main" ]] && continue
         [[ "$agent" == mc-gateway-* ]] && continue
-        $VENDOR_CLI agents bind --agent "$agent" --bind "irc:fleet" >/dev/null 2>&1 && BOUND=$((BOUND + 1)) || true
+        echo -n "  $agent..."
+        if $VENDOR_CLI agents bind --agent "$agent" --bind "irc:fleet" >/dev/null 2>&1; then
+            echo " ok"
+            BOUND=$((BOUND + 1))
+        else
+            echo " skip"
+        fi
     done
-    echo "  $BOUND agents bound to IRC"
+    echo "  $BOUND agents bound to IRC (irc:fleet)"
 fi
 echo ""
 
@@ -373,6 +379,52 @@ for g in items:
         echo "  Template sync: $(echo "$SYNC_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'updated={d.get(\"agents_updated\",0)}')" 2>/dev/null || echo "done")"
     fi
 
+    # Reprovision agents whose workspaces are incomplete (no .mcp.json).
+    # These are agents that got 502 during registration — MC thinks they're
+    # provisioned but the gateway workspace is missing files.
+    AGENTS_JSON=$(curl -sf -m 10 -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+        http://localhost:8000/api/v1/agents 2>/dev/null || echo '{"items":[]}')
+    echo "  Checking for incomplete agent workspaces..."
+    REPROV=0
+    for AGENT_ID in $(echo "$AGENTS_JSON" | python3 -c "
+import json,sys,os
+data=json.load(sys.stdin)
+items=data.get('items',data) if isinstance(data,dict) else data
+fleet_dir='$FLEET_DIR'
+for a in items:
+    if 'Gateway' in a.get('name',''): continue
+    ws=os.path.join(fleet_dir, f'workspace-mc-{a[\"id\"]}')
+    if not os.path.exists(os.path.join(ws, '.mcp.json')):
+        print(a['id'])
+" 2>/dev/null); do
+        # Force reprovision by resetting status to provisioning then heartbeating
+        curl -sf -m 30 -X PATCH \
+            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "http://localhost:8000/api/v1/agents/${AGENT_ID}" \
+            -d '{"status":"provisioning"}' >/dev/null 2>&1
+        curl -sf -m 30 -X POST \
+            -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "http://localhost:8000/api/v1/agents/${AGENT_ID}/heartbeat" \
+            -d '{}' >/dev/null 2>&1 && REPROV=$((REPROV + 1)) || true
+    done
+    if [[ $REPROV -gt 0 ]]; then
+        echo "  Reprovisioned $REPROV agents, waiting for gateway..."
+        sleep 10
+        # Re-run template sync for newly provisioned agents
+        if [[ -n "${GW_ID:-}" ]]; then
+            curl -sf -m 180 -X POST \
+                -H "Authorization: Bearer $LOCAL_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                "http://localhost:8000/api/v1/gateways/${GW_ID}/templates/sync" \
+                -d '{}' >/dev/null 2>&1
+            echo "  Second template sync done"
+        fi
+    else
+        echo "  All workspaces complete"
+    fi
+
     # Re-apply staggered heartbeat intervals — template sync overwrites them with MC defaults
     echo "  Re-applying heartbeat intervals..."
     bash scripts/clean-gateway-config.sh 2>&1 | grep -E '(intervals|Done)' | sed 's/^/  /'
@@ -404,7 +456,10 @@ echo ""
 echo "=== Starting Fleet Daemons ==="
 echo "NOTE: Fleet starts paused. Use 'fleet resume' when ready."
 if [[ -f "$FLEET_DIR/.venv/bin/python" ]]; then
-    PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" nohup "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
+    # setsid creates a new session so the daemon survives setup.sh exit and
+    # Ctrl+C during LightRAG sync. nohup alone isn't enough — SIGINT sent to
+    # the process group can kill nohup'd children in the same session.
+    setsid env PYTHONUNBUFFERED=1 FLEET_DIR="$FLEET_DIR" "$FLEET_DIR/.venv/bin/python" -m fleet daemon all > "$FLEET_DIR/.fleet-daemons.log" 2>&1 &
     disown
     echo "Fleet daemons started (PID: $!, log: .fleet-daemons.log)"
 else
