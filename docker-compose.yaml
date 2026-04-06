@@ -19,12 +19,30 @@
 #   LightRAG WebUI:      http://localhost:9621/webui/
 #   OCF Gateway:         http://localhost:9400
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # --- Infrastructure ---
 
   db:
     image: postgres:16-alpine
+    command:
+      - "postgres"
+      - "-c"
+      - "max_wal_size=1GB"
+      - "-c"
+      - "min_wal_size=80MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "log_min_messages=warning"
+      - "-c"
+      - "log_statement=none"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-mission_control}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -34,6 +52,7 @@ services:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -42,7 +61,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save "" --appendonly no
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     healthcheck:
@@ -79,6 +100,7 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     restart: unless-stopped
+    logging: *default-logging
 
   frontend:
     build:
@@ -94,6 +116,7 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     restart: unless-stopped
+    logging: *default-logging
 
   webhook-worker:
     build:
@@ -112,6 +135,7 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   # OCF Gateway runs on the host (not in Docker)
   # It needs direct access to Claude Code CLI
@@ -214,6 +238,7 @@ services:
       # Auth
       LIGHTRAG_API_KEY: ${LIGHTRAG_API_KEY:-}
     restart: unless-stopped
+    logging: *default-logging
 
   # --- IRC Web Client (The Lounge) ---
 
@@ -238,6 +263,7 @@ services:
         fi;
         exec thelounge start
       '
+    logging: *default-logging
 
 volumes:
   postgres_data:

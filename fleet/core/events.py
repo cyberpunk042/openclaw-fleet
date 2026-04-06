@@ -233,8 +233,23 @@ class EventStore:
         except Exception:
             pass
 
+    # Maximum event file size before rotation (5 MB)
+    MAX_FILE_BYTES = 5 * 1024 * 1024
+
+    def _rotate_if_needed(self) -> None:
+        """Rotate event file when it exceeds MAX_FILE_BYTES."""
+        try:
+            if self._path.exists() and self._path.stat().st_size > self.MAX_FILE_BYTES:
+                rotated = self._path.with_suffix(".jsonl.old")
+                if rotated.exists():
+                    rotated.unlink()
+                self._path.rename(rotated)
+        except Exception:
+            pass
+
     def append(self, event: FleetEvent) -> None:
         """Append an event to the store."""
+        self._rotate_if_needed()
         record = {
             "specversion": "1.0",
             "id": event.id,

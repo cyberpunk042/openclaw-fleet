@@ -40,6 +40,13 @@ def run_server() -> int:
     debug_log = os.path.join(
         os.environ.get("FLEET_DIR", "."), ".fleet-mcp-debug.log"
     )
+    # Truncate if over 1 MB to prevent unbounded growth
+    try:
+        if os.path.exists(debug_log) and os.path.getsize(debug_log) > 1_000_000:
+            with open(debug_log, "w") as f:
+                f.write("[truncated — exceeded 1 MB]\n")
+    except Exception:
+        pass
     try:
         with open(debug_log, "a") as f:
             from datetime import datetime
