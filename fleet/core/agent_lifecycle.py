@@ -7,22 +7,16 @@ Agents wake on: task assignment, tag reference, @mention, explicit wake.
 After 1 HEARTBEAT_OK, the brain takes over evaluation (silent heartbeat).
 The cron never stops — the brain intercepts and evaluates for free.
 
-PO requirement (verbatim):
-> "the agent need to be able to do silent heartbeat when they deem
-> after a while that there is nothing new from the heartbeat, (2-3..)
-> then it relay the work to the brain to actually do a compare and an
-> automated work of the heartbeat in order to determine if it require
-> a real heartbeat."
-
-Refined (2026-04-01): 1 HEARTBEAT_OK is enough if done properly.
-No intermediate "drowsy" state — after one heartbeat with nothing,
-the brain takes the relay immediately.
+Heartbeat intervals come from the gateway config (openarms.json), not hardcoded.
+Budget mode adjusts these intervals via update_cron_tempo(). MC's OFFLINE_AFTER
+is derived per-agent from their CRON interval (interval * 1.5).
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -42,8 +36,8 @@ class AgentStatus(str, Enum):
 
     ACTIVE = "active"       # Working on a task right now
     IDLE = "idle"           # 1 HEARTBEAT_OK — brain evaluates, cron still fires
-    SLEEPING = "sleeping"   # Extended idle, brain evaluates, longer intervals
-    OFFLINE = "offline"     # Very extended, slow wake
+    SLEEPING = "sleeping"   # Extended idle, brain evaluates
+    OFFLINE = "offline"     # Very extended idle
 
 
 # Transition thresholds (seconds) — time-based
@@ -53,20 +47,23 @@ OFFLINE_AFTER = 4 * 60 * 60   # 4 hours sleeping → offline
 # Content-aware threshold — 1 HEARTBEAT_OK = brain takes over
 IDLE_AFTER_HEARTBEAT_OK = 1   # 1 proper heartbeat with nothing → brain relay
 
-# MC computes agent status dynamically: if last_seen_at > OFFLINE_AFTER, agent
-# shows as offline. Our heartbeat intervals MUST stay below this threshold or
-# agents flicker offline between heartbeats.
-MC_OFFLINE_AFTER = 10 * 60  # 10 minutes (MC's with_computed_status)
+# Default heartbeat interval when no CRON config is available (seconds).
+# Should never be needed — agents should always have a CRON from openarms.json.
+DEFAULT_HEARTBEAT_INTERVAL = 10 * 60  # 10 minutes
 
-# Heartbeat intervals by status (seconds)
-# All intervals < MC_OFFLINE_AFTER to prevent agents showing offline between beats.
-# Brain evaluation is free (no Claude calls) so frequent checks cost nothing.
-HEARTBEAT_INTERVALS = {
-    AgentStatus.ACTIVE: 0,              # No cron — agent drives its own work
-    AgentStatus.IDLE: 8 * 60,           # 8 minutes — frequent, brain-gated (free)
-    AgentStatus.SLEEPING: 8 * 60,       # 8 minutes — same: must stay < MC_OFFLINE_AFTER
-    AgentStatus.OFFLINE: 8 * 60,        # 8 minutes — same: agent stays visible in MC
-}
+
+def parse_interval(every: str) -> int:
+    """Parse an interval string like '10m' or '2h' to seconds."""
+    match = re.match(r"(\d+)\s*(m|h|s)", every.strip().lower())
+    if not match:
+        return DEFAULT_HEARTBEAT_INTERVAL
+    value = int(match.group(1))
+    unit = match.group(2)
+    if unit == "h":
+        return value * 3600
+    if unit == "m":
+        return value * 60
+    return value
 
 
 @dataclass
@@ -74,9 +71,10 @@ class AgentState:
     """Tracked state for a single agent."""
 
     name: str
+    cron_interval: int = DEFAULT_HEARTBEAT_INTERVAL  # From openarms.json heartbeat.every
     status: AgentStatus = AgentStatus.IDLE
     last_active_at: Optional[datetime] = None    # Last time agent had work
-    last_heartbeat_at: Optional[datetime] = None  # Last heartbeat sent
+    last_heartbeat_at: Optional[datetime] = None  # Last MC heartbeat sent
     last_task_completed_at: Optional[datetime] = None
     current_task_id: Optional[str] = None
     # Content-aware lifecycle fields
@@ -98,7 +96,6 @@ class AgentState:
 
         idle_seconds = (now - self.last_active_at).total_seconds()
 
-        # After 1 HEARTBEAT_OK → IDLE (brain takes over)
         if self.consecutive_heartbeat_ok >= IDLE_AFTER_HEARTBEAT_OK:
             if idle_seconds >= OFFLINE_AFTER:
                 self.status = AgentStatus.OFFLINE
@@ -107,10 +104,23 @@ class AgentState:
             else:
                 self.status = AgentStatus.IDLE
         else:
-            # Haven't had a HEARTBEAT_OK yet — still fresh idle
             self.status = AgentStatus.IDLE
 
         self.current_task_id = None
+
+    def needs_heartbeat(self, now: datetime) -> bool:
+        """Check if this agent's CRON interval has elapsed.
+
+        Uses the per-agent interval from openarms.json (set by budget mode).
+        Active agents don't need heartbeats — they drive their own work.
+        """
+        if self.status == AgentStatus.ACTIVE:
+            return False
+
+        if self.last_heartbeat_at is None:
+            return True
+
+        return (now - self.last_heartbeat_at).total_seconds() >= self.cron_interval
 
     def record_heartbeat_ok(self) -> None:
         """Record that the agent's heartbeat returned HEARTBEAT_OK.
@@ -127,33 +137,19 @@ class AgentState:
         """
         self.consecutive_heartbeat_ok = 0
 
-    def needs_heartbeat(self, now: datetime) -> bool:
-        """Check if this agent needs a heartbeat based on status and interval.
-
-        Note: this determines if the CRON should fire. The brain's
-        HeartbeatGate then decides if it's a real Claude call or silent OK.
-        """
-        if self.status == AgentStatus.ACTIVE:
-            return False  # Active agents drive their own work
-
-        interval = HEARTBEAT_INTERVALS.get(self.status, 600)
-        if interval == 0:
-            return False
-
-        if self.last_heartbeat_at is None:
-            return True
-
-        return (now - self.last_heartbeat_at).total_seconds() >= interval
-
     def mark_heartbeat_sent(self, now: datetime) -> None:
-        """Record that a heartbeat was sent."""
+        """Record that an MC heartbeat was sent. Resets the CRON timer."""
         self.last_heartbeat_at = now
 
     def wake(self, now: datetime) -> None:
-        """Explicitly wake this agent (task assigned, @mention, etc.)."""
+        """Explicitly wake this agent (task assigned, @mention, etc.).
+
+        Resets CRON timer — the wake itself counts as a heartbeat.
+        """
         self.status = AgentStatus.IDLE
         self.last_active_at = now
-        self.consecutive_heartbeat_ok = 0  # reset — agent is awake
+        self.last_heartbeat_at = now  # reset CRON — wake is a heartbeat
+        self.consecutive_heartbeat_ok = 0
 
     def should_wake_for_task(self) -> bool:
         """Check if agent should be woken for a task assignment."""
@@ -172,11 +168,8 @@ class AgentState:
 class FleetLifecycle:
     """Manages the lifecycle state of all fleet agents.
 
-    Used by the orchestrator to make smart decisions about:
-    - When to send heartbeats (status-based intervals)
-    - When to wake agents (task assignment, triggers)
-    - When the brain should intercept (brain_evaluates property)
-    - Fleet resource optimization (idle agents cost $0)
+    Per-agent CRON intervals come from openarms.json (the gateway config).
+    The orchestrator calls load_intervals() on startup and after budget mode changes.
     """
 
     def __init__(self) -> None:
@@ -188,23 +181,29 @@ class FleetLifecycle:
             self._agents[name] = AgentState(name=name)
         return self._agents[name]
 
+    def load_intervals(self, agent_intervals: dict[str, int]) -> None:
+        """Update per-agent CRON intervals from gateway config.
+
+        Args:
+            agent_intervals: Map of agent_name → interval_seconds.
+                             Typically parsed from openarms.json heartbeat.every.
+        """
+        for name, interval_sec in agent_intervals.items():
+            state = self.get_or_create(name)
+            state.cron_interval = interval_sec
+
     def update_all(
         self,
         now: datetime,
         active_agents: dict[str, str],  # agent_name → task_id
     ) -> None:
-        """Update all tracked agents based on current board state.
-
-        Args:
-            now: Current timestamp.
-            active_agents: Map of agent names with active (in_progress) tasks.
-        """
+        """Update all tracked agents based on current board state."""
         for name, state in self._agents.items():
             task_id = active_agents.get(name, "")
             state.update_activity(now, bool(task_id), task_id)
 
     def agents_needing_heartbeat(self, now: datetime) -> list[AgentState]:
-        """Return agents that need a heartbeat check."""
+        """Return agents whose CRON interval has elapsed."""
         return [
             state for state in self._agents.values()
             if state.needs_heartbeat(now)

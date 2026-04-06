@@ -380,6 +380,35 @@ def update_cron_tempo(tempo_multiplier: float) -> int:
     return updated
 
 
+def read_agent_intervals() -> dict[str, int]:
+    """Read per-agent heartbeat intervals from openarms.json.
+
+    Returns dict of agent_name → interval_seconds.
+    These are the CRON intervals the gateway HeartbeatRunner uses.
+    Budget mode adjusts them via update_cron_tempo().
+    """
+    import json as _json
+    from fleet.core.agent_lifecycle import parse_interval
+
+    config_path = resolve_vendor_config()
+    try:
+        with open(config_path) as f:
+            cfg = _json.load(f)
+    except Exception:
+        return {}
+
+    intervals: dict[str, int] = {}
+    for agent in cfg.get("agents", {}).get("list", []):
+        name = agent.get("name", "")
+        if not name or "Gateway" in name:
+            continue
+        hb = agent.get("heartbeat", {})
+        every = hb.get("every", "")
+        if every:
+            intervals[name] = parse_interval(every)
+    return intervals
+
+
 async def create_fresh_session(session_key: str, label: str = "") -> bool:
     """Create a fresh session for an agent — regrowth after pruning.
 

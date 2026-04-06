@@ -1,0 +1,45 @@
+--- a/backend/app/services/openclaw/constants.py
++++ b/backend/app/services/openclaw/constants.py
+@@ -17,7 +17,23 @@
+     "includeReasoning": False,
+ }
+
+-OFFLINE_AFTER = timedelta(minutes=10)
++OFFLINE_AFTER = timedelta(minutes=10)  # Fallback — per-agent uses heartbeat_config.every
++
++
++def offline_after_for_agent(agent) -> timedelta:
++    """Compute OFFLINE_AFTER per agent from heartbeat_config.every (1.5x interval)."""
++    hb = getattr(agent, 'heartbeat_config', None) or {}
++    every = hb.get('every', '')
++    if not every:
++        return OFFLINE_AFTER
++    match = re.match(r'(\d+)\s*(m|h|s)', every.strip().lower())
++    if not match:
++        return OFFLINE_AFTER
++    value = int(match.group(1))
++    unit = match.group(2)
++    seconds = value * (3600 if unit == 'h' else 60 if unit == 'm' else 1)
++    return timedelta(seconds=int(seconds * 1.5))
++
+ # Provisioning convergence policy:
+ # - require first heartbeat/check-in within 30s of wake
+ # - allow up to 3 wake attempts before giving up
+--- a/backend/app/services/openclaw/provisioning_db.py
++++ b/backend/app/services/openclaw/provisioning_db.py
+@@ -50,6 +50,7 @@
+     _TOOLS_KV_RE,
+     DEFAULT_HEARTBEAT_CONFIG,
+     OFFLINE_AFTER,
++    offline_after_for_agent,
+ )
+ from app.services.openclaw.db_agent_state import (
+     mint_agent_token,
+@@ -875,7 +876,7 @@
+             return agent
+         if agent.last_seen_at is None:
+             agent.status = "provisioning"
+-        elif now - agent.last_seen_at > OFFLINE_AFTER:
++        elif now - agent.last_seen_at > offline_after_for_agent(agent):
+             agent.status = "offline"
+         return agent

@@ -1,9 +1,13 @@
 """Brain decision writer — evaluates agents and writes .brain-decision.json.
 
-The orchestrator calls write_brain_decisions() every cycle. For each agent
-where brain_evaluates is True, it runs the heartbeat gate and writes the
-decision to the agent's workspace. The OpenArms before_dispatch hook
-reads these files to gate Claude calls.
+Called by the orchestrator EVERY cycle to keep decision files fresh.
+The gateway HeartbeatRunner reads these files when its CRON fires:
+  - decision=silent → skip Claude call ($0)
+  - decision=wake/strategic → call Claude with adapted context
+
+This module only writes decisions. It does NOT call MC or touch heartbeat
+timers. MC liveness (heartbeat_agent) is handled by the orchestrator at
+CRON intervals, separately from brain evaluation.
 """
 
 from __future__ import annotations
@@ -13,9 +17,8 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
-from fleet.core.agent_lifecycle import AgentState, FleetLifecycle
+from fleet.core.agent_lifecycle import AgentStatus, FleetLifecycle
 from fleet.core.heartbeat_gate import (
     HeartbeatDecision,
     HeartbeatEvaluation,
@@ -35,22 +38,23 @@ def write_brain_decisions(
     board_memory: list,
     fleet_dir: str,
 ) -> dict[str, HeartbeatEvaluation]:
-    """Evaluate all agents needing heartbeat and write decision files.
+    """Evaluate ALL non-active agents and write decision files.
 
-    Returns dict of agent_name → HeartbeatEvaluation for reporting.
+    Runs every orchestrator cycle to keep .brain-decision.json fresh.
+    The gateway checks file freshness (<5 min) before each heartbeat.
+
+    Returns dict of agent_name → HeartbeatEvaluation.
     """
     results: dict[str, HeartbeatEvaluation] = {}
 
-    for agent_state in lifecycle.agents_needing_heartbeat(now):
-        # Bootstrap: brain evaluation is deterministic (no Claude calls),
-        # so evaluate ALL agents needing heartbeat. For idle agents with
-        # no work, the brain will decide "silent" and increment
-        # consecutive_heartbeat_ok, enabling brain_evaluates for future cycles.
-        # Without this, consecutive_heartbeat_ok stays at 0 forever
-        # (chicken-and-egg: counter only increments inside evaluation).
+    # Evaluate ALL non-active agents — not gated by CRON interval.
+    # Brain decisions must be fresh every cycle so the gateway always
+    # has a recent file when its HeartbeatRunner CRON fires.
+    for agent_state in lifecycle._agents.values():
+        if agent_state.status == AgentStatus.ACTIVE:
+            continue  # Active agents drive their own work
 
         agent_name = agent_state.name
-        agent_role = agent_name
 
         # Mentions: board memory entries that mention this agent
         mentions = [
@@ -92,7 +96,7 @@ def write_brain_decisions(
 
         evaluation = evaluate_agent_heartbeat(
             agent_name=agent_name,
-            agent_role=agent_role,
+            agent_role=agent_name,
             mentions=mentions,
             assigned_tasks=assigned,
             directives=directives,
@@ -103,13 +107,6 @@ def write_brain_decisions(
 
         _write_decision(fleet_dir, agents, agent_name, evaluation)
         results[agent_name] = evaluation
-
-        # Always reset heartbeat timer — silent or not.
-        # Without this, silent decisions never update last_heartbeat_at,
-        # so needs_heartbeat() returns True every 30s cycle → flooding.
-        agent_state.mark_heartbeat_sent(now)
-        if evaluation.decision == HeartbeatDecision.SILENT:
-            agent_state.record_heartbeat_ok()
 
     return results
 

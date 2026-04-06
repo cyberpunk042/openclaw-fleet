@@ -186,13 +186,16 @@ async def run_orchestrator_cycle(
             if _previous_fleet_state.budget_mode != fleet_state.budget_mode:
                 try:
                     from fleet.core.budget_modes import get_mode
-                    from fleet.infra.gateway_client import update_cron_tempo
+                    from fleet.infra.gateway_client import update_cron_tempo, read_agent_intervals
                     mode = get_mode(fleet_state.budget_mode)
                     if mode:
                         updated = update_cron_tempo(mode.tempo_multiplier)
                         if updated:
+                            # Refresh orchestrator's cached intervals to match gateway
+                            new_intervals = read_agent_intervals()
+                            _fleet_lifecycle.load_intervals(new_intervals)
                             state.notes.append(
-                                f"CRON tempo updated: {updated} jobs "
+                                f"CRON tempo updated: {updated} agents "
                                 f"(multiplier={mode.tempo_multiplier:.2f})"
                             )
                 except Exception:
@@ -260,66 +263,84 @@ async def run_orchestrator_cycle(
             _fleet_lifecycle.get_or_create(a.name)
     _fleet_lifecycle.update_all(now, active_agents)
 
-    # Brain evaluation — evaluate idle/sleeping agents, write decisions, report to MC
+    # ─── Step A: Brain decisions (EVERY cycle) ──────────────────────
+    # Write .brain-decision.json for ALL non-active agents.
+    # Keeps files fresh so the gateway HeartbeatRunner always has a recent
+    # decision when its CRON fires. Checks tasks, mentions, directives —
+    # if something targets an agent, writes "wake" or "strategic".
+    # This is cheap: pure Python, no API calls, no Claude.
     try:
         from fleet.core.brain_writer import write_brain_decisions
+        fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
 
-        # Log lifecycle state before evaluation
-        needing = list(_fleet_lifecycle.agents_needing_heartbeat(now))
-        all_agents_state = [
-            f"{s.name}:{s.status.value}:hb={s.last_heartbeat_at.strftime('%H:%M') if s.last_heartbeat_at else 'None'}:ok={s.consecutive_heartbeat_ok}"
-            for s in _fleet_lifecycle._agents.values()
-        ]
-        state.notes.append(f"Lifecycle: {len(needing)} need heartbeat of {len(_fleet_lifecycle._agents)}")
-
+        # Evaluate ALL non-active agents (not gated by CRON interval)
         brain_results = write_brain_decisions(
             lifecycle=_fleet_lifecycle,
             now=now,
             tasks=tasks,
             agents=agents,
             board_memory=[],
-            fleet_dir=os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent)),
+            fleet_dir=fleet_dir,
         )
+    except Exception as e:
+        import traceback
+        brain_results = {}
+        state.errors.append(f"Brain evaluation failed: {e}\n{traceback.format_exc()}")
 
+    # ─── Step B: MC liveness (at agent CRON intervals) ────────────
+    # Call mc.heartbeat_agent() only for agents whose CRON interval elapsed.
+    # This matches the gateway HeartbeatRunner cadence — one activity entry
+    # per agent per CRON fire, not per orchestrator cycle.
+    # Trigger events (task assigned, @mention) cause instant wake regardless.
+    try:
+        cron_agents = list(_fleet_lifecycle.agents_needing_heartbeat(now))
         hb_ok = 0
         hb_fail = 0
-        for agent_name, evaluation in brain_results.items():
-            decision = evaluation.decision.value
-            if decision == "silent":
-                agent = agent_name_map.get(agent_name)
-                if agent:
-                    try:
-                        ok = await mc.heartbeat_agent(agent.id, message="(silent)")
-                        if ok:
-                            hb_ok += 1
-                        else:
-                            hb_fail += 1
-                            state.notes.append(f"HB FAIL (HTTP): {agent_name}")
-                    except Exception as exc:
-                        hb_fail += 1
-                        state.notes.append(f"HB FAIL (exc): {agent_name}: {exc}")
+        for agent_state in cron_agents:
+            agent_name = agent_state.name
+            agent = agent_name_map.get(agent_name)
+            if not agent:
+                continue
+
+            # Determine message suffix from brain decision
+            evaluation = brain_results.get(agent_name)
+            if evaluation:
+                decision = evaluation.decision.value
+                if decision == "silent":
+                    message = "(silent)"
+                elif decision == "strategic":
+                    message = f"(strategic: {evaluation.model_override or 'opus'})"
                 else:
-                    state.notes.append(f"HB SKIP: {agent_name} not in agent_name_map")
-            elif decision == "strategic":
-                try:
-                    model = evaluation.model_override or "opus"
-                    await mc.post_board_memory(
-                        board_id,
-                        f"Heartbeat received from {agent_name}. (strategic: {model})",
-                        tags=["heartbeat", "strategic", agent_name],
-                    )
-                except Exception:
-                    pass
+                    message = f"(wake: {decision})"
+            else:
+                message = "(silent)"  # no evaluation = nothing happening
+
+            try:
+                ok = await mc.heartbeat_agent(agent.id, message=message)
+                if ok:
+                    hb_ok += 1
+                else:
+                    hb_fail += 1
+            except Exception:
+                hb_fail += 1
+
+            # Reset CRON timer for this agent
+            agent_state.mark_heartbeat_sent(now)
+            if not evaluation or evaluation.decision.value == "silent":
+                agent_state.record_heartbeat_ok()
+
+        if cron_agents:
+            state.notes.append(
+                f"CRON: {len(cron_agents)} agents fired, hb_sent={hb_ok}, hb_fail={hb_fail}"
+            )
+        # Log brain summary
         if brain_results:
             silent_count = sum(1 for e in brain_results.values() if e.decision.value == "silent")
             wake_count = sum(1 for e in brain_results.values() if e.decision.value != "silent")
-            state.notes.append(f"Brain: {silent_count} silent, {wake_count} wake, hb_sent={hb_ok}, hb_fail={hb_fail}")
-        else:
-            state.notes.append("Brain: 0 agents evaluated (none needed heartbeat)")
+            state.notes.append(f"Brain: {silent_count} silent, {wake_count} wake")
     except Exception as e:
         import traceback
-        state.notes.append(f"Brain CRASH: {e}")
-        state.errors.append(f"Brain evaluation failed: {e}\n{traceback.format_exc()}")
+        state.errors.append(f"MC liveness failed: {e}\n{traceback.format_exc()}")
 
     # Step 0: Refresh agent context files — pre-embed full data for heartbeats
     # Always runs — agents need fresh context even when dispatch is paused.
@@ -1408,6 +1429,15 @@ async def run_orchestrator_daemon(interval: int = 30) -> None:
     _outage = OutageDetector()
     _startup_at = datetime.now()
     _STARTUP_GRACE_SECONDS = 120  # Don't restart gateway during first 2 minutes
+
+    # Load per-agent CRON intervals from openarms.json (single source of truth)
+    from fleet.infra.gateway_client import read_agent_intervals
+    agent_intervals = read_agent_intervals()
+    _fleet_lifecycle.load_intervals(agent_intervals)
+    if agent_intervals:
+        print(f"[orchestrator] Agent CRON intervals loaded: {len(agent_intervals)} agents", flush=True)
+        for name, secs in sorted(agent_intervals.items()):
+            print(f"  {name}: {secs // 60}m", flush=True)
 
     while True:
         # Check if we should run this cycle (outage/backoff)
