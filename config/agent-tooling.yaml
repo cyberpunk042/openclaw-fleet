@@ -19,12 +19,16 @@ defaults:
       env:
         FLEET_DIR: "{{FLEET_DIR}}"
         FLEET_AGENT: "{{AGENT_NAME}}"
-    - name: lightrag
-      command: "python"
-      args: ["-m", "daniel_lightrag_mcp"]
-      env:
-        LIGHTRAG_BASE_URL: "http://localhost:9621"
-        LIGHTRAG_API_KEY: ""
+    # lightrag: CONDITIONAL — only when LocalAI is running.
+    # Not in defaults because it fails when LocalAI is unavailable,
+    # potentially blocking other MCP servers from loading.
+    # To enable: add to specific agents that need RAG access when LocalAI is active.
+    # - name: lightrag
+    #   command: "python"
+    #   args: ["-m", "daniel_lightrag_mcp"]
+    #   env:
+    #     LIGHTRAG_BASE_URL: "http://localhost:9621"
+    #     LIGHTRAG_API_KEY: ""
   plugins:
     - claude-mem          # cross-session memory (SQLite-only mode for WSL2)
     - safety-net          # PreToolUse hook catches destructive commands
@@ -105,9 +109,12 @@ agents:
       - name: github
         package: "@modelcontextprotocol/server-github"
       - name: docker
-        package: "@modelcontextprotocol/server-docker"
+        package: "@hypnosis/docker-mcp-server"
+        # Community Docker MCP server (universal, 1.4.1)
+        # Original @modelcontextprotocol/server-docker not in npm registry
       - name: github-actions
-        package: "github-actions-mcp-server"
+        package: "github-actions-mcp"
+        # Correct package name (1.0.1) — original name was wrong
     plugins:
       - hookify               # natural-language hook creation (official Anthropic)
       - commit-commands        # git commit workflows (official Anthropic)
@@ -165,8 +172,8 @@ agents:
       - name: github
         package: "@modelcontextprotocol/server-github"
       - name: plane
-        package: "makeplane/plane-mcp-server"
-        # Official Plane MCP: issues, cycles, modules. Replaces direct API calls.
+        package: "@makeplane/plane-mcp-server"
+        # Official Plane MCP (0.1.5): issues, cycles, modules.
     plugins:
       - plannotator            # visual plan/diff annotation, team feedback (4K stars)
     skills:

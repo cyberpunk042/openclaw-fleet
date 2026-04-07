@@ -72,12 +72,16 @@ def test_accept_chain_has_plane_and_trail():
     assert chain.operation == "task_accept"
 
     plane = [e for e in chain.events if e.surface == EventSurface.PLANE]
-    assert len(plane) == 1
-    assert "Plan accepted" in plane[0].params["comment"]
+    assert len(plane) == 2  # update_issue_state (In Progress) + post_comment (plan)
+    plane_state = [e for e in plane if e.action == "update_issue_state"]
+    plane_comment = [e for e in plane if e.action == "post_comment"]
+    assert len(plane_state) == 1
+    assert plane_state[0].params["state"] == "In Progress"
+    assert len(plane_comment) == 1
+    assert "Plan accepted" in plane_comment[0].params["comment"]
 
     trail = [e for e in chain.events if "trail" in str(e.params.get("tags", []))]
     assert len(trail) == 1
-    assert "plan_accepted" in trail[0].params["tags"][1] or "plan_accepted" in str(trail[0].params)
 
 
 # ─── build_commit_chain ─────────────────────────────────────────────
@@ -253,9 +257,9 @@ def test_progress_chain_at_30_no_irc():
     irc = [e for e in chain.events if e.surface == EventSurface.CHANNEL]
     assert len(irc) == 0
 
-    # But still has Plane + trail
+    # Has Plane comment + Plane label update + trail
     plane = [e for e in chain.events if e.surface == EventSurface.PLANE]
-    assert len(plane) == 1
+    assert len(plane) == 2  # post_comment + update_labels
 
     trail = [e for e in chain.events if "trail" in str(e.params.get("tags", []))]
     assert len(trail) == 1

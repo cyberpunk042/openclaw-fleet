@@ -18,18 +18,34 @@ from fleet.mcp.tools import register_tools
 
 
 def create_server() -> FastMCP:
-    """Create and configure the Fleet MCP server."""
+    """Create and configure the Fleet MCP server.
+
+    Two-phase tool registration:
+    1. Generic fleet tools (all agents) — from tools.py
+    2. Role-specific group calls (per agent) — from roles/
+
+    The FLEET_AGENT env var determines which role-specific tools
+    are registered. Each agent only sees their own role's group calls
+    alongside the shared fleet tools.
+    """
     server = FastMCP(
         name="fleet",
         instructions=(
-            "Fleet operations tools for OpenClaw agents. "
+            "Fleet operations tools for OpenFleet agents. "
             "Use these to interact with Mission Control, create PRs, "
             "post to IRC, and manage your task lifecycle. "
             "Call fleet_read_context first to understand your task."
         ),
     )
 
+    # Phase 1: Generic fleet tools (all agents)
     register_tools(server)
+
+    # Phase 2: Role-specific group calls (per agent role)
+    from fleet.mcp.roles import register_role_tools
+    agent_name = os.environ.get("FLEET_AGENT", "")
+    if agent_name:
+        register_role_tools(server, agent_name)
 
     return server
 

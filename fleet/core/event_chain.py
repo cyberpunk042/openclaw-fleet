@@ -547,7 +547,14 @@ def build_accept_chain(
         task_id=task_id,
     )
 
-    # Plane — update state + post plan comment
+    # Plane — update state to In Progress
+    chain.add(EventSurface.PLANE, "update_issue_state", {
+        "issue_id": "",
+        "project_id": "",
+        "state": "In Progress",
+    }, required=False)
+
+    # Plane — post plan comment
     chain.add(EventSurface.PLANE, "post_comment", {
         "issue_id": "",
         "project_id": "",
@@ -645,6 +652,7 @@ def build_task_create_chain(
             "title": task_title,
             "description": f"Created by {creator} from OCMC. Type: {task_type or 'task'}.",
             "priority": "medium",
+            "label_ids": [],  # filled by caller with type/phase label IDs
         }, required=False)
 
     # IRC — already done by tool as primary action
@@ -773,6 +781,14 @@ def build_progress_chain(
             + (f"\nNext: {next_step[:80]}" if next_step else "")
         ),
     }, required=False)
+
+    # Plane — update readiness label (so Plane board shows current readiness)
+    if progress_pct > 0:
+        chain.add(EventSurface.PLANE, "update_labels", {
+            "issue_id": "",
+            "project_id": "",
+            "label_ids": [],  # filled by caller with actual readiness label ID
+        }, required=False)
 
     # IRC — only at significant checkpoints (50%, 90%)
     if progress_pct in (50, 90):
