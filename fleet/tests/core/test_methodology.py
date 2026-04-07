@@ -100,9 +100,12 @@ class TestGetInitialStage:
         stage = get_initial_stage("epic", has_verbatim_requirement=True, readiness=50)
         assert stage == Stage.ANALYSIS  # first non-conversation stage
 
-    def test_no_verbatim_starts_at_beginning(self):
+    def test_no_verbatim_still_maps_readiness(self):
+        # Readiness defines stage regardless of verbatim.
+        # PO set readiness=90 → reasoning stage (readiness_range [80,99)).
+        # Verbatim_skip rules don't fire, but readiness_range mapping does.
         stage = get_initial_stage("epic", has_verbatim_requirement=False, readiness=90)
-        assert stage == Stage.CONVERSATION  # no shortcut without verbatim
+        assert stage == Stage.REASONING
 
 
 class TestConversationChecks:

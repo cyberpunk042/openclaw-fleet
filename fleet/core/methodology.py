@@ -1,15 +1,27 @@
 """Methodology system — stage progression, protocol checks, readiness gate.
 
 The methodology system defines HOW agents work through phases on a task.
-Each task has a stage (conversation, analysis, investigation, reasoning, work)
-and a readiness percentage (0-100). Stages advance when their methodology
-checks pass and the PO confirms.
+Each task has a stage and a readiness percentage (0-100). Stages advance
+when their methodology checks pass and the PO confirms.
 
-Work protocol is only entered at readiness 99-100%.
+All stage definitions, readiness boundaries, task-type requirements, and
+tool restrictions are loaded from config/methodology.yaml — the single
+source of truth. PO can modify that file to add/remove/reorder stages,
+change boundaries, or customize per-task-type requirements.
 
-Stages are not always linear — different task types skip stages they
-don't need. An epic goes through every stage. A simple bug fix might
-skip straight to reasoning.
+Public API (unchanged — all consumers keep working):
+  Stage              — enum of stage names (built from config)
+  STAGE_ORDER        — ordered list of Stage values
+  DEFAULT_REQUIRED_STAGES — per-task-type required stages
+  VALID_READINESS    — discrete readiness values for Plane labels
+  get_required_stages(task_type, override) → list[Stage]
+  get_initial_stage(task_type, has_verbatim, readiness, override) → Stage
+  get_next_stage(current_stage, required_stages) → Stage | None
+  suggest_readiness_for_stage(stage) → int
+  snap_readiness(value) → int
+  StageCheck, StageCheckResult — check data structures
+  check_*_stage() — per-stage completion checks
+  MethodologyTracker — transition tracking with events
 """
 
 from __future__ import annotations
@@ -18,77 +30,103 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-
-class Stage(str, Enum):
-    """Methodology stages — protocols an agent follows."""
-    CONVERSATION = "conversation"
-    ANALYSIS = "analysis"
-    INVESTIGATION = "investigation"
-    REASONING = "reasoning"
-    WORK = "work"
+from fleet.core.methodology_config import get_methodology_config
 
 
-# Ordered progression — stages advance in this order (when not skipped)
-STAGE_ORDER: list[Stage] = [
-    Stage.CONVERSATION,
-    Stage.ANALYSIS,
-    Stage.INVESTIGATION,
-    Stage.REASONING,
-    Stage.WORK,
-]
+# ─── Dynamic Stage Enum ───────────────────────────────────────────────
+#
+# Built from config/methodology.yaml stage names.
+# If config has [conversation, analysis, investigation, reasoning, work],
+# this produces the same Stage enum as the old hardcoded version.
+# If PO adds a stage, it appears here automatically.
 
-# ─── Default stage requirements per task type ────────────────────────────
 
-# Which stages are required for each task type. PO or module can override.
+def _build_stage_enum() -> type:
+    """Build the Stage enum from config."""
+    try:
+        cfg = get_methodology_config()
+        members = {s.name.upper(): s.name for s in cfg.stages}
+    except Exception:
+        # Fallback if config not found (e.g., during tests without config)
+        members = {
+            "CONVERSATION": "conversation",
+            "ANALYSIS": "analysis",
+            "INVESTIGATION": "investigation",
+            "REASONING": "reasoning",
+            "WORK": "work",
+        }
+    return Enum("Stage", members, type=str)
 
-DEFAULT_REQUIRED_STAGES: dict[str, list[Stage]] = {
-    "epic": [
-        Stage.CONVERSATION,
-        Stage.ANALYSIS,
-        Stage.INVESTIGATION,
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "story": [
-        Stage.CONVERSATION,
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "task": [
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "subtask": [
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "bug": [
-        Stage.ANALYSIS,
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "spike": [
-        Stage.CONVERSATION,
-        Stage.INVESTIGATION,
-        Stage.REASONING,
-    ],
-    "blocker": [
-        Stage.CONVERSATION,
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "request": [
-        Stage.CONVERSATION,
-        Stage.ANALYSIS,
-        Stage.REASONING,
-        Stage.WORK,
-    ],
-    "concern": [
-        Stage.CONVERSATION,
-        Stage.ANALYSIS,
-        Stage.INVESTIGATION,
-    ],
-}
+
+Stage = _build_stage_enum()
+
+
+def _stage(name: str) -> "Stage":
+    """Convert a stage name string to a Stage enum value.
+
+    Handles both config-driven and hardcoded scenarios gracefully.
+    """
+    try:
+        return Stage(name)
+    except ValueError:
+        # Stage name not in enum — might be a custom stage added to config
+        # after the enum was built. Return as-is for forward compatibility.
+        return name  # type: ignore[return-value]
+
+
+# ─── Config-Derived Constants ─────────────────────────────────────────
+#
+# These module-level constants are rebuilt from config on import.
+# They exist for backward compatibility with consumers that import them
+# directly (e.g., `from fleet.core.methodology import STAGE_ORDER`).
+
+
+def _build_stage_order() -> list:
+    """Build STAGE_ORDER from config."""
+    try:
+        cfg = get_methodology_config()
+        return [_stage(s.name) for s in cfg.stages]
+    except Exception:
+        return [Stage.CONVERSATION, Stage.ANALYSIS, Stage.INVESTIGATION, Stage.REASONING, Stage.WORK]
+
+
+def _build_default_required_stages() -> dict:
+    """Build DEFAULT_REQUIRED_STAGES from config."""
+    try:
+        cfg = get_methodology_config()
+        result = {}
+        for tt_name, tt_def in cfg.task_types.items():
+            result[tt_name] = [_stage(s) for s in tt_def.required_stages]
+        return result
+    except Exception:
+        return {
+            "epic": [Stage.CONVERSATION, Stage.ANALYSIS, Stage.INVESTIGATION, Stage.REASONING, Stage.WORK],
+            "story": [Stage.CONVERSATION, Stage.REASONING, Stage.WORK],
+            "task": [Stage.REASONING, Stage.WORK],
+            "subtask": [Stage.REASONING, Stage.WORK],
+            "bug": [Stage.ANALYSIS, Stage.REASONING, Stage.WORK],
+            "spike": [Stage.CONVERSATION, Stage.INVESTIGATION, Stage.REASONING],
+            "blocker": [Stage.CONVERSATION, Stage.REASONING, Stage.WORK],
+            "request": [Stage.CONVERSATION, Stage.ANALYSIS, Stage.REASONING, Stage.WORK],
+            "concern": [Stage.CONVERSATION, Stage.ANALYSIS, Stage.INVESTIGATION],
+        }
+
+
+def _build_valid_readiness() -> list[int]:
+    """Build VALID_READINESS from config."""
+    try:
+        cfg = get_methodology_config()
+        return cfg.valid_readiness
+    except Exception:
+        return [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]
+
+
+STAGE_ORDER: list = _build_stage_order()
+DEFAULT_REQUIRED_STAGES: dict = _build_default_required_stages()
+VALID_READINESS: list[int] = _build_valid_readiness()
+
+
+# ─── Check Data Structures ────────────────────────────────────────────
 
 
 @dataclass
@@ -102,7 +140,7 @@ class StageCheck:
 @dataclass
 class StageCheckResult:
     """Result of evaluating all checks for a stage."""
-    stage: Stage
+    stage: object  # Stage enum value
     checks: list[StageCheck] = field(default_factory=list)
     can_advance: bool = False
 
@@ -119,10 +157,13 @@ class StageCheckResult:
         return all(c.passed for c in self.checks)
 
 
+# ─── Public API ───────────────────────────────────────────────────────
+
+
 def get_required_stages(
     task_type: str,
     override: Optional[list[str]] = None,
-) -> list[Stage]:
+) -> list:
     """Get the required stages for a task type.
 
     Args:
@@ -133,18 +174,23 @@ def get_required_stages(
         Ordered list of stages the task must go through.
     """
     if override:
-        return [Stage(s) for s in override if s in Stage.__members__.values()]
+        return [_stage(s) for s in override]
 
-    return DEFAULT_REQUIRED_STAGES.get(
-        task_type,
-        [Stage.REASONING, Stage.WORK],  # default: reason then work
-    )
+    try:
+        cfg = get_methodology_config()
+        ordered = cfg.required_stage_names(task_type)
+        return [_stage(s) for s in ordered]
+    except Exception:
+        return DEFAULT_REQUIRED_STAGES.get(
+            task_type,
+            [_stage("reasoning"), _stage("work")],
+        )
 
 
 def get_next_stage(
     current_stage: str,
-    required_stages: list[Stage],
-) -> Optional[Stage]:
+    required_stages: list,
+) -> Optional[object]:
     """Get the next stage in the progression.
 
     Args:
@@ -154,23 +200,29 @@ def get_next_stage(
     Returns:
         The next required stage, or None if current is the last stage.
     """
-    try:
-        current = Stage(current_stage)
-    except ValueError:
-        return required_stages[0] if required_stages else None
+    # Normalize to string for comparison
+    current_val = current_stage.value if hasattr(current_stage, 'value') else str(current_stage)
+    required_vals = [s.value if hasattr(s, 'value') else str(s) for s in required_stages]
 
-    if current not in required_stages:
+    if current_val not in required_vals:
         # Current stage isn't in required list — find first required stage
         # that comes after current in the global order
-        current_idx = STAGE_ORDER.index(current) if current in STAGE_ORDER else -1
-        for stage in required_stages:
-            if STAGE_ORDER.index(stage) > current_idx:
-                return stage
+        try:
+            cfg = get_methodology_config()
+            stage_names = cfg.stage_names()
+        except Exception:
+            stage_names = [s.value if hasattr(s, 'value') else str(s) for s in STAGE_ORDER]
+
+        current_idx = stage_names.index(current_val) if current_val in stage_names else -1
+        for rv in required_vals:
+            rv_idx = stage_names.index(rv) if rv in stage_names else -1
+            if rv_idx > current_idx:
+                return _stage(rv)
         return None
 
-    idx = required_stages.index(current)
-    if idx + 1 < len(required_stages):
-        return required_stages[idx + 1]
+    idx = required_vals.index(current_val)
+    if idx + 1 < len(required_vals):
+        return _stage(required_vals[idx + 1])
     return None
 
 
@@ -179,35 +231,116 @@ def get_initial_stage(
     has_verbatim_requirement: bool = False,
     readiness: int = 0,
     override: Optional[list[str]] = None,
-) -> Stage:
-    """Determine the initial stage for a new task.
+) -> object:
+    """Determine the initial stage for a task.
 
-    A task with clear verbatim requirements and higher readiness may
-    start at a later stage. A task with nothing starts at the first
-    required stage.
+    Logic (config-driven):
+    1. Get required stages for this task_type
+    2. If no metadata at all (no type, readiness=0, no verbatim),
+       return defaults.no_metadata_stage
+    3. If verbatim exists, check verbatim_skip rules (highest threshold first)
+       — skip to the target stage if readiness >= threshold
+    4. Otherwise, map readiness to a stage via readiness_range,
+       then find the nearest required stage at or before that position
+
+    Args:
+        task_type: The task type (epic, story, task, etc.)
+        has_verbatim_requirement: Whether requirement_verbatim is populated
+        readiness: Task readiness percentage (0-100)
+        override: Optional explicit stage list
     """
     required = get_required_stages(task_type, override)
     if not required:
-        return Stage.REASONING
+        return _stage("reasoning")
 
-    # If readiness is already high and verbatim exists, start later
-    if readiness >= 90 and has_verbatim_requirement:
-        # Skip to reasoning or work
-        if Stage.WORK in required and readiness >= 99:
-            return Stage.WORK
-        if Stage.REASONING in required:
-            return Stage.REASONING
+    try:
+        cfg = get_methodology_config()
+    except Exception:
+        # Config unavailable — use simple fallback
+        return required[0]
 
-    if readiness >= 50 and has_verbatim_requirement:
-        # Skip conversation, start at analysis or investigation
-        for stage in required:
-            if stage != Stage.CONVERSATION:
-                return stage
+    required_names = [s.value if hasattr(s, 'value') else str(s) for s in required]
+    stage_names = cfg.stage_names()
 
+    # Case 1: Zero metadata — under-specified task.
+    # Override to no_metadata_stage regardless of required stages.
+    # An under-specified task NEEDS conversation even if the default
+    # task type doesn't list it — the PO hasn't written requirements yet.
+    if readiness == 0 and not has_verbatim_requirement and not task_type:
+        return _stage(cfg.no_metadata_stage)
+
+    # Case 2: Verbatim exists — check skip rules
+    if has_verbatim_requirement:
+        for rule in cfg.verbatim_skip:  # sorted highest threshold first
+            if readiness >= rule.threshold:
+                target = rule.target_stage
+                if target in required_names:
+                    return _stage(target)
+                # Target not in required stages — find nearest required
+                # stage at or after the target in stage order
+                target_idx = stage_names.index(target) if target in stage_names else -1
+                for rn in required_names:
+                    rn_idx = stage_names.index(rn) if rn in stage_names else -1
+                    if rn_idx >= target_idx:
+                        return _stage(rn)
+                # No required stage at or after target — use last required
+                return required[-1]
+
+    # Case 3: Map readiness to stage via readiness_range
+    readiness_stage = cfg.stage_for_readiness(readiness)
+    if readiness_stage:
+        target_name = readiness_stage.name
+        # Find the required stage at or before this position
+        target_idx = stage_names.index(target_name) if target_name in stage_names else 0
+
+        # Walk backward from target to find the latest required stage
+        # that's at or before the readiness-mapped stage
+        best = None
+        for rn in required_names:
+            rn_idx = stage_names.index(rn) if rn in stage_names else -1
+            if rn_idx <= target_idx:
+                best = rn
+        if best:
+            return _stage(best)
+
+    # Default: first required stage
     return required[0]
 
 
-# ─── Stage checks ──────────────────────────────────────────────────────
+def suggest_readiness_for_stage(stage) -> int:
+    """Suggest a readiness percentage based on the current stage.
+
+    These are suggestions, not rules. The PO sets the actual value.
+    """
+    stage_name = stage.value if hasattr(stage, 'value') else str(stage)
+    try:
+        cfg = get_methodology_config()
+        s = cfg.stage_by_name(stage_name)
+        if s:
+            return s.suggested_readiness
+    except Exception:
+        pass
+    # Fallback
+    fallback = {"conversation": 10, "analysis": 30, "investigation": 50, "reasoning": 80, "work": 99}
+    return fallback.get(stage_name, 0)
+
+
+def snap_readiness(value: int) -> int:
+    """Snap a readiness value to the nearest valid value."""
+    try:
+        cfg = get_methodology_config()
+        valid = cfg.valid_readiness
+    except Exception:
+        valid = VALID_READINESS
+    return min(valid, key=lambda v: abs(v - value))
+
+
+# ─── Stage checks ────────────────────────────────────────────────────
+#
+# These check functions are stage-specific completion criteria.
+# They remain here because they contain business logic, not config data.
+# The config tells you WHAT stages exist and WHEN to enter them.
+# These checks tell you WHEN a stage is COMPLETE (can advance).
 
 
 def check_conversation_stage(
@@ -233,7 +366,7 @@ def check_conversation_stage(
             passed=open_questions == 0,
         ),
     ]
-    result = StageCheckResult(stage=Stage.CONVERSATION, checks=checks)
+    result = StageCheckResult(stage=_stage("conversation"), checks=checks)
     result.can_advance = result.all_passed
     return result
 
@@ -255,7 +388,7 @@ def check_analysis_stage(
             passed=po_reviewed,
         ),
     ]
-    result = StageCheckResult(stage=Stage.ANALYSIS, checks=checks)
+    result = StageCheckResult(stage=_stage("analysis"), checks=checks)
     result.can_advance = result.all_passed
     return result
 
@@ -283,7 +416,7 @@ def check_investigation_stage(
             passed=po_reviewed,
         ),
     ]
-    result = StageCheckResult(stage=Stage.INVESTIGATION, checks=checks)
+    result = StageCheckResult(stage=_stage("investigation"), checks=checks)
     result.can_advance = result.all_passed
     return result
 
@@ -317,7 +450,7 @@ def check_reasoning_stage(
             passed=po_confirmed_plan,
         ),
     ]
-    result = StageCheckResult(stage=Stage.REASONING, checks=checks)
+    result = StageCheckResult(stage=_stage("reasoning"), checks=checks)
     result.can_advance = result.all_passed
     return result
 
@@ -357,39 +490,12 @@ def check_work_stage(
             passed=required_tools_called,
         ),
     ]
-    result = StageCheckResult(stage=Stage.WORK, checks=checks)
+    result = StageCheckResult(stage=_stage("work"), checks=checks)
     result.can_advance = result.all_passed
     return result
 
 
-# ─── Readiness suggestion ──────────────────────────────────────────────
-
-# Valid readiness values (matching Plane labels)
-VALID_READINESS = [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]
-
-
-def suggest_readiness_for_stage(stage: Stage) -> int:
-    """Suggest a readiness percentage based on the current stage.
-
-    These are suggestions, not rules. The PO sets the actual value.
-    Strategic checkpoints at 0, 50, 90.
-    """
-    suggestions = {
-        Stage.CONVERSATION: 10,
-        Stage.ANALYSIS: 30,
-        Stage.INVESTIGATION: 50,
-        Stage.REASONING: 80,
-        Stage.WORK: 99,
-    }
-    return suggestions.get(stage, 0)
-
-
-def snap_readiness(value: int) -> int:
-    """Snap a readiness value to the nearest valid value."""
-    return min(VALID_READINESS, key=lambda v: abs(v - value))
-
-
-# ─── Stage Transition Tracking (B07: Observability) ─────────────────────
+# ─── Stage Transition Tracking (B07: Observability) ───────────────────
 
 
 @dataclass

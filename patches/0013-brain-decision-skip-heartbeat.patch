@@ -1,0 +1,36 @@
+diff --git a/src/infra/heartbeat-runner.ts b/src/infra/heartbeat-runner.ts
+index b4c863b9ca..fedd0dabb7 100644
+--- a/src/infra/heartbeat-runner.ts
++++ b/src/infra/heartbeat-runner.ts
+@@ -729,6 +729,31 @@ export async function runHeartbeatOnce(opts: {
+           bootstrapContextMode,
+         }
+       : { isHeartbeat: true, suppressToolErrorWarnings, bootstrapContextMode };
++
++    // Fleet brain gate: check .brain-decision.json before calling Claude.
++    // If the fleet orchestrator wrote decision="silent", skip the expensive LLM call.
++    try {
++      const brainPath = path.join(workspaceDir, ".brain-decision.json");
++      const brainRaw = await fs.readFile(brainPath, "utf-8");
++      const brainDecision = JSON.parse(brainRaw);
++      const brainAge = Date.now() - new Date(brainDecision.timestamp).getTime();
++      if (brainDecision.decision === "silent" && brainAge < 5 * 60 * 1000) {
++        await restoreHeartbeatUpdatedAt({ storePath, sessionKey, updatedAt: previousUpdatedAt });
++        const okSent = await maybeSendHeartbeatOk();
++        emitHeartbeatEvent({
++          status: "ok-empty",
++          reason: "brain-silent",
++          durationMs: Date.now() - startedAt,
++          channel: delivery.channel !== "none" ? delivery.channel : undefined,
++          accountId: delivery.accountId,
++          silent: !okSent,
++        });
++        return { status: "ran", durationMs: Date.now() - startedAt };
++      }
++    } catch {
++      // No decision file or invalid — proceed normally
++    }
++
+     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
+     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
+     const includeReasoning = heartbeat?.includeReasoning === true;

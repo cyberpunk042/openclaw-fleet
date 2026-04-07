@@ -128,27 +128,31 @@ def detect_protocol_violation(
     if not task_stage:
         return None
 
-    # Tools that indicate work (code production)
-    work_tools = {"fleet_commit", "fleet_task_complete"}
-    # Stages where work tools are not allowed
-    non_work_stages = {
-        Stage.CONVERSATION.value,
-        Stage.ANALYSIS.value,
-        Stage.INVESTIGATION.value,
-    }
+    # Detect work tools called in stages where they're blocked.
+    # Uses config/methodology.yaml tool restrictions instead of hardcoded sets.
+    try:
+        from fleet.core.methodology_config import get_methodology_config
+        cfg = get_methodology_config()
+        violations = set()
+        for tool in tool_calls:
+            if cfg.is_tool_blocked(task_stage, tool):
+                violations.add(tool)
+    except Exception:
+        # Fallback: hardcoded check if config unavailable
+        work_tools = {"fleet_commit", "fleet_task_complete"}
+        non_work_stages = {"conversation", "analysis", "investigation"}
+        violations = work_tools.intersection(set(tool_calls)) if task_stage in non_work_stages else set()
 
-    if task_stage in non_work_stages:
-        violations = work_tools.intersection(set(tool_calls))
-        if violations:
-            return Detection(
-                agent_name=agent_name,
-                task_id=task_id,
-                disease=DiseaseCategory.PROTOCOL_VIOLATION,
-                severity=Severity.MEDIUM,
-                signal=f"Work tools called during {task_stage} stage",
-                evidence=f"Tools: {', '.join(violations)}",
-                suggested_action=ResponseAction.TRIGGER_TEACHING,
-            )
+    if violations:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.PROTOCOL_VIOLATION,
+            severity=Severity.MEDIUM,
+            signal=f"Work tools called during {task_stage} stage",
+            evidence=f"Tools: {', '.join(violations)}",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
 
     return None
 

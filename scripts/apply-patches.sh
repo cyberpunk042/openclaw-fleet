@@ -25,8 +25,20 @@ for patch in "$PATCHES_DIR"/*.patch; do
     [[ -f "$patch" ]] || continue
     name=$(basename "$patch")
 
-    # Read target from first line comment or default to OCMC
-    target="$FLEET_DIR/vendor/openclaw-mission-control"
+    # Route patches to the correct vendor directory.
+    # Gateway patches (heartbeat-runner, etc.) target vendor/openclaw.
+    # All others target vendor/openclaw-mission-control (MC backend/frontend).
+    if grep -q "src/infra/heartbeat-runner" "$patch" 2>/dev/null; then
+        target="$FLEET_DIR/vendor/openclaw"
+    else
+        target="$FLEET_DIR/vendor/openclaw-mission-control"
+    fi
+
+    if [[ ! -d "$target" ]]; then
+        echo "  SKIP: $name (target $target not found)"
+        skipped=$((skipped + 1))
+        continue
+    fi
 
     # Check if already applied (git apply --check with --reverse)
     if cd "$target" && git apply --check --reverse "$patch" 2>/dev/null; then

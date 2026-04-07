@@ -125,25 +125,14 @@ def _emit_event(
 
 # ─── Methodology Stage Enforcement ─────────────────────────────────────
 
-# Tools restricted to specific methodology stages.
-# Tools not listed here are allowed in ALL stages.
-
-# fleet_task_complete: only in work stage (task must be fully done)
-WORK_ONLY_TOOLS = {"fleet_task_complete"}
-
-# fleet_commit: allowed in stages 2-5 (agents produce artifacts in all
-# post-conversation stages: analysis docs, investigation reports, plans, code)
-COMMIT_ALLOWED_STAGES = {"analysis", "investigation", "reasoning", "work"}
-
-REASONING_AND_WORK_TOOLS = {"fleet_task_accept"}  # plan submission
-
-# Stages where work tools are allowed
-WORK_STAGES = {"work", "reasoning"}  # reasoning allows plan submission
+# Tool stage restrictions are loaded from config/methodology.yaml.
+# Each stage has a tools_blocked list. Tools not blocked are allowed.
 
 
 def _check_stage_allowed(tool_name: str) -> dict | None:
     """Check if the current methodology stage allows this tool.
 
+    Reads tool restrictions from config/methodology.yaml.
     Returns None if allowed, or an error dict if blocked.
     """
     ctx = _get_ctx()
@@ -156,45 +145,42 @@ def _check_stage_allowed(tool_name: str) -> dict | None:
     if not stage:
         return None  # no stage set — allow (backward compatible)
 
-    if tool_name in WORK_ONLY_TOOLS and stage != "work":
-        _emit_event(
-            "fleet.methodology.protocol_violation",
-            subject=task_id,
-            tool=tool_name,
-            stage=stage,
-            violation=f"{tool_name} called during {stage} stage",
-        )
-        return {
-            "ok": False,
-            "error": (
-                f"Methodology violation: {tool_name} is only allowed during "
-                f"work stage. Your task is in '{stage}' stage. "
-                f"Complete the {stage} protocol first."
-            ),
-            "stage": stage,
-            "allowed_stages": ["work"],
-        }
+    try:
+        from fleet.core.methodology_config import get_methodology_config
+        cfg = get_methodology_config()
+    except Exception:
+        return None  # config unavailable — allow (backward compatible)
 
-    if tool_name == "fleet_commit" and stage not in COMMIT_ALLOWED_STAGES:
-        _emit_event(
-            "fleet.methodology.protocol_violation",
-            subject=task_id,
-            tool=tool_name,
-            stage=stage,
-            violation=f"{tool_name} called during {stage} stage",
-        )
-        return {
-            "ok": False,
-            "error": (
-                f"Methodology violation: {tool_name} is not allowed during "
-                f"'{stage}' stage. Commits are allowed in analysis, "
-                f"investigation, reasoning, and work stages."
-            ),
-            "stage": stage,
-            "allowed_stages": sorted(COMMIT_ALLOWED_STAGES),
-        }
+    if not cfg.is_tool_blocked(stage, tool_name):
+        return None  # tool is allowed in this stage
 
-    return None
+    # Tool is blocked — build error response
+    stage_def = cfg.stage_by_name(stage)
+    blocked_tools = list(stage_def.tools_blocked) if stage_def else []
+
+    # Find which stages DO allow this tool
+    allowed_stages = [
+        s.name for s in cfg.stages
+        if tool_name not in s.tools_blocked
+    ]
+
+    _emit_event(
+        "fleet.methodology.protocol_violation",
+        subject=task_id,
+        tool=tool_name,
+        stage=stage,
+        violation=f"{tool_name} called during {stage} stage",
+    )
+    return {
+        "ok": False,
+        "error": (
+            f"Methodology violation: {tool_name} is not allowed during "
+            f"'{stage}' stage. Allowed stages: {', '.join(allowed_stages)}. "
+            f"Follow the {stage} protocol first."
+        ),
+        "stage": stage,
+        "allowed_stages": allowed_stages,
+    }
 
 
 def register_tools(server: FastMCP) -> None:

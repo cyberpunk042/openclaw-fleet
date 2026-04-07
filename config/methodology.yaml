@@ -1,0 +1,300 @@
+# config/methodology.yaml — Single source of truth for methodology stages
+#
+# This file defines HOW agents work through tasks. The orchestrator,
+# MCP tools, doctor, preembed, and context assembly ALL read from here.
+#
+# PO can modify this file to:
+#   - Add, remove, or reorder stages
+#   - Change readiness boundaries per stage
+#   - Update protocol instructions (what agents see)
+#   - Customize tool restrictions per stage
+#   - Change per-task-type stage requirements
+#   - Adjust defaults for under-specified tasks
+#
+# After modifying: restart the orchestrator daemon for changes to take effect.
+# No code changes required.
+
+# ─── Stage Definitions ─────────────────────────────────────────────────
+#
+# Ordered list. Position = progression order.
+# readiness_range: [inclusive_min, exclusive_max)
+#   - Ranges must not overlap and must cover 0-100
+#   - The orchestrator maps task_readiness to a stage using these ranges
+#
+# tools_blocked: tools that CANNOT be called during this stage
+#   - Tools not listed are allowed
+#   - The MCP server enforces this — blocked tools return an error
+#   - The doctor detects violations after the fact (immune system)
+#
+# suggested_readiness: what the PO typically sets when a task enters this stage
+#   - Advisory only — the PO sets the actual value
+#
+# protocol: full instructions injected into agent context
+#   - The agent sees this text when dispatched or heartbeating with a task in this stage
+#   - Be explicit about what the agent MUST do, MUST NOT do, and CAN produce
+
+stages:
+  - name: conversation
+    readiness_range: [0, 20]
+    description: "Discuss with PO to understand requirements"
+    summary: "Discussing with PO — do NOT produce code"
+    suggested_readiness: 10
+    tools_blocked:
+      - fleet_commit
+      - fleet_task_complete
+      - fleet_task_accept
+    protocol: |
+      ## Current Stage: CONVERSATION
+
+      You are in the conversation protocol. Your task is NOT ready for work.
+
+      ### What you MUST do:
+      - DISCUSS with the PO to understand the requirements
+      - Ask SPECIFIC questions about anything unclear
+      - Identify and STATE what you don't understand
+      - Propose your understanding and accept correction
+      - Extract knowledge and meaning from the PO
+
+      ### What you MUST NOT do:
+      - Do NOT write code
+      - Do NOT commit changes
+      - Do NOT create PRs
+      - Do NOT produce finished deliverables
+      - Do NOT call fleet_commit or fleet_task_complete
+
+      ### What you CAN produce:
+      - Questions in task comments
+      - Draft proposals for PO review
+      - Work-in-progress analysis (clearly marked as draft)
+
+      ### How to advance:
+      - The PO confirms your understanding
+      - The PO increases readiness
+      - Verbatim requirement is populated and clear
+      - No open questions remain
+
+      Your job is to UNDERSTAND, not to BUILD.
+
+  - name: analysis
+    readiness_range: [20, 50]
+    description: "Examine what exists in the codebase"
+    summary: "Analyzing codebase — produce analysis document"
+    suggested_readiness: 30
+    tools_blocked:
+      - fleet_task_complete
+    protocol: |
+      ## Current Stage: ANALYSIS
+
+      You are in the analysis protocol. Examine what exists.
+
+      ### What you MUST do:
+      - Read and examine the codebase, existing implementation, architecture
+      - Produce an analysis document (iterative, work-in-progress)
+      - Reference SPECIFIC files and line numbers — not vague descriptions
+      - Present findings to the PO via task comments
+      - Identify implications for the task
+
+      ### What you MUST NOT do:
+      - Do NOT produce solutions (that's reasoning stage)
+      - Do NOT write implementation code
+      - Do NOT call fleet_task_complete
+
+      ### What you CAN produce:
+      - Analysis documents with file references
+      - Current state assessments
+      - Gap analysis
+      - Dependency mapping
+      - Impact analysis
+      - Commits of analysis documents (fleet_commit allowed)
+
+      ### How to advance:
+      - Analysis document exists and covers the relevant codebase areas
+      - PO reviewed the findings
+      - Implications for the task are clear
+
+      Your job is to UNDERSTAND WHAT EXISTS, not to solve the problem.
+
+  - name: investigation
+    readiness_range: [50, 80]
+    description: "Research what's possible, explore options"
+    summary: "Researching options — explore multiple approaches"
+    suggested_readiness: 50
+    tools_blocked:
+      - fleet_task_complete
+    protocol: |
+      ## Current Stage: INVESTIGATION
+
+      You are in the investigation protocol. Research what's possible.
+
+      ### What you MUST do:
+      - Research solutions, explore options, examine prior art
+      - Produce an investigation document with findings
+      - Explore MULTIPLE options — not just the first one you find
+      - Cite sources where applicable
+      - Present findings to the PO
+
+      ### What you MUST NOT do:
+      - Do NOT decide on an approach (that's reasoning stage)
+      - Do NOT write implementation code
+      - Do NOT call fleet_task_complete
+
+      ### What you CAN produce:
+      - Research findings organized by topic
+      - Option comparisons with tradeoffs
+      - Technical exploration documents
+      - Platform capability assessments
+      - Commits of investigation documents (fleet_commit allowed)
+
+      ### How to advance:
+      - Research document exists with multiple options explored
+      - PO reviewed the findings
+      - Enough information to make a decision in reasoning stage
+
+      Your job is to EXPLORE OPTIONS, not to decide.
+
+  - name: reasoning
+    readiness_range: [80, 99]
+    description: "Plan approach based on requirements + analysis + investigation"
+    summary: "Planning approach — produce plan for PO confirmation"
+    suggested_readiness: 80
+    tools_blocked:
+      - fleet_task_complete
+    protocol: |
+      ## Current Stage: REASONING
+
+      You are in the reasoning protocol. Plan your approach.
+
+      ### What you MUST do:
+      - Decide on an approach based on requirements + analysis + investigation
+      - Produce an implementation plan
+      - The plan MUST reference the verbatim requirement explicitly
+      - Specify target files and components
+      - Map acceptance criteria to specific implementation steps
+      - Present the plan to the PO for confirmation
+
+      ### What you MUST NOT do:
+      - Do NOT start implementing yet
+      - Do NOT call fleet_task_complete
+
+      ### What you CAN produce:
+      - Implementation plans with specific file/component references
+      - Design decisions with justification
+      - Task breakdown (subtasks if needed via fleet_task_create)
+      - Acceptance criteria mapping
+      - Commits of planning documents (fleet_commit allowed)
+      - Plan submission (fleet_task_accept allowed)
+
+      ### How to advance:
+      - Plan exists and references the verbatim requirement
+      - Plan specifies target files
+      - PO confirmed the plan
+      - Readiness reaches 99-100%
+
+      Your job is to PLAN, not to execute.
+
+  - name: work
+    readiness_range: [99, 101]
+    description: "Execute the confirmed plan"
+    summary: "Executing confirmed plan — follow tool sequence"
+    suggested_readiness: 99
+    tools_blocked: []
+    protocol: |
+      ## Current Stage: WORK
+
+      You are in the work protocol. Execute the confirmed plan.
+
+      ### What you MUST do:
+      - Execute the plan that was confirmed in reasoning stage
+      - Follow existing conventions: conventional commits, proper testing
+      - Stay within scope — work from the verbatim requirement and confirmed plan
+      - Call fleet_read_context first to load task context
+      - Call fleet_task_accept with your plan
+      - Call fleet_commit for each logical change
+      - Call fleet_task_complete when done
+
+      ### What you MUST NOT do:
+      - Do NOT deviate from the confirmed plan
+      - Do NOT add unrequested scope ("while I'm here" changes)
+      - Do NOT modify files outside the plan's target files
+      - Do NOT skip tests
+
+      ### Required tool sequence:
+      1. fleet_read_context (load task + methodology state)
+      2. fleet_task_accept (confirm plan)
+      3. fleet_commit (one or more — conventional format)
+      4. fleet_task_complete (push, PR, review)
+
+      ### Standards:
+      - Conventional commit format
+      - Task ID in commit messages
+      - Tests for new functionality
+      - PR with description referencing the task
+
+      Your job is to EXECUTE THE PLAN, not to redesign.
+
+# ─── Task Type Requirements ────────────────────────────────────────────
+#
+# Which stages each task type must go through.
+# Only stages listed here are required — others are skipped.
+# Stages are followed in the order defined above, not the order listed here.
+#
+# Example: a "bug" requires [analysis, reasoning, work].
+#   At readiness 0, it starts at analysis (first required stage).
+#   At readiness 85, it starts at reasoning.
+#   At readiness 99, it starts at work.
+
+task_types:
+  epic:
+    required_stages: [conversation, analysis, investigation, reasoning, work]
+  story:
+    required_stages: [conversation, reasoning, work]
+  task:
+    required_stages: [reasoning, work]
+  subtask:
+    required_stages: [reasoning, work]
+  bug:
+    required_stages: [analysis, reasoning, work]
+  spike:
+    required_stages: [conversation, investigation, reasoning]
+  blocker:
+    required_stages: [conversation, reasoning, work]
+  request:
+    required_stages: [conversation, analysis, reasoning, work]
+  concern:
+    required_stages: [conversation, analysis, investigation]
+
+# ─── Defaults ──────────────────────────────────────────────────────────
+
+defaults:
+  # When task_type is not set, use these required stages
+  no_type_stages: [reasoning, work]
+
+  # When task has zero metadata (no type, no readiness, no verbatim),
+  # override the normal mapping and start at this stage.
+  # This ensures under-specified tasks go to conversation (ask questions)
+  # rather than reasoning (plan with nothing).
+  no_metadata_stage: conversation
+
+  # Stage skipping thresholds when verbatim requirement exists.
+  # These allow tasks with clear requirements to skip early stages.
+  #
+  # Logic: if readiness >= threshold AND verbatim exists,
+  #        skip to the target stage (or nearest required stage after it).
+  #
+  # Evaluated in order from highest threshold to lowest.
+  # First match wins.
+  verbatim_skip:
+    - threshold: 99
+      target_stage: work
+    - threshold: 90
+      target_stage: reasoning
+    - threshold: 50
+      target_stage: analysis   # skips conversation
+
+# ─── Valid Readiness Values ────────────────────────────────────────────
+#
+# Discrete values matching Plane labels.
+# snap_readiness() rounds to the nearest value in this list.
+# Plane labels are generated as "readiness:N" for each value.
+
+valid_readiness: [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]

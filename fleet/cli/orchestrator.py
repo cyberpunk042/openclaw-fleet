@@ -1180,7 +1180,9 @@ async def _dispatch_ready_tasks(
     except Exception:
         pass
 
-    # Methodology gate: separate work-ready tasks from earlier-stage tasks
+    # Methodology: ALL assigned inbox tasks are dispatched. Readiness does NOT gate
+    # dispatch — it determines the methodology STAGE (what kind of work the agent does).
+    # The orchestrator auto-sets task_stage from readiness via config/methodology.yaml.
     all_inbox = [
         t for t in tasks
         if t.status == TaskStatus.INBOX
@@ -1188,22 +1190,47 @@ async def _dispatch_ready_tasks(
         and not t.is_blocked
     ]
 
-    # Work-ready tasks (readiness >= 99) — dispatched for execution
-    inbox_tasks = [t for t in all_inbox if t.custom_fields.task_readiness >= 99]
+    # Auto-set task_stage on each task based on readiness + task_type + verbatim.
+    # This is the bridge between the PO setting readiness and the agent seeing
+    # stage protocol instructions. The config readiness_ranges determine the mapping.
+    try:
+        from fleet.core.methodology import get_initial_stage
+        for t in all_inbox:
+            cf = t.custom_fields
+            task_type = cf.task_type or ""
+            readiness = cf.task_readiness or 0
+            has_verbatim = bool(cf.requirement_verbatim)
+            new_stage = get_initial_stage(task_type, has_verbatim, readiness)
+            stage_name = new_stage.value if hasattr(new_stage, 'value') else str(new_stage)
 
-    # Earlier-stage tasks — not dispatched for work, but tracked
-    methodology_pending = [t for t in all_inbox if t.custom_fields.task_readiness < 99]
-    if methodology_pending:
+            # Set task_stage if not already set, or if readiness changed the stage
+            current_stage = cf.task_stage or ""
+            if current_stage != stage_name:
+                cf.task_stage = stage_name
+                # Persist to MC so the agent and UI see the stage
+                try:
+                    await mc.update_task(
+                        board_id, t.id,
+                        custom_fields={"task_stage": stage_name},
+                    )
+                except Exception:
+                    pass  # Stage update must not block dispatch
+    except Exception as e:
+        state.errors.append(f"Stage auto-set failed: {e}")
+
+    # Log stage distribution
+    if all_inbox:
         stages = {}
-        for t in methodology_pending:
+        for t in all_inbox:
             stage = t.custom_fields.task_stage or "no-stage"
             stages.setdefault(stage, 0)
             stages[stage] += 1
         stage_summary = ", ".join(f"{s}:{n}" for s, n in sorted(stages.items()))
         state.notes.append(
-            f"Methodology: {len(methodology_pending)} tasks below readiness 99% "
-            f"({stage_summary})"
+            f"Dispatch pool: {len(all_inbox)} tasks ({stage_summary})"
         )
+
+    inbox_tasks = all_inbox
 
     # Smart scoring — considers priority, dependency chain, wait time, task type
     scored = rank_tasks(inbox_tasks, tasks)
@@ -1285,12 +1312,38 @@ async def _dispatch_ready_tasks(
                 except Exception:
                     pass  # Pre-embed injection must not break dispatch
 
+                # Instant wake — write "wake" brain decision so the gateway
+                # HeartbeatRunner fires a real Claude call instead of silent.
+                # Also call MC heartbeat to mark agent alive and reset CRON.
+                stage = task.custom_fields.task_stage or "work"
+                try:
+                    from fleet.core.brain_writer import _write_decision
+                    from fleet.core.heartbeat_gate import HeartbeatDecision, HeartbeatEvaluation, HeartbeatReason
+                    _write_decision(
+                        os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent)),
+                        [agent], agent.name,
+                        HeartbeatEvaluation(
+                            decision=HeartbeatDecision.WAKE,
+                            reasons=[HeartbeatReason(
+                                trigger="task_dispatched",
+                                details=f"{task.title[:50]} ({stage})",
+                                urgency="high",
+                            )],
+                        ),
+                    )
+                    await mc.heartbeat_agent(agent.id, message=f"(dispatch: {stage})")
+                    # Wake lifecycle state — reset CRON timer, set ACTIVE
+                    agent_state = _fleet_lifecycle.get_or_create(agent.name)
+                    agent_state.wake(datetime.now())
+                except Exception:
+                    pass  # Wake must not break dispatch
+
                 await _notify(irc, "#fleet",
                     f"[orchestrator] \U0001f680 DISPATCHED: "
-                    f"{task.title[:50]} \u2192 {agent.name}")
+                    f"{task.title[:50]} \u2192 {agent.name} ({stage})")
                 await _notify_human(
                     title=f"Dispatched: {task.title[:40]} → {agent.name}",
-                    message=f"Task dispatched to {agent.name}. Priority: {task.priority}.",
+                    message=f"Task dispatched to {agent.name}. Stage: {stage}. Priority: {task.priority}.",
                     event_type="task_done",
                 )
         except Exception as e:

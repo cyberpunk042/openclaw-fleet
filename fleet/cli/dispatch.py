@@ -370,6 +370,10 @@ def _update_agent_settings(fleet_dir: str, agent, model_config) -> None:
 
 def _build_message(task, task_id, board_id, project, work_dir, agent_name) -> str:
     """Build the dispatch message."""
+    cf = task.custom_fields
+    stage = cf.task_stage or "unknown"
+    readiness = cf.task_readiness or 0
+
     lines = [
         "NEW TASK ASSIGNMENT",
         "",
@@ -377,7 +381,17 @@ def _build_message(task, task_id, board_id, project, work_dir, agent_name) -> st
         f"Board ID: {board_id}",
         f"Title: {task.title}",
         f"Priority: {task.priority}",
+        f"Stage: {stage} (readiness: {readiness}%)",
     ]
+
+    # Stage summary — tells the agent what protocol to follow immediately
+    try:
+        from fleet.core.stage_context import get_stage_summary
+        summary = get_stage_summary(stage)
+        if summary:
+            lines.append(f"Protocol: {summary}")
+    except Exception:
+        pass
 
     if work_dir:
         lines.extend([
@@ -395,6 +409,7 @@ def _build_message(task, task_id, board_id, project, work_dir, agent_name) -> st
         "",
         f'FIRST: Call fleet_read_context(task_id="{task_id}", project="{project}") to load your context.',
         "Then follow the fleet tool workflow in your SOUL.md.",
+        f"Your current methodology stage is '{stage}'. Follow the {stage} protocol.",
     ])
 
     return "\n".join(lines)

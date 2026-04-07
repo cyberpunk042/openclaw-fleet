@@ -15,11 +15,15 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-# Valid readiness percentages (not a continuous 0-100 — specific values)
-VALID_READINESS = [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]
-
-# Valid stages
-VALID_STAGES = ["conversation", "analysis", "investigation", "reasoning", "work"]
+# Valid readiness and stages — loaded from config/methodology.yaml
+try:
+    from fleet.core.methodology_config import get_methodology_config as _get_cfg
+    _cfg = _get_cfg()
+    VALID_READINESS = _cfg.valid_readiness
+    VALID_STAGES = _cfg.stage_names()
+except Exception:
+    VALID_READINESS = [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]
+    VALID_STAGES = ["conversation", "analysis", "investigation", "reasoning", "work"]
 
 # Label prefixes
 STAGE_PREFIX = "stage:"
