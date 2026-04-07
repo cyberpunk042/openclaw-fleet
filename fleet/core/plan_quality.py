@@ -138,3 +138,119 @@ def format_plan_feedback(assessment: PlanAssessment) -> str:
         lines.append("\nPlan needs improvement before starting work.")
 
     return "\n".join(lines)
+
+
+# ─── Verbatim Reference Check ────────────────────────────────────────
+
+
+@dataclass
+class VerbatimReferenceResult:
+    """Result of checking if a plan references the verbatim requirement."""
+
+    references_verbatim: bool
+    matched_terms: list[str]
+    total_key_terms: int
+    coverage_pct: float
+    warning: str = ""
+
+
+def check_plan_references_verbatim(
+    plan_text: str,
+    verbatim: str,
+) -> VerbatimReferenceResult:
+    """Check if a plan references the verbatim requirement.
+
+    The plan MUST reference the PO's verbatim words — this is the
+    anchor that prevents deviation. A plan that doesn't mention the
+    verbatim requirement is likely solving the wrong problem.
+
+    Extracts key terms from the verbatim (nouns, specific identifiers,
+    technical terms) and checks how many appear in the plan.
+
+    Args:
+        plan_text: The agent's plan text.
+        verbatim: The PO's verbatim requirement.
+
+    Returns:
+        VerbatimReferenceResult with coverage assessment.
+    """
+    if not verbatim or not verbatim.strip():
+        return VerbatimReferenceResult(
+            references_verbatim=True,
+            matched_terms=[],
+            total_key_terms=0,
+            coverage_pct=100.0,
+            warning="No verbatim requirement set — cannot check references.",
+        )
+
+    if not plan_text or not plan_text.strip():
+        return VerbatimReferenceResult(
+            references_verbatim=False,
+            matched_terms=[],
+            total_key_terms=0,
+            coverage_pct=0.0,
+            warning="Plan is empty.",
+        )
+
+    # Extract key terms from verbatim (words 4+ chars, excluding common words)
+    common_words = {
+        "that", "this", "with", "from", "have", "been", "will", "would",
+        "could", "should", "when", "where", "what", "which", "there",
+        "their", "them", "they", "than", "then", "also", "more", "some",
+        "each", "every", "about", "into", "over", "after", "before",
+        "between", "through", "during", "without", "within", "along",
+        "make", "like", "just", "only", "very", "much", "such", "most",
+        "need", "want", "must", "does", "done", "being", "other",
+    }
+
+    verbatim_lower = verbatim.lower()
+    plan_lower = plan_text.lower()
+
+    # Extract terms: split on non-alphanumeric, filter short/common words
+    import re
+    verbatim_words = re.findall(r'[a-z][a-z0-9_-]+', verbatim_lower)
+    key_terms = [
+        w for w in verbatim_words
+        if len(w) >= 4 and w not in common_words
+    ]
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_terms = []
+    for t in key_terms:
+        if t not in seen:
+            seen.add(t)
+            unique_terms.append(t)
+
+    if not unique_terms:
+        return VerbatimReferenceResult(
+            references_verbatim=True,
+            matched_terms=[],
+            total_key_terms=0,
+            coverage_pct=100.0,
+            warning="Verbatim has no significant key terms to check.",
+        )
+
+    # Check which key terms appear in the plan
+    matched = [t for t in unique_terms if t in plan_lower]
+    coverage = len(matched) / len(unique_terms) * 100
+
+    # Threshold: at least 30% of key terms should appear in the plan
+    references = coverage >= 30.0
+
+    warning = ""
+    if not references:
+        unmatched = [t for t in unique_terms if t not in plan_lower]
+        warning = (
+            f"Plan may not reference the verbatim requirement. "
+            f"Missing key terms: {', '.join(unmatched[:10])}. "
+            f"The plan should explicitly address the PO's words."
+        )
+
+    return VerbatimReferenceResult(
+        references_verbatim=references,
+        matched_terms=matched,
+        total_key_terms=len(unique_terms),
+        coverage_pct=coverage,
+        warning=warning,
+    )

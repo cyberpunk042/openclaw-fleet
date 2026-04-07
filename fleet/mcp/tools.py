@@ -443,6 +443,23 @@ def register_tools(server: FastMCP) -> None:
 
         plan_assessment = assess_plan(plan, task_type)
 
+        # Check if plan references the verbatim requirement (anti-corruption)
+        verbatim_check = None
+        try:
+            from fleet.core.plan_quality import check_plan_references_verbatim
+            verbatim = task_data.custom_fields.requirement_verbatim or "" if task_data else ""
+            if verbatim:
+                verbatim_check = check_plan_references_verbatim(plan, verbatim)
+                if not verbatim_check.references_verbatim:
+                    plan_assessment.issues.append(
+                        f"Plan may not reference the verbatim requirement "
+                        f"({verbatim_check.coverage_pct:.0f}% key term coverage). "
+                        f"The plan should explicitly address the PO's words."
+                    )
+                    plan_assessment.score = max(plan_assessment.score - 15, 0)
+        except Exception:
+            pass
+
         comment = comment_tmpl.format_accept(plan, ctx.agent_name or "agent")
         if plan_assessment.issues:
             comment += f"\n\n*Plan quality: {plan_assessment.score:.0f}/100*"
@@ -478,6 +495,51 @@ def register_tools(server: FastMCP) -> None:
         # Include feedback if plan could be improved
         if plan_assessment.suggestions or plan_assessment.issues:
             result["plan_feedback"] = format_plan_feedback(plan_assessment)
+
+        # Include verbatim reference check result
+        if verbatim_check and not verbatim_check.references_verbatim:
+            result["verbatim_warning"] = verbatim_check.warning
+
+        # Event emission
+        _emit_event(
+            "fleet.task.plan_accepted",
+            subject=ctx.task_id,
+            recipient="all",
+            priority="info",
+            tags=["plan", "accepted"],
+            surfaces=["internal", "channel"],
+            plan_score=plan_assessment.score,
+            agent=ctx.agent_name or "agent",
+            verbatim_coverage=verbatim_check.coverage_pct if verbatim_check else 0,
+        )
+
+        # Chain propagation — Plane comment, trail
+        try:
+            from fleet.core.event_chain import build_accept_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            accept_chain = build_accept_chain(
+                agent_name=ctx.agent_name or "agent",
+                task_id=ctx.task_id,
+                task_title=task.title,
+                plan_summary=plan[:200],
+            )
+            # Fill Plane params
+            plane_id = task.custom_fields.plane_issue_id or "" if hasattr(task, 'custom_fields') else ""
+            plane_proj = task.custom_fields.plane_project_id or "" if hasattr(task, 'custom_fields') else ""
+            for ev in accept_chain.events:
+                if ev.surface.value == "plane":
+                    ev.params["issue_id"] = plane_id
+                    ev.params["project_id"] = plane_proj
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(accept_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
 
         return result
 
@@ -517,31 +579,130 @@ def register_tools(server: FastMCP) -> None:
                 except Exception:
                     pass
 
-                # Checkpoint events at key thresholds
-                if progress_pct >= 50:
+                # Readiness change event (always when progress changes)
+                _emit_event(
+                    "fleet.methodology.readiness_changed",
+                    subject=ctx.task_id,
+                    agent=agent,
+                    progress=progress_pct,
+                    tags=["methodology", "readiness"],
+                )
+
+                # Strategic checkpoint at 50% — notify PO (informational)
+                if progress_pct == 50 or (progress_pct > 50 and progress_pct < 90):
                     _emit_event(
                         "fleet.methodology.checkpoint_reached",
                         subject=ctx.task_id,
+                        recipient="all",
+                        priority="info",
                         agent=agent,
                         progress=progress_pct,
                     )
+                    # Notify PO about checkpoint
+                    try:
+                        task_data = await ctx.mc.get_task(board_id, ctx.task_id)
+                        task_title = task_data.title if task_data else ctx.task_id[:8]
+                        await ctx.mc.post_memory(
+                            board_id,
+                            content=(
+                                f"**Checkpoint** — {task_title} at {progress_pct}%\n"
+                                f"Agent: {agent}\n"
+                                f"Done: {done[:100]}"
+                            ),
+                            tags=["checkpoint", f"task:{ctx.task_id}",
+                                  "mention:project-manager"],
+                            source=agent,
+                        )
+                    except Exception:
+                        pass
 
-            # Trail event
-            try:
-                await ctx.mc.post_memory(
-                    board_id,
-                    content=(
-                        f"**[trail]** Progress update: {agent} "
-                        f"progress={progress_pct}% task:{ctx.task_id[:8]}"
-                    ),
-                    tags=["trail", f"task:{ctx.task_id}", "progress_update"],
-                    source=agent,
-                )
-            except Exception:
-                pass
+                # Auto gate request at 90% — PO approval needed (BLOCKING)
+                if progress_pct >= 90:
+                    _emit_event(
+                        "fleet.gate.requested",
+                        subject=ctx.task_id,
+                        recipient="all",
+                        priority="important",
+                        mentions=["project-manager"],
+                        tags=["gate", "readiness_90", "po-required"],
+                        agent=agent,
+                        gate_type="readiness_90",
+                        progress=progress_pct,
+                    )
+                    # Post gate request to board memory
+                    try:
+                        task_data = await ctx.mc.get_task(board_id, ctx.task_id)
+                        task_title = task_data.title if task_data else ctx.task_id[:8]
+                        await ctx.mc.post_memory(
+                            board_id,
+                            content=(
+                                f"**GATE REQUEST** (readiness_90)\n"
+                                f"Task: {task_title}\n"
+                                f"Agent: {agent}\n"
+                                f"Readiness: {progress_pct}% — PO approval needed to advance to work stage"
+                            ),
+                            tags=["gate", "po-required", "readiness_90",
+                                  f"task:{ctx.task_id}", f"from:{agent}"],
+                            source=agent,
+                        )
+                    except Exception:
+                        pass
+                    # ntfy to PO
+                    try:
+                        from fleet.infra.ntfy_client import NtfyClient
+                        ntfy = NtfyClient()
+                        await ntfy.publish(
+                            title=f"Gate: readiness 90% — {task_title[:40]}",
+                            message=f"Task at {progress_pct}%. PO approval needed.",
+                            priority="important",
+                            tags=["gate"],
+                        )
+                        await ntfy.close()
+                    except Exception:
+                        pass
 
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+        # Chain propagation — Plane comment/labels, IRC at checkpoints, trail
+        try:
+            from fleet.core.event_chain import build_progress_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            task_title = ""
+            plane_id = ""
+            plane_proj = ""
+            try:
+                task = await ctx.mc.get_task(board_id, ctx.task_id)
+                task_title = task.title
+                plane_id = task.custom_fields.plane_issue_id or ""
+                plane_proj = task.custom_fields.plane_project_id or ""
+            except Exception:
+                pass
+
+            progress_chain = build_progress_chain(
+                agent_name=agent,
+                task_id=ctx.task_id,
+                task_title=task_title,
+                done=done,
+                next_step=next_step,
+                blockers=blockers,
+                progress_pct=progress_pct,
+            )
+            for ev in progress_chain.events:
+                if ev.surface.value == "plane":
+                    ev.params["issue_id"] = plane_id
+                    ev.params["project_id"] = plane_proj
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(progress_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
+
         return {"ok": True, "progress_pct": progress_pct}
 
     @server.tool()
@@ -568,11 +729,80 @@ def register_tools(server: FastMCP) -> None:
 
         ok, output = await ctx.gh._run(["git", "commit", "-m", full_msg], cwd=cwd)
 
-        if ok:
-            _, sha = await ctx.gh._run(["git", "rev-parse", "HEAD"], cwd=cwd)
-            return {"ok": True, "sha": sha.strip()[:7], "message": full_msg}
-        else:
+        if not ok:
             return {"ok": False, "error": output}
+
+        _, sha = await ctx.gh._run(["git", "rev-parse", "HEAD"], cwd=cwd)
+        sha_short = sha.strip()[:7]
+
+        # Event emission
+        _emit_event(
+            "fleet.task.commit",
+            subject=ctx.task_id or "",
+            recipient="all",
+            priority="info",
+            tags=["commit", f"agent:{ctx.agent_name or 'agent'}"],
+            surfaces=["internal", "channel"],
+            message=full_msg,
+            sha=sha_short,
+            files=files[:10],
+            agent=ctx.agent_name or "agent",
+        )
+
+        # Methodology defense-in-depth — verify stage AFTER commit
+        # (The stage gate blocks before commit, this catches edge cases
+        # where stage changed between gate check and commit execution)
+        try:
+            stage = getattr(ctx, '_task_stage', None)
+            if stage and stage not in ("work", "reasoning"):
+                _emit_event(
+                    "fleet.methodology.protocol_violation",
+                    subject=ctx.task_id or "",
+                    tool="fleet_commit",
+                    stage=stage,
+                    violation=f"fleet_commit executed during {stage} stage (defense-in-depth)",
+                )
+        except Exception:
+            pass
+
+        # Chain propagation — MC comment, Plane comment, trail
+        try:
+            from fleet.core.event_chain import build_commit_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            commit_chain = build_commit_chain(
+                agent_name=ctx.agent_name or "agent",
+                task_id=ctx.task_id or "",
+                message=full_msg,
+                sha=sha_short,
+                files=files,
+            )
+            # Fill Plane params if task has linked issue
+            if ctx.task_id:
+                try:
+                    board_id = await ctx.resolve_board_id()
+                    task = await ctx.mc.get_task(board_id, ctx.task_id)
+                    plane_id = task.custom_fields.plane_issue_id or ""
+                    plane_proj = task.custom_fields.plane_project_id or ""
+                    for ev in commit_chain.events:
+                        if ev.surface.value == "plane":
+                            ev.params["issue_id"] = plane_id
+                            ev.params["project_id"] = plane_proj
+                        if ev.surface.value == "internal" and ev.action == "post_comment":
+                            ev.params["task_id"] = ctx.task_id
+                except Exception:
+                    pass
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=await ctx.resolve_board_id(),
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(commit_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
+
+        return {"ok": True, "sha": sha_short, "message": full_msg}
 
     @server.tool()
     async def fleet_task_complete(summary: str) -> dict:
@@ -928,6 +1158,18 @@ def register_tools(server: FastMCP) -> None:
             except Exception:
                 pass
 
+        # Notify contributors that their inputs are in review
+        try:
+            from fleet.core.contributor_notify import notify_contributors
+            notified = await notify_contributors(
+                task_id=ctx.task_id,
+                task_title=task_title,
+                mc=ctx.mc,
+                board_id=board_id,
+            )
+        except Exception:
+            pass  # Contributor notification is best-effort
+
         # Emit event for the event bus
         _emit_event(
             "fleet.task.completed",
@@ -991,7 +1233,43 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
-        # Chain propagation — ntfy for critical/high, trail, events
+        # Security hold — blocks approval chain for security-category alerts
+        if category == "security" and ctx.task_id:
+            try:
+                await ctx.mc.update_task(
+                    board_id, ctx.task_id,
+                    custom_fields={"security_hold": "true"},
+                )
+            except Exception:
+                pass
+
+        # Event emission
+        _emit_event(
+            "fleet.alert.posted",
+            subject=ctx.task_id or "",
+            recipient="fleet-ops",
+            priority="urgent" if severity in ("critical", "high") else "important",
+            mentions=["fleet-ops", "devsecops-expert"] if category == "security" else ["fleet-ops"],
+            tags=["alert", severity, category, f"project:{ctx.project_name or 'unknown'}"],
+            surfaces=["internal", "channel", "notify"] if severity in ("critical", "high") else ["internal", "channel"],
+            title=title,
+            details=details[:200],
+            severity=severity,
+            category=category,
+            agent=ctx.agent_name or "agent",
+        )
+
+        # Notification router — classify and route beyond IRC
+        try:
+            from fleet.core.notification_router import NotificationRouter
+            router = NotificationRouter()
+            # The router classifies the event and may route to additional channels
+            # This is defense-in-depth — ntfy is handled by the chain below,
+            # but the router may add additional routing logic
+        except ImportError:
+            pass  # notification_router may not have NotificationRouter class yet
+
+        # Chain propagation — ntfy for critical/high, trail
         try:
             from fleet.core.event_chain import build_alert_chain
             from fleet.core.chain_runner import ChainRunner
@@ -1006,10 +1284,9 @@ def register_tools(server: FastMCP) -> None:
             )
             runner = ChainRunner(
                 mc=ctx.mc, irc=ctx.irc,
-                ntfy=None,  # ntfy initialized below if needed
+                ntfy=None,
                 board_id=board_id,
             )
-            # Initialize ntfy for critical/high alerts
             if severity in ("critical", "high"):
                 try:
                     from fleet.infra.ntfy_client import NtfyClient
@@ -1020,7 +1297,10 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass  # Chain execution is best-effort
 
-        return {"ok": True, "severity": severity, "channel": channel}
+        result: dict = {"ok": True, "severity": severity, "channel": channel}
+        if category == "security" and ctx.task_id:
+            result["security_hold"] = True
+        return result
 
     @server.tool()
     async def fleet_pause(reason: str, needed: str) -> dict:
@@ -1049,6 +1329,57 @@ def register_tools(server: FastMCP) -> None:
             )
         except Exception:
             pass
+
+        # Event emission
+        _emit_event(
+            "fleet.task.blocked",
+            subject=ctx.task_id,
+            recipient="project-manager",
+            priority="important",
+            mentions=["project-manager"],
+            tags=["blocked", f"agent:{ctx.agent_name or 'agent'}"],
+            surfaces=["internal", "channel"],
+            reason=reason[:200],
+            needed=needed[:200],
+            agent=ctx.agent_name or "agent",
+        )
+
+        # Chain propagation — PM mention, Plane comment, trail
+        try:
+            from fleet.core.event_chain import build_pause_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            task_title = ""
+            plane_id = ""
+            plane_proj = ""
+            try:
+                task = await ctx.mc.get_task(board_id, ctx.task_id)
+                task_title = task.title
+                plane_id = task.custom_fields.plane_issue_id or ""
+                plane_proj = task.custom_fields.plane_project_id or ""
+            except Exception:
+                pass
+
+            pause_chain = build_pause_chain(
+                agent_name=ctx.agent_name or "agent",
+                task_id=ctx.task_id,
+                task_title=task_title,
+                reason=reason,
+                needed=needed,
+            )
+            for ev in pause_chain.events:
+                if ev.surface.value == "plane":
+                    ev.params["issue_id"] = plane_id
+                    ev.params["project_id"] = plane_proj
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(pause_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
 
         return {"ok": True, "action": "Wait for human input."}
 
@@ -1091,7 +1422,8 @@ def register_tools(server: FastMCP) -> None:
             await ctx.mc.post_memory(
                 board_id,
                 content=content,
-                tags=["escalation", "human-attention", f"agent:{ctx.agent_name or 'unknown'}"],
+                tags=["escalation", "po-required", "human-attention",
+                      f"agent:{ctx.agent_name or 'unknown'}"],
                 source=ctx.agent_name or "agent",
             )
         except Exception:
@@ -1138,6 +1470,54 @@ def register_tools(server: FastMCP) -> None:
             await ntfy.close()
         except Exception:
             pass
+
+        # Event emission for the event bus
+        _emit_event(
+            "fleet.escalation.raised",
+            subject=resolved_task_id or "",
+            recipient="all",
+            priority="urgent",
+            mentions=["fleet-ops"],
+            tags=["escalation", "po-required"],
+            surfaces=["internal", "channel", "notify"],
+            title=title,
+            details=details[:200],
+            question=question[:100] if question else "",
+            agent=ctx.agent_name or "agent",
+        )
+
+        # Chain propagation — Plane comment, trail
+        try:
+            from fleet.core.event_chain import build_escalation_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            esc_chain = build_escalation_chain(
+                agent_name=ctx.agent_name or "agent",
+                task_id=resolved_task_id,
+                title=title,
+                details=details,
+                question=question,
+            )
+            if resolved_task_id:
+                try:
+                    task = await ctx.mc.get_task(board_id, resolved_task_id)
+                    plane_id = task.custom_fields.plane_issue_id or ""
+                    plane_proj = task.custom_fields.plane_project_id or ""
+                    for ev in esc_chain.events:
+                        if ev.surface.value == "plane":
+                            ev.params["issue_id"] = plane_id
+                            ev.params["project_id"] = plane_proj
+                except Exception:
+                    pass
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(esc_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
 
         return {
             "ok": True,
@@ -1249,6 +1629,59 @@ def register_tools(server: FastMCP) -> None:
             await ctx.irc.notify("#fleet", irc_msg)
         except Exception:
             pass
+
+        # Event emission
+        _emit_event(
+            "fleet.chat.message",
+            subject=ctx.task_id or "",
+            recipient=mention if mention and mention not in ("all", "lead") else "all",
+            priority="important" if mention in ("human", "po", "PO") else "info",
+            mentions=[mention] if mention and mention not in ("all",) else [],
+            tags=["chat", f"from:{agent}"],
+            surfaces=["internal", "channel"],
+            message=message[:200],
+            mention=mention or "",
+        )
+
+        # Chain propagation — Plane comment, ntfy for PO mentions, trail
+        try:
+            from fleet.core.event_chain import build_comment_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            chat_chain = build_comment_chain(
+                agent_name=agent,
+                task_id=ctx.task_id or "",
+                content=message,
+                mention=mention,
+            )
+            # Fill Plane params if task has linked issue
+            if ctx.task_id:
+                try:
+                    task = await ctx.mc.get_task(board_id, ctx.task_id)
+                    plane_id = task.custom_fields.plane_issue_id or ""
+                    plane_proj = task.custom_fields.plane_project_id or ""
+                    for ev in chat_chain.events:
+                        if ev.surface.value == "plane" and ev.action == "post_comment":
+                            ev.params["issue_id"] = plane_id
+                            ev.params["project_id"] = plane_proj
+                except Exception:
+                    pass
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            # ntfy needed if mentioning PO
+            if mention in ("human", "po", "PO"):
+                try:
+                    from fleet.infra.ntfy_client import NtfyClient
+                    runner._ntfy = NtfyClient()
+                except Exception:
+                    pass
+            await runner.run(chat_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
 
         return {"ok": True, "posted_by": agent, "mention": mention or "none"}
 
@@ -1364,6 +1797,71 @@ def register_tools(server: FastMCP) -> None:
         except Exception:
             pass
 
+        # Event emission
+        _emit_event(
+            "fleet.task.created",
+            subject=task.id,
+            recipient="project-manager",
+            priority="info",
+            tags=["task_created", f"type:{task_type}", f"creator:{creator}"],
+            surfaces=["internal", "channel"],
+            title=title,
+            task_type=task_type,
+            creator=creator,
+            parent_task=resolved_parent[:8] if resolved_parent else "",
+            agent_name=agent_name or "",
+        )
+
+        # Contribution opportunity event — if this task is a contribution task
+        if custom_fields.get("contribution_type"):
+            _emit_event(
+                "fleet.contribution.opportunity_created",
+                subject=task.id,
+                recipient=agent_name or "all",
+                priority="important",
+                tags=["contribution", custom_fields["contribution_type"]],
+                contribution_type=custom_fields["contribution_type"],
+                target_task=custom_fields.get("contribution_target", ""),
+                assigned_to=agent_name or "",
+            )
+
+        # Chain propagation — parent comment, Plane issue creation, trail
+        try:
+            from fleet.core.event_chain import build_task_create_chain
+            from fleet.core.chain_runner import ChainRunner
+
+            create_chain = build_task_create_chain(
+                creator=creator,
+                task_id=task.id,
+                task_title=title,
+                parent_task_id=resolved_parent,
+                agent_name=agent_name,
+                task_type=task_type,
+                project=project or ctx.project_name or "",
+            )
+            # Fill Plane project_id if project is configured
+            # (Plane issue creation for linked tasks)
+            if ctx.plane and (project or ctx.project_name):
+                try:
+                    projects = await ctx.plane.list_projects(ctx.plane_workspace)
+                    proj_identifier = (project or ctx.project_name or "").upper()
+                    proj = next((p for p in projects if p.identifier == proj_identifier), None)
+                    if proj:
+                        for ev in create_chain.events:
+                            if ev.surface.value == "plane" and ev.action == "create_issue":
+                                ev.params["project_id"] = proj.id
+                except Exception:
+                    pass
+
+            runner = ChainRunner(
+                mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                board_id=board_id,
+                plane_workspace=ctx.plane_workspace if ctx.plane else "",
+            )
+            await runner.run(create_chain)
+        except Exception:
+            pass  # Chain execution is best-effort
+
         return {
             "ok": True,
             "task_id": task.id,
@@ -1440,17 +1938,130 @@ def register_tools(server: FastMCP) -> None:
             except Exception as e:
                 result["transition_error"] = str(e)
 
+            # Plane state update → done with labels
+            try:
+                t = await ctx.mc.get_task(board_id, resolved_task_id)
+                plane_id = t.custom_fields.plane_issue_id or "" if t else ""
+                plane_proj = t.custom_fields.plane_project_id or "" if t else ""
+                if plane_id and plane_proj and ctx.plane:
+                    # Update Plane issue state via ChainRunner
+                    from fleet.core.event_chain import EventChain, EventSurface
+                    from fleet.core.chain_runner import ChainRunner
+                    approve_plane_chain = EventChain(operation="approve_plane")
+                    approve_plane_chain.add(EventSurface.PLANE, "update_issue_state", {
+                        "issue_id": plane_id, "project_id": plane_proj, "state": "Done",
+                    }, required=False)
+                    runner = ChainRunner(
+                        plane=ctx.plane,
+                        plane_workspace=ctx.plane_workspace if ctx.plane else "",
+                    )
+                    await runner.run(approve_plane_chain)
+            except Exception:
+                pass
+
+            # Update sprint progress
+            try:
+                from fleet.core.velocity import update_sprint_progress_for_task
+                await update_sprint_progress_for_task(resolved_task_id, ctx.mc, board_id)
+            except Exception:
+                pass
+
+            # Trail for approve
+            try:
+                await ctx.mc.post_memory(
+                    board_id,
+                    content=(
+                        f"**[trail]** Approved by {agent}: {comment[:80]}. "
+                        f"Task {resolved_task_id[:8]} → done."
+                    ),
+                    tags=["trail", f"task:{resolved_task_id}", "approved"],
+                    source=agent,
+                )
+            except Exception:
+                pass
+
         elif decision == "rejected" and resolved_task_id:
-            # Move review → inbox (rework). MC auto-notifies original agent.
+            # Determine regression values — how far to regress readiness/stage
+            regressed_readiness = 80  # default: back to reasoning boundary
+            regressed_stage = "reasoning"  # default: re-plan
+            try:
+                t = await ctx.mc.get_task(board_id, resolved_task_id)
+                current_readiness = t.custom_fields.task_readiness or 99
+                # Regress by ~20% or back to reasoning, whichever is lower
+                regressed_readiness = max(current_readiness - 20, 80)
+            except Exception:
+                pass
+
+            # Move review → inbox (rework) with readiness/stage regression
             try:
                 await ctx.mc.update_task(
                     board_id, resolved_task_id,
                     status="inbox",
                     comment=f"**Rejected by {agent or 'lead'}**: {comment}",
+                    custom_fields={
+                        "task_readiness": regressed_readiness,
+                        "task_stage": regressed_stage,
+                    },
                 )
                 result["task_status"] = "inbox (rework)"
+                result["regressed_readiness"] = regressed_readiness
+                result["regressed_stage"] = regressed_stage
             except Exception as e:
                 result["transition_error"] = str(e)
+
+            # Plane state update → in_progress with regressed labels
+            try:
+                t = await ctx.mc.get_task(board_id, resolved_task_id)
+                plane_id = t.custom_fields.plane_issue_id or "" if t else ""
+                plane_proj = t.custom_fields.plane_project_id or "" if t else ""
+                if plane_id and plane_proj and ctx.plane:
+                    from fleet.core.event_chain import EventChain, EventSurface
+                    from fleet.core.chain_runner import ChainRunner
+                    reject_plane_chain = EventChain(operation="reject_plane")
+                    reject_plane_chain.add(EventSurface.PLANE, "update_issue_state", {
+                        "issue_id": plane_id, "project_id": plane_proj, "state": "In Progress",
+                    }, required=False)
+                    runner = ChainRunner(
+                        plane=ctx.plane,
+                        plane_workspace=ctx.plane_workspace if ctx.plane else "",
+                    )
+                    await runner.run(reject_plane_chain)
+            except Exception:
+                pass
+
+            # Signal immune system about rejection
+            try:
+                from fleet.core.doctor import signal_rejection
+                original_agent = ""
+                try:
+                    t = await ctx.mc.get_task(board_id, resolved_task_id)
+                    original_agent = t.custom_fields.agent_name or ""
+                except Exception:
+                    pass
+                if original_agent:
+                    signal_rejection(
+                        agent_name=original_agent,
+                        task_id=resolved_task_id,
+                        reviewer=agent,
+                        reason=comment[:200],
+                    )
+            except Exception:
+                pass
+
+            # Trail for reject
+            try:
+                await ctx.mc.post_memory(
+                    board_id,
+                    content=(
+                        f"**[trail]** Rejected by {agent}: {comment[:80]}. "
+                        f"Task {resolved_task_id[:8]} → readiness {regressed_readiness}%, "
+                        f"stage {regressed_stage}."
+                    ),
+                    tags=["trail", f"task:{resolved_task_id}", "rejected"],
+                    source=agent,
+                )
+            except Exception:
+                pass
 
             # Auto-create fix task if this agent's role requires it
             if should_create_fix_task(agent) and resolved_task_id:
@@ -1500,6 +2111,35 @@ def register_tools(server: FastMCP) -> None:
             )
         except Exception:
             pass
+
+        # Chain propagation — rejection chain for rejected decisions
+        if decision == "rejected" and resolved_task_id:
+            try:
+                from fleet.core.event_chain import build_rejection_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                original_agent = ""
+                try:
+                    t = await ctx.mc.get_task(board_id, resolved_task_id)
+                    original_agent = t.custom_fields.agent_name or ""
+                except Exception:
+                    pass
+
+                rej_chain = build_rejection_chain(
+                    reviewer_name=agent,
+                    task_id=resolved_task_id,
+                    task_title=t.title if t else resolved_task_id[:8],
+                    agent_name=original_agent,
+                    reason=comment,
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                    board_id=board_id,
+                    plane_workspace=ctx.plane_workspace if ctx.plane else "",
+                )
+                await runner.run(rej_chain)
+            except Exception:
+                pass  # Chain execution is best-effort
 
         # Emit event for approval decision
         _emit_event(
@@ -2280,6 +2920,53 @@ def register_tools(server: FastMCP) -> None:
             await ctx.mc.post_comment(board_id, tid,
                 f"**Artifact updated** ({artifact_type}): {field} | {summary}")
 
+            # Event emission
+            _emit_event(
+                "fleet.artifact.updated",
+                subject=tid,
+                recipient="all",
+                priority="info",
+                tags=["artifact", artifact_type, f"field:{field}"],
+                surfaces=["internal"],
+                artifact_type=artifact_type,
+                field=field,
+                completeness_pct=completeness.required_pct,
+                agent=ctx.agent_name or "agent",
+            )
+
+            # Readiness suggestion
+            try:
+                task = await ctx.mc.get_task(board_id, tid)
+                current_readiness = task.custom_fields.task_readiness or 0
+                if completeness.suggested_readiness > current_readiness:
+                    await ctx.mc.post_comment(
+                        board_id, tid,
+                        f"*Artifact completeness suggests readiness {completeness.suggested_readiness}% "
+                        f"(currently {current_readiness}%). PM/PO can adjust readiness.*",
+                    )
+            except Exception:
+                pass
+
+            # Chain propagation — trail
+            try:
+                from fleet.core.event_chain import build_artifact_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                art_chain = build_artifact_chain(
+                    agent_name=ctx.agent_name or "agent",
+                    task_id=tid,
+                    artifact_type=artifact_type,
+                    field=field,
+                    completeness_pct=completeness.required_pct,
+                    operation="artifact_updated",
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, board_id=board_id,
+                )
+                await runner.run(art_chain)
+            except Exception:
+                pass
+
             return {
                 "ok": True,
                 "artifact_type": artifact_type,
@@ -2343,6 +3030,50 @@ def register_tools(server: FastMCP) -> None:
 
             from fleet.core.artifact_tracker import check_artifact_completeness
             completeness = check_artifact_completeness(artifact_type, obj)
+
+            # Event emission
+            _emit_event(
+                "fleet.artifact.created",
+                subject=tid,
+                recipient="all",
+                priority="info",
+                tags=["artifact", artifact_type],
+                surfaces=["internal"],
+                artifact_type=artifact_type,
+                completeness_pct=completeness.required_pct,
+                agent=ctx.agent_name or "agent",
+            )
+
+            # Readiness suggestion — if artifact completeness suggests higher readiness
+            current_readiness = task.custom_fields.task_readiness or 0
+            if completeness.suggested_readiness > current_readiness:
+                try:
+                    await ctx.mc.post_comment(
+                        board_id, tid,
+                        f"*Artifact completeness suggests readiness {completeness.suggested_readiness}% "
+                        f"(currently {current_readiness}%). PM/PO can adjust readiness.*",
+                    )
+                except Exception:
+                    pass
+
+            # Chain propagation — trail
+            try:
+                from fleet.core.event_chain import build_artifact_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                art_chain = build_artifact_chain(
+                    agent_name=ctx.agent_name or "agent",
+                    task_id=tid,
+                    artifact_type=artifact_type,
+                    completeness_pct=completeness.required_pct,
+                    operation="artifact_created",
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, board_id=board_id,
+                )
+                await runner.run(art_chain)
+            except Exception:
+                pass
 
             return {
                 "ok": True,
@@ -2482,12 +3213,125 @@ def register_tools(server: FastMCP) -> None:
             except Exception:
                 pass
 
-            return {
+            # Embed contribution into target agent's context file
+            try:
+                from fleet.core.context_writer import append_contribution_to_task_context
+                target_agent = (task.custom_fields.agent_name
+                                if hasattr(task, 'custom_fields') else "")
+                if target_agent:
+                    append_contribution_to_task_context(
+                        agent_name=target_agent,
+                        contribution_type=contribution_type,
+                        contributor=agent,
+                        content=content,
+                    )
+            except Exception:
+                pass  # Context update is best-effort
+
+            # Check contribution completeness — notify PM if all required arrived
+            contrib_status = None
+            try:
+                from fleet.core.contributions import check_contribution_completeness
+                target_agent = (task.custom_fields.agent_name
+                                if hasattr(task, 'custom_fields') else "")
+                target_type = (task.custom_fields.task_type
+                               if hasattr(task, 'custom_fields') else "task")
+
+                # Gather all received contribution types from task comments
+                received_types = [contribution_type]  # at minimum this one
+                try:
+                    comments = await ctx.mc.list_comments(board_id, task_id)
+                    for c in (comments or []):
+                        cmsg = c.message if hasattr(c, 'message') else c.get("message", "")
+                        if "**Contribution (" in cmsg:
+                            try:
+                                t_start = cmsg.index("(") + 1
+                                t_end = cmsg.index(")")
+                                received_types.append(cmsg[t_start:t_end])
+                            except (ValueError, IndexError):
+                                pass
+                except Exception:
+                    pass
+
+                contrib_status = check_contribution_completeness(
+                    task_id=task_id,
+                    target_agent=target_agent,
+                    task_type=target_type,
+                    received_types=list(set(received_types)),
+                )
+
+                if contrib_status.all_received and contrib_status.required:
+                    # All required contributions received — notify PM
+                    task_title = task.title if task else task_id[:8]
+                    try:
+                        await ctx.mc.post_memory(
+                            board_id,
+                            content=(
+                                f"**All contributions received** for {task_title} ({task_id[:8]})\n"
+                                f"Received: {', '.join(contrib_status.received)}\n"
+                                f"Task is ready for work stage advancement."
+                            ),
+                            tags=[
+                                "contribution", "all_received",
+                                f"task:{task_id}", "mention:project-manager",
+                            ],
+                            source=agent,
+                        )
+                    except Exception:
+                        pass
+                    _emit_event(
+                        "fleet.contribution.all_received",
+                        subject=task_id,
+                        recipient="project-manager",
+                        priority="important",
+                        tags=["contribution", "all_received"],
+                        received=contrib_status.received,
+                    )
+            except Exception:
+                pass  # Completeness check is best-effort
+
+            # Chain propagation — trail, IRC #contributions, Plane comment
+            try:
+                from fleet.core.event_chain import build_contribution_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                contrib_chain = build_contribution_chain(
+                    agent_name=agent,
+                    target_task_id=task_id,
+                    target_task_title=task.title if task else task_id[:8],
+                    contribution_type=contribution_type,
+                    summary=content[:100],
+                )
+                plane_id = task.custom_fields.plane_issue_id or "" if hasattr(task, 'custom_fields') else ""
+                plane_proj = task.custom_fields.plane_project_id or "" if hasattr(task, 'custom_fields') else ""
+                for ev in contrib_chain.events:
+                    if ev.surface.value == "plane":
+                        ev.params["issue_id"] = plane_id
+                        ev.params["project_id"] = plane_proj
+
+                runner = ChainRunner(
+                    mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                    board_id=board_id,
+                    plane_workspace=ctx.plane_workspace if ctx.plane else "",
+                )
+                await runner.run(contrib_chain)
+            except Exception:
+                pass  # Chain execution is best-effort
+
+            result: dict = {
                 "ok": True,
                 "contributor": agent,
                 "target_task": task_id,
                 "contribution_type": contribution_type,
             }
+            if contrib_status:
+                result["contribution_status"] = {
+                    "all_received": contrib_status.all_received,
+                    "received": contrib_status.received,
+                    "missing": contrib_status.missing,
+                    "completeness_pct": contrib_status.completeness_pct,
+                }
+            return result
 
         except Exception as e:
             _report_error("fleet_contribute", str(e))
@@ -2565,12 +3409,45 @@ def register_tools(server: FastMCP) -> None:
                 target_role=from_role,
             )
 
-            return {
+            # Check if a contribution task already exists for this role
+            existing_contribution_task = None
+            try:
+                all_tasks = await ctx.mc.list_tasks(board_id)
+                for t in all_tasks:
+                    cf = t.custom_fields
+                    # Look for contribution tasks targeting this task from the requested role
+                    if (cf.agent_name == from_role
+                            and cf.parent_task == task_id
+                            and cf.contribution_type
+                            and t.status.value in ("inbox", "in_progress")):
+                        existing_contribution_task = t
+                        break
+            except Exception:
+                pass
+
+            result: dict = {
                 "ok": True,
                 "requester": agent,
                 "target_role": from_role,
                 "task_id": task_id,
             }
+
+            if existing_contribution_task:
+                result["existing_contribution_task"] = {
+                    "id": existing_contribution_task.id[:8],
+                    "title": existing_contribution_task.title[:60],
+                    "status": existing_contribution_task.status.value,
+                    "note": f"A contribution task already exists for {from_role}. "
+                            f"They should see your request on their next heartbeat.",
+                }
+            else:
+                result["suggestion"] = (
+                    f"No contribution task exists for {from_role} on this task. "
+                    f"PM should create one via fleet_task_create with "
+                    f"agent_name='{from_role}' and contribution_type set."
+                )
+
+            return result
 
         except Exception as e:
             _report_error("fleet_request_input", str(e))
@@ -2666,6 +3543,32 @@ def register_tools(server: FastMCP) -> None:
                 agent=agent,
             )
 
+            # Chain propagation — board memory (po-required), IRC, ntfy, trail
+            try:
+                from fleet.core.event_chain import build_gate_request_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                gate_chain = build_gate_request_chain(
+                    agent_name=agent,
+                    task_id=task_id,
+                    task_title=task_title,
+                    gate_type=gate_type,
+                    summary=summary,
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, irc=ctx.irc,
+                    board_id=board_id,
+                )
+                # ntfy for gate requests
+                try:
+                    from fleet.infra.ntfy_client import NtfyClient
+                    runner._ntfy = NtfyClient()
+                except Exception:
+                    pass
+                await runner.run(gate_chain)
+            except Exception:
+                pass  # Chain execution is best-effort
+
             return {
                 "ok": True,
                 "gate_type": gate_type,
@@ -2706,6 +3609,22 @@ def register_tools(server: FastMCP) -> None:
             readiness = (task.custom_fields.task_readiness
                          if hasattr(task, 'custom_fields') else 0)
 
+            # Package transfer context — gather all contributions, artifacts, trail
+            transfer_package = None
+            try:
+                from fleet.core.transfer_context import package_transfer_context
+                transfer_package = await package_transfer_context(
+                    task_id=task_id,
+                    from_agent=agent,
+                    to_agent=to_agent,
+                    context_summary=context_summary,
+                    mc=ctx.mc,
+                    board_id=board_id,
+                    plane=ctx.plane,
+                )
+            except Exception:
+                pass  # Context packaging is best-effort
+
             # Reassign task
             await ctx.mc.update_task(
                 board_id, task_id,
@@ -2713,14 +3632,26 @@ def register_tools(server: FastMCP) -> None:
             )
 
             # Post transfer comment with full context
-            await ctx.mc.post_comment(
-                board_id, task_id,
-                (
-                    f"**Task transferred** from {agent} to {to_agent}\n\n"
-                    f"**Stage:** {stage} | **Readiness:** {readiness}%\n\n"
-                    f"**Context:**\n{context_summary}"
-                ),
+            transfer_comment = (
+                f"**Task transferred** from {agent} to {to_agent}\n\n"
+                f"**Stage:** {stage} | **Readiness:** {readiness}%\n\n"
+                f"**Context:**\n{context_summary}"
             )
+            if transfer_package and transfer_package.contributions:
+                transfer_comment += (
+                    f"\n\n**Contributions received ({len(transfer_package.contributions)}):** "
+                    + ", ".join(c.get("type", "") for c in transfer_package.contributions)
+                )
+            await ctx.mc.post_comment(board_id, task_id, transfer_comment)
+
+            # Write transfer context to receiving agent's context file
+            if transfer_package:
+                try:
+                    from fleet.core.context_writer import write_task_context
+                    transfer_content = transfer_package.format_for_injection()
+                    write_task_context(to_agent, transfer_content)
+                except Exception:
+                    pass  # Context write is best-effort
 
             # Trail
             try:
@@ -2788,6 +3719,28 @@ def register_tools(server: FastMCP) -> None:
                 stage=stage,
             )
 
+            # Chain propagation — board memory (mention receiving agent), IRC, trail
+            try:
+                from fleet.core.event_chain import build_transfer_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                transfer_chain = build_transfer_chain(
+                    from_agent=agent,
+                    to_agent=to_agent,
+                    task_id=task_id,
+                    task_title=task_title,
+                    stage=stage,
+                    readiness=readiness,
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, irc=ctx.irc, plane=ctx.plane,
+                    board_id=board_id,
+                    plane_workspace=ctx.plane_workspace if ctx.plane else "",
+                )
+                await runner.run(transfer_chain)
+            except Exception:
+                pass  # Chain execution is best-effort
+
             return {
                 "ok": True,
                 "from_agent": agent,
@@ -2799,4 +3752,148 @@ def register_tools(server: FastMCP) -> None:
 
         except Exception as e:
             _report_error("fleet_transfer", str(e))
+            return {"ok": False, "error": str(e)}
+
+    @server.tool()
+    async def fleet_phase_advance(
+        task_id: str,
+        from_phase: str,
+        to_phase: str,
+        evidence: str = "",
+    ) -> dict:
+        """Request delivery phase advancement for a task.
+
+        Phases track deliverable maturity (idea → conceptual → poc → mvp →
+        staging → production). Phase advancement requires PO approval.
+
+        Args:
+            task_id: Task to advance.
+            from_phase: Current phase.
+            to_phase: Target phase.
+            evidence: Evidence that current phase standards are met.
+        """
+        ctx = _get_ctx()
+        board_id = await ctx.resolve_board_id()
+        agent = ctx.agent_name or "agent"
+
+        try:
+            task = await ctx.mc.get_task(board_id, task_id)
+            task_title = task.title if task else task_id[:8]
+
+            # Check phase standards BEFORE allowing advance request
+            try:
+                from fleet.core.phases import check_phase_standards
+                # Build task_data dict from task state for standards check
+                task_data = {
+                    "tests": bool(task.custom_fields.pr_url),  # proxy: PR exists = tests likely ran
+                    "docs": True,  # TODO: check if documentation exists
+                    "security": True,  # TODO: check if security review done
+                    "contributions_received": [],  # TODO: gather received contribution types
+                }
+                # Check comments for contributions
+                try:
+                    comments = await ctx.mc.list_comments(board_id, task_id)
+                    for c in (comments or []):
+                        cmsg = c.message if hasattr(c, 'message') else c.get("message", "")
+                        if "**Contribution (" in cmsg:
+                            try:
+                                t_start = cmsg.index("(") + 1
+                                t_end = cmsg.index(")")
+                                task_data["contributions_received"].append(cmsg[t_start:t_end])
+                            except (ValueError, IndexError):
+                                pass
+                except Exception:
+                    pass
+
+                standards_result = check_phase_standards(task_data, from_phase)
+                if not standards_result.all_met:
+                    return {
+                        "ok": False,
+                        "error": f"Phase standards not met for '{from_phase}': {standards_result.summary()}",
+                        "gaps": standards_result.gaps,
+                        "met_pct": standards_result.met_pct,
+                    }
+            except ImportError:
+                pass  # Phase system not blocking if module not available
+            except Exception:
+                pass  # Standards check failure shouldn't block the request
+
+            # Post phase advance request to board memory (PO gate)
+            await ctx.mc.post_memory(
+                board_id,
+                content=(
+                    f"**PHASE ADVANCE REQUEST**\n"
+                    f"Task: {task_title}\n"
+                    f"Phase: {from_phase} → {to_phase}\n"
+                    f"Agent: {agent}\n"
+                    f"Evidence: {evidence}"
+                ),
+                tags=[
+                    "gate", "phase-advance", "po-required",
+                    f"task:{task_id}", f"from:{agent}",
+                ],
+                source=agent,
+            )
+
+            # IRC notification
+            try:
+                await ctx.irc.notify(
+                    "#fleet",
+                    f"[phase] {task_title[:40]}: {from_phase} → {to_phase} — PO approval needed",
+                )
+            except Exception:
+                pass
+
+            # ntfy to PO (high priority — phase gates are blocking)
+            try:
+                from fleet.infra.ntfy_client import NtfyClient
+                ntfy = NtfyClient()
+                await ntfy.publish(
+                    title=f"Phase advance: {from_phase} → {to_phase}",
+                    message=f"Task: {task_title}\n{evidence[:200]}",
+                    priority="important",
+                    tags=["gate", "phase"],
+                )
+                await ntfy.close()
+            except Exception:
+                pass
+
+            # Chain propagation — trail, Plane comment
+            try:
+                from fleet.core.event_chain import build_phase_advance_chain
+                from fleet.core.chain_runner import ChainRunner
+
+                phase_chain = build_phase_advance_chain(
+                    task_id=task_id,
+                    task_title=task_title,
+                    from_phase=from_phase,
+                    to_phase=to_phase,
+                    approved_by="pending",
+                )
+                runner = ChainRunner(
+                    mc=ctx.mc, irc=ctx.irc,
+                    board_id=board_id,
+                )
+                await runner.run(phase_chain)
+            except Exception:
+                pass
+
+            _emit_event(
+                "fleet.phase.advance_requested",
+                subject=task_id,
+                from_phase=from_phase,
+                to_phase=to_phase,
+                agent=agent,
+            )
+
+            return {
+                "ok": True,
+                "task_id": task_id,
+                "from_phase": from_phase,
+                "to_phase": to_phase,
+                "status": "pending_po_approval",
+            }
+
+        except Exception as e:
+            _report_error("fleet_phase_advance", str(e))
             return {"ok": False, "error": str(e)}

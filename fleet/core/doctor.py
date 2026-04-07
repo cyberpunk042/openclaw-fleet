@@ -420,3 +420,57 @@ async def run_doctor_cycle(
                 report.agents_to_skip.append(agent_name)
 
     return report
+
+
+# ─── External Signals ──────────────────────────────────────────────────
+#
+# These functions allow external systems (MCP tools, orchestrator) to
+# feed signals to the doctor. The doctor picks up these signals on
+# the next cycle and may elevate them to detections.
+
+# Module-level signal storage — persists across doctor cycles
+_rejection_signals: dict[str, list[dict]] = {}
+
+
+def signal_rejection(
+    agent_name: str,
+    task_id: str,
+    reviewer: str = "",
+    reason: str = "",
+) -> None:
+    """Signal that an agent's work was rejected.
+
+    Called by fleet_approve when a task is rejected. The doctor checks
+    rejection frequency on the next cycle — repeated rejections (3+)
+    indicate a potential disease (the agent isn't learning from feedback).
+
+    Args:
+        agent_name: The agent whose work was rejected.
+        task_id: The rejected task.
+        reviewer: Who rejected (usually fleet-ops).
+        reason: Rejection reason.
+    """
+    from datetime import datetime
+
+    if agent_name not in _rejection_signals:
+        _rejection_signals[agent_name] = []
+
+    _rejection_signals[agent_name].append({
+        "task_id": task_id,
+        "reviewer": reviewer,
+        "reason": reason,
+        "time": datetime.now().isoformat(),
+    })
+
+    # Keep only last 20 signals per agent (prevent memory growth)
+    _rejection_signals[agent_name] = _rejection_signals[agent_name][-20:]
+
+
+def get_rejection_signals(agent_name: str) -> list[dict]:
+    """Get rejection signals for an agent (consumed by doctor cycle)."""
+    return _rejection_signals.get(agent_name, [])
+
+
+def clear_rejection_signals(agent_name: str) -> None:
+    """Clear rejection signals after doctor has processed them."""
+    _rejection_signals.pop(agent_name, None)

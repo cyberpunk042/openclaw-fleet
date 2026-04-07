@@ -186,3 +186,148 @@ def reload_phases() -> None:
     """Force reload phases from config (after config change)."""
     global _progressions
     _progressions = None
+
+
+# ─── Phase Standards Checking ─────────────────────────────────────────
+
+
+@dataclass
+class PhaseStandardResult:
+    """Result of checking a task against phase standards."""
+
+    phase: str
+    standards: dict[str, Any]
+    met: dict[str, bool]
+    gaps: list[str]
+
+    @property
+    def all_met(self) -> bool:
+        return len(self.gaps) == 0
+
+    @property
+    def met_pct(self) -> float:
+        if not self.met:
+            return 100.0
+        total = len(self.met)
+        passed = sum(1 for v in self.met.values() if v)
+        return (passed / total * 100) if total > 0 else 100.0
+
+    def summary(self) -> str:
+        if self.all_met:
+            return f"Phase '{self.phase}' standards met ({self.met_pct:.0f}%)"
+        gap_list = ", ".join(self.gaps)
+        return f"Phase '{self.phase}' standards NOT met ({self.met_pct:.0f}%): {gap_list}"
+
+
+def check_phase_standards(
+    task_data: dict,
+    phase_name: str,
+    progression_name: str = "standard",
+) -> PhaseStandardResult:
+    """Check if a task meets the standards for its current delivery phase.
+
+    Evaluates task state against the phase's quality requirements from
+    config/phases.yaml. Standards are PO-defined and flexible — this
+    function checks whatever standards the PO configured for the phase.
+
+    Args:
+        task_data: Dict with task state. Expected keys depend on what
+            standards the phase defines. Common keys:
+            - has_tests (bool): whether tests exist
+            - has_docs (bool): whether documentation exists
+            - has_security_review (bool): whether security reviewed
+            - has_monitoring (bool): whether monitoring configured
+            - test_coverage_pct (int): test coverage percentage
+            - pr_exists (bool): whether PR was created
+            - acceptance_criteria_met (bool): whether all criteria addressed
+            - contributions_received (list): contribution types received
+        phase_name: Current delivery phase (e.g., "poc", "mvp", "production")
+        progression_name: Which progression to look up
+
+    Returns:
+        PhaseStandardResult with per-standard check results and gaps.
+    """
+    phase = get_phase_definition(phase_name, progression_name)
+    if not phase:
+        # Unknown phase — can't check standards, consider met
+        return PhaseStandardResult(
+            phase=phase_name,
+            standards={},
+            met={},
+            gaps=[],
+        )
+
+    standards = phase.standards
+    if not standards:
+        # Phase has no standards defined — all met by default
+        return PhaseStandardResult(
+            phase=phase_name,
+            standards={},
+            met={},
+            gaps=[],
+        )
+
+    met: dict[str, bool] = {}
+    gaps: list[str] = []
+
+    for standard_key, standard_value in standards.items():
+        # Standards are flexible — the PO defines what each key means.
+        # We check against task_data keys. If the standard is "required",
+        # we check for truthiness. If it's a specific value, we compare.
+
+        if standard_value == "required":
+            # Binary check: does this exist in task_data and is it truthy?
+            task_has = task_data.get(standard_key) or task_data.get(f"has_{standard_key}")
+            met[standard_key] = bool(task_has)
+            if not task_has:
+                gaps.append(f"{standard_key}: required but not present")
+
+        elif isinstance(standard_value, str):
+            # Descriptive standard — check if the task_data has a key
+            # that indicates this standard is met. PO describes the bar
+            # in prose (e.g., "happy path" for tests, "readme" for docs).
+            # We can't evaluate prose — we check if the category exists.
+            task_has = task_data.get(standard_key) or task_data.get(f"has_{standard_key}")
+            met[standard_key] = bool(task_has)
+            if not task_has:
+                gaps.append(f"{standard_key}: '{standard_value}' expected")
+
+        elif isinstance(standard_value, (int, float)):
+            # Numeric standard — check if task_data value meets threshold
+            task_val = task_data.get(standard_key, 0)
+            try:
+                met[standard_key] = float(task_val) >= float(standard_value)
+                if not met[standard_key]:
+                    gaps.append(f"{standard_key}: {task_val} < {standard_value}")
+            except (TypeError, ValueError):
+                met[standard_key] = False
+                gaps.append(f"{standard_key}: cannot evaluate '{task_val}' against {standard_value}")
+
+        elif isinstance(standard_value, bool):
+            task_val = task_data.get(standard_key, False)
+            met[standard_key] = bool(task_val) == standard_value
+            if not met[standard_key]:
+                gaps.append(f"{standard_key}: expected {standard_value}")
+
+        else:
+            # Unknown standard type — can't evaluate, mark as gap
+            met[standard_key] = False
+            gaps.append(f"{standard_key}: cannot evaluate standard type {type(standard_value)}")
+
+    # Also check required contributions for this phase
+    required_contribs = phase.required_contributions
+    if required_contribs:
+        received = task_data.get("contributions_received", [])
+        for role in required_contribs:
+            key = f"contribution:{role}"
+            has_it = role in received
+            met[key] = has_it
+            if not has_it:
+                gaps.append(f"contribution from {role}: required for {phase_name} phase")
+
+    return PhaseStandardResult(
+        phase=phase_name,
+        standards=standards,
+        met=met,
+        gaps=gaps,
+    )

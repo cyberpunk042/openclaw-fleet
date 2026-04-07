@@ -89,6 +89,50 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
             lines.append("")
             lines.append(instructions)
 
+    # Phase standards (what quality bars apply at this delivery phase)
+    delivery_phase = cf.delivery_phase or ""
+    if delivery_phase:
+        try:
+            from fleet.core.phases import get_phase_standards, get_required_contributions
+            progression = cf.phase_progression or "standard"
+            standards = get_phase_standards(delivery_phase, progression)
+            required_contribs = get_required_contributions(delivery_phase, progression)
+
+            lines.append("")
+            lines.append(f"## Delivery Phase: {delivery_phase}")
+            if standards:
+                lines.append("### Phase Standards")
+                for key, value in standards.items():
+                    lines.append(f"- **{key}:** {value}")
+            if required_contribs:
+                lines.append(f"### Required Contributions: {', '.join(required_contribs)}")
+        except Exception:
+            pass
+
+    # Contribution status (what's received, what's missing)
+    try:
+        from fleet.core.contributions import check_contribution_completeness
+        agent_name = cf.agent_name or ""
+        task_type = cf.task_type or "task"
+        if agent_name:
+            # We can't query comments from preembed (no mc client).
+            # But we can note the contribution requirement.
+            from fleet.core.contributions import load_synergy_matrix, get_skip_types
+            skip_types = get_skip_types()
+            if task_type not in skip_types:
+                matrix = load_synergy_matrix()
+                specs = matrix.get(agent_name, [])
+                required = [s.contribution_type for s in specs if s.priority == "required"]
+                if required:
+                    lines.append("")
+                    lines.append("## Required Contributions")
+                    lines.append(f"Before work stage, these contributions must be received:")
+                    for r in required:
+                        lines.append(f"- **{r}** — check task comments for this input")
+                    lines.append("If any are missing → use fleet_request_input to request them.")
+    except Exception:
+        pass
+
     return "\n".join(lines)
 
 

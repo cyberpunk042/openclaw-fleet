@@ -230,3 +230,67 @@ def format_agent_report(agent_metrics: list[AgentMetrics]) -> str:
         )
 
     return "\n".join(lines)
+
+
+# ─── Tool-Callable Sprint Progress Update ─────────────────────────────
+
+
+async def update_sprint_progress_for_task(
+    task_id: str,
+    mc,
+    board_id: str,
+) -> "Optional[SprintMetrics]":
+    """Update sprint progress after a task completes.
+
+    Called by fleet_approve (on approve) and fleet_task_complete.
+    Reads the task's sprint ID, computes updated metrics, and posts
+    a sprint progress update to board memory.
+
+    Args:
+        task_id: Task that was just completed/approved.
+        mc: MCClient for reading tasks and posting memory.
+        board_id: Board ID.
+
+    Returns:
+        Updated SprintMetrics, or None if task has no sprint.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    try:
+        task = await mc.get_task(board_id, task_id)
+        sprint_id = task.custom_fields.plan_id or task.custom_fields.sprint or ""
+        if not sprint_id:
+            return None
+
+        all_tasks = await mc.list_tasks(board_id)
+        metrics = compute_sprint_metrics(all_tasks, sprint_id)
+
+        if not metrics.total_tasks:
+            return None
+
+        # Post sprint progress update to board memory
+        try:
+            progress_text = (
+                f"**Sprint {sprint_id}:** {metrics.done_tasks}/{metrics.total_tasks} tasks "
+                f"({metrics.completion_pct:.0f}%), "
+                f"{metrics.done_story_points}/{metrics.total_story_points} SP"
+            )
+            if metrics.blocked_tasks:
+                progress_text += f" | {metrics.blocked_tasks} blocked"
+            if metrics.is_complete:
+                progress_text += " | **SPRINT COMPLETE**"
+
+            await mc.post_memory(
+                board_id,
+                content=progress_text,
+                tags=["sprint", "progress", f"plan:{sprint_id}"],
+            )
+        except Exception as e:
+            _logger.debug("Failed to post sprint progress: %s", e)
+
+        return metrics
+
+    except Exception as e:
+        _logger.debug("Failed to update sprint progress for task %s: %s", task_id, e)
+        return None

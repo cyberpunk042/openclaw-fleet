@@ -107,6 +107,69 @@ async def assemble_task_context(
     except Exception:
         result["methodology"] = {"stage": cf.task_stage or "unknown", "readiness": cf.task_readiness}
 
+    # ── Phase & Standards ─────────────────────────────────────────
+    result["phase"] = None
+    try:
+        delivery_phase = cf.delivery_phase or ""
+        progression = cf.phase_progression or "standard"
+        if delivery_phase:
+            from fleet.core.phases import (
+                get_phase_definition, get_phase_standards,
+                get_required_contributions, get_next_phase, is_phase_gate,
+            )
+            phase_def = get_phase_definition(delivery_phase, progression)
+            result["phase"] = {
+                "current": delivery_phase,
+                "progression": progression,
+                "description": phase_def.description if phase_def else "",
+                "standards": get_phase_standards(delivery_phase, progression),
+                "required_contributions": get_required_contributions(delivery_phase, progression),
+                "gate": is_phase_gate(delivery_phase, progression),
+                "next_phase": get_next_phase(delivery_phase, progression),
+            }
+    except Exception:
+        pass
+
+    # ── Contribution Status ───────────────────────────────────────
+    result["contributions"] = None
+    try:
+        from fleet.core.contributions import check_contribution_completeness
+        task_type = cf.task_type or "task"
+        target_agent = cf.agent_name or ""
+
+        # Gather received contribution types from task comments
+        received_types: list[str] = []
+        try:
+            comments_for_contribs = await mc.list_comments(board_id, task.id)
+            for c in (comments_for_contribs or []):
+                cmsg = c.message if hasattr(c, 'message') else c.get("message", "")
+                if "**Contribution (" in cmsg:
+                    try:
+                        t_start = cmsg.index("(") + 1
+                        t_end = cmsg.index(")")
+                        received_types.append(cmsg[t_start:t_end])
+                    except (ValueError, IndexError):
+                        pass
+        except Exception:
+            pass
+
+        if target_agent:
+            status = check_contribution_completeness(
+                task_id=task.id,
+                target_agent=target_agent,
+                task_type=task_type,
+                received_types=received_types,
+            )
+            result["contributions"] = {
+                "required": status.required,
+                "received": status.received,
+                "missing": status.missing,
+                "all_received": status.all_received,
+                "completeness_pct": status.completeness_pct,
+            }
+    except Exception:
+        pass
+
     # ── Artifact ────────────────────────────────────────────────
     result["artifact"] = {"type": None, "data": None, "completeness": None}
 

@@ -85,6 +85,72 @@ def clear_task_context(agent_name: str) -> bool:
         return False
 
 
+def append_contribution_to_task_context(
+    agent_name: str,
+    contribution_type: str,
+    contributor: str,
+    content: str,
+) -> bool:
+    """Append a contribution to an agent's task context.
+
+    When an agent receives a contribution (design_input, qa_test_definition,
+    security_requirement, ux_spec, etc.), this embeds the contribution
+    directly into their task-context.md so it appears in their pre-embedded
+    data. The agent sees contributions WITHOUT needing to call fleet_read_context.
+
+    The contribution is appended as a section, preserving existing context.
+
+    Args:
+        agent_name: The target agent (receiving the contribution).
+        contribution_type: Type of contribution (design_input, qa_test_definition, etc.)
+        contributor: Who contributed (agent name).
+        content: The contribution content.
+
+    Returns:
+        True if successfully appended.
+    """
+    context_dir = AGENTS_DIR / agent_name / "context"
+    task_context_path = context_dir / "task-context.md"
+
+    try:
+        existing = ""
+        if task_context_path.exists():
+            existing = task_context_path.read_text()
+
+        # Build contribution section
+        section = (
+            f"\n\n## CONTRIBUTION: {contribution_type} (from {contributor})\n\n"
+            f"{content}\n"
+            f"\n---\n"
+        )
+
+        # Check if this contribution type from this contributor already exists
+        # (avoid duplicates on re-delivery)
+        marker = f"## CONTRIBUTION: {contribution_type} (from {contributor})"
+        if marker in existing:
+            logger.debug(
+                "Contribution %s from %s already in context for %s — skipping",
+                contribution_type, contributor, agent_name,
+            )
+            return True
+
+        # Append to existing context
+        updated = existing + section
+        task_context_path.write_text(updated)
+        logger.debug(
+            "Appended %s contribution from %s to %s task context (%d chars)",
+            contribution_type, contributor, agent_name, len(section),
+        )
+        return True
+
+    except Exception as e:
+        logger.error(
+            "Failed to append contribution to %s task context: %s",
+            agent_name, e,
+        )
+        return False
+
+
 def _write_context_file(agent_name: str, filename: str, content: str) -> bool:
     """Write a context file for an agent."""
     agent_dir = AGENTS_DIR / agent_name
