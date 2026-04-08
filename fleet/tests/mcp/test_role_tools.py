@@ -416,6 +416,193 @@ def test_acct_pattern_detects_no_trail():
     assert r["patterns"][0]["pattern"] == "tasks_without_trail"
 
 
+# ─── DevSecOps behavioral ─────────────────────────────────────────
+
+def test_sec_contribution_reads_architect_design():
+    """Security contribution should read architect's design_input to assess implications."""
+    c, t = _ctx("devsecops-expert")
+    t.custom_fields.delivery_phase = "production"
+    comment = MagicMock()
+    comment.message = "**Contribution (design_input)** from architect:\n\nUse repository pattern with JWT auth."
+    c.mc.list_comments = AsyncMock(return_value=[comment])
+    r = _tool("devsecops-expert", "sec_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["context"]["architect_design"] != ""
+    assert "JWT" in r["context"]["architect_design"] or "repository" in r["context"]["architect_design"]
+
+
+def test_sec_contribution_records_trail():
+    """Security contribution should post trail event to board memory."""
+    c, t = _ctx("devsecops-expert")
+    r = _tool("devsecops-expert", "sec_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    # Trail event posted
+    c.mc.post_memory.assert_called()
+    trail_call = c.mc.post_memory.call_args
+    content = trail_call.kwargs.get("content", trail_call.args[1] if len(trail_call.args) > 1 else "")
+    assert "trail" in content.lower()
+    assert "security" in content.lower()
+
+
+def test_sec_pr_review_produces_checklist():
+    """Security PR review should produce a structured checklist."""
+    c, t = _ctx("devsecops-expert")
+    t.custom_fields.pr_url = "https://github.com/org/repo/pull/42"
+    t.custom_fields.branch = "fleet/engineer/auth-middleware"
+    r = _tool("devsecops-expert", "sec_pr_security_review", c, task_id="task-12345678")
+    assert r["ok"]
+    assert "checklist" in r
+    checklist = r["checklist"]
+    # Checklist should mention key security areas
+    assert "secrets" in checklist.lower() or "credentials" in checklist.lower()
+    assert "injection" in checklist.lower()
+    assert "input validation" in checklist.lower()
+
+
+def test_sec_pr_review_includes_pr_info():
+    """Security PR review should include PR URL and branch from task."""
+    c, t = _ctx("devsecops-expert")
+    t.custom_fields.pr_url = "https://github.com/org/repo/pull/42"
+    t.custom_fields.branch = "fleet/engineer/auth-middleware"
+    r = _tool("devsecops-expert", "sec_pr_security_review", c, task_id="task-12345678")
+    assert r["ok"]
+    rc = r["review_context"]
+    assert rc["pr_url"] == "https://github.com/org/repo/pull/42"
+    assert rc["branch"] == "fleet/engineer/auth-middleware"
+
+
+# ─── Architect behavioral ────────────────────────────────────────
+
+def test_arch_design_reads_existing_analysis():
+    """Architect design contribution should read existing analysis artifacts."""
+    c, t = _ctx("architect")
+    comment = MagicMock()
+    comment.message = "## Analysis Artifact\n\nThe codebase uses repository pattern. Investigation pending."
+    c.mc.list_comments = AsyncMock(return_value=[comment])
+    r = _tool("architect", "arch_design_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    ctx_data = r.get("context", {})
+    assert ctx_data.get("existing_analysis") != ""
+
+
+def test_arch_design_adapts_to_delivery_phase():
+    """Design depth should change based on delivery phase."""
+    c, t = _ctx("architect")
+    t.custom_fields.delivery_phase = "poc"
+    r_poc = _tool("architect", "arch_design_contribution", c, task_id="task-12345678")
+    assert r_poc["ok"]
+    poc_depth = r_poc["context"]["design_depth"]
+
+    t.custom_fields.delivery_phase = "production"
+    r_prod = _tool("architect", "arch_design_contribution", c, task_id="task-12345678")
+    assert r_prod["ok"]
+    prod_depth = r_prod["context"]["design_depth"]
+
+    # POC should be simpler than production
+    assert "simple" in poc_depth.lower() or "concept" in poc_depth.lower()
+    assert "production" in prod_depth.lower() or "scalable" in prod_depth.lower()
+
+
+def test_arch_design_records_trail():
+    """Architect design contribution should post trail."""
+    c, t = _ctx("architect")
+    r = _tool("architect", "arch_design_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    c.mc.post_memory.assert_called()
+
+
+# ─── DevOps behavioral ──────────────────────────────────────────
+
+def test_devops_phase_infra_includes_phase():
+    """Phase infrastructure should include the delivery phase context."""
+    c, t = _ctx("devops")
+    t.custom_fields.delivery_phase = "staging"
+    r = _tool("devops", "devops_phase_infrastructure", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["phase"] == "staging"
+
+
+def test_devops_deploy_contrib_reads_phase():
+    """Deployment contribution should read delivery phase for appropriate advice."""
+    c, t = _ctx("devops")
+    t.custom_fields.delivery_phase = "production"
+    r = _tool("devops", "devops_deployment_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["delivery_phase"] == "production"
+
+
+def test_devops_infra_health_checks_mc_and_agents():
+    """Infrastructure health should check MC backend and agent status."""
+    c, _ = _ctx("devops")
+    agent_mock = MagicMock()
+    agent_mock.name = "test-agent"; agent_mock.status = "offline"
+    c.mc.list_agents = AsyncMock(return_value=[agent_mock])
+    r = _tool("devops", "devops_infrastructure_health", c)
+    assert r["ok"]
+    assert "checks" in r
+    assert "mc_backend" in r["checks"]
+    assert "agents" in r["checks"]
+    # Agent should be counted
+    assert r["checks"]["agents"]["total"] == 1
+
+
+# ─── UX behavioral ──────────────────────────────────────────────
+
+def test_ux_spec_records_trail():
+    """UX spec contribution should post trail event."""
+    c, t = _ctx("ux-designer")
+    r = _tool("ux-designer", "ux_spec_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    c.mc.post_memory.assert_called()
+    trail_call = c.mc.post_memory.call_args
+    content = trail_call.kwargs.get("content", trail_call.args[1] if len(trail_call.args) > 1 else "")
+    assert "trail" in content.lower()
+    assert "ux" in content.lower()
+
+
+def test_ux_spec_includes_template():
+    """UX spec contribution should include the UX assessment template."""
+    c, t = _ctx("ux-designer")
+    r = _tool("ux-designer", "ux_spec_contribution", c, task_id="task-12345678")
+    assert r["ok"]
+    template = r.get("template", "")
+    # Template should mention key UX concerns
+    assert "states" in template.lower()
+    assert "accessibility" in template.lower()
+    assert "interactions" in template.lower()
+
+
+def test_ux_accessibility_records_trail():
+    """Accessibility audit should post trail event."""
+    c, t = _ctx("ux-designer")
+    r = _tool("ux-designer", "ux_accessibility_audit", c, task_id="task-12345678")
+    assert r["ok"]
+    c.mc.post_memory.assert_called()
+
+
+def test_ux_accessibility_has_wcag_checklist():
+    """Accessibility audit should include WCAG-based checklist."""
+    c, t = _ctx("ux-designer")
+    r = _tool("ux-designer", "ux_accessibility_audit", c)
+    assert r["ok"]
+    checklist = r.get("checklist", "")
+    assert "WCAG" in checklist
+    assert "contrast" in checklist.lower()
+    assert "keyboard" in checklist.lower()
+
+
+# ─── Engineer behavioral (additional) ────────────────────────────
+
+def test_eng_fix_response_reads_rejection():
+    """Fix task response should read rejection comments."""
+    c, t = _ctx("software-engineer")
+    rejection_comment = MagicMock()
+    rejection_comment.message = "REJECTED: Missing input validation on /api/tasks endpoint"
+    c.mc.list_comments = AsyncMock(return_value=[rejection_comment])
+    r = _tool("software-engineer", "eng_fix_task_response", c)
+    assert r["ok"]
+
+
 # ─── QA behavioral ──────────────────────────────────────────────────
 
 def test_qa_predefinition_reads_architect_input():

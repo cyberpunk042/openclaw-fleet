@@ -1,6 +1,6 @@
 # Fleet Status Tracker — Where We Actually Are
 
-## Last Updated: 2026-03-31
+## Last Updated: 2026-04-07
 
 ---
 
@@ -38,8 +38,13 @@
 | setup-mc.sh | ✅ OK | Retry sync with timeout, no duplicate sync |
 | setup-lounge.sh | ✅ OK | |
 | clean-gateway-config.sh | ✅ OK | Session ID derivation from openclaw_session_id |
-| configure-agent-settings.sh | ✅ OK | |
-| push-agent-framework.sh | ✅ OK | |
+| configure-agent-settings.sh | ✅ OK | Rewritten: reads agent-hooks.yaml, deploys hooks |
+| push-agent-framework.sh | ✅ OK | Updated: deploys generated TOOLS.md |
+| push-soul.sh | ✅ OK | Updated: role-aware sub-agent symlinks |
+| generate-tools-md.py | ✅ OK | Python rewrite: 7-layer TOOLS.md generation |
+| validate-tooling-configs.py | ✅ OK | Cross-validation: 0 errors |
+| sync-agent-crons.sh | ✅ OK | CRON deployment (needs gateway) |
+| reprovision-agents.sh | ✅ OK | Updated: includes push-soul.sh |
 | configure-board.sh | ✅ OK | 14 custom fields, 20 tags |
 
 ---
@@ -151,9 +156,60 @@
 | IaC Sync (M-EB18) | — | ❌ NOT DONE | Config differential tracking |
 
 **Daemons:** 5 concurrent (sync 60s, auth 120s, monitor 300s, orchestrator 30s, plane-watcher 120s)
-**MCP Tools:** 20 total (13 fleet + 7 Plane)
-**Skills:** 7 Claude Code skills
-**Tests:** 381 passing
+**MCP Tools:** 66 total (30 generic fleet + 36 role-specific group calls)
+**Skills:** 30 workspace + 7 gateway = 37
+**Sub-agents:** 12 custom definitions
+**Tests:** 2075 passing (was 381 on 2026-03-31)
+
+---
+
+## TOOLS SYSTEM ELEVATION (2026-04-07)
+
+8-phase effort making every agent a top-tier expert with 7 capability layers.
+Session index: `docs/milestones/active/tools-system-session-index.md`
+
+| Phase | What | Status | Key Metric |
+|-------|------|--------|------------|
+| A: Foundation | Building blocks, 16 elevated tools, chain builders | ~65-70% | 7 modules, 2075 tests |
+| B: MCP+Plugins | Per-agent mcp.json, plugin config | ~40% | 7/10 workspaces. Plugins blocked on gateway |
+| C: Group Calls | 36 role-specific tools across 10 roles | ~70% | 65 tests (36 registration + 29 behavioral) |
+| D: Skills | 30 workspace skills, 140 mapping entries | ~45% | 7 gateway + 13 broad + 10 deep |
+| E: CRONs+Orders | 17 CRONs, 14 standing orders, sync script | ~30% | Deployment blocked on gateway |
+| F: Sub-agents+Hooks | 12 sub-agents, hooks config + deployment | ~25% | Role-aware deployment via push-soul.sh |
+| G: Generation | Python pipeline reads 7 layers + tool-roles.yaml | ~70% | TOOLS.md per agent (270-324 lines) |
+| H: Validation | Cross-validation script, 52 pipeline tests | ~35% | 0 errors, 3 warnings (missing workspaces) |
+
+**New scripts:**
+
+| Script | Purpose |
+|--------|---------|
+| `generate-tools-md.py` | Generate per-agent TOOLS.md from all 7 layers |
+| `validate-tooling-configs.py` | Cross-validate all tooling configs (0 errors) |
+| `sync-agent-crons.sh` | Deploy CRONs from agent-crons.yaml to gateway |
+| `configure-agent-settings.sh` | ✅ REWRITTEN: reads agent-hooks.yaml, deploys hooks |
+| `push-soul.sh` | ✅ UPDATED: role-aware sub-agent symlinks |
+| `push-agent-framework.sh` | ✅ UPDATED: deploys generated TOOLS.md |
+| `reprovision-agents.sh` | ✅ UPDATED: includes push-soul.sh step |
+
+**New configs:**
+
+| Config | Entries |
+|--------|--------|
+| `config/skill-stage-mapping.yaml` | 140 entries (stages × roles × skills) |
+| `config/agent-crons.yaml` | 17 CRON jobs across 8 roles |
+| `config/standing-orders.yaml` | 14 standing orders across 10 roles |
+| `config/agent-hooks.yaml` | 5 hooks (2 default + 3 role-specific) |
+| `config/tool-chains.yaml` | ✅ UPDATED: 20 generic + 36 role-specific chain docs |
+| `config/tool-roles.yaml` | ✅ UPDATED: cross-role tools section |
+| `config/agent-tooling.yaml` | ✅ UPDATED: sub_agents per role |
+
+**New tests:**
+
+| Test File | Tests | What |
+|-----------|-------|------|
+| `test_role_tools.py` | 65 | Registration + behavioral for all 10 roles |
+| `test_tooling_pipeline.py` | 52 | Config parsing, cross-refs, TOOLS.md output |
+| `test_tool_operations.py` | 84 | Generic tool behavioral outcomes |
 
 ---
 

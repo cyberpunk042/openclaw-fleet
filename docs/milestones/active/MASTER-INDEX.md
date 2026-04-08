@@ -1,6 +1,6 @@
 # Master Index — All Fleet Documents & Milestones
 
-**Date:** 2026-03-31
+**Date:** 2026-04-07
 **Status:** ACTIVE — honest assessment of every document and milestone
 **Rule:** "Not live tested = not finished." Code existing ≠ done.
 
@@ -62,6 +62,26 @@
 | `standards-and-discipline.md` | M44–47 | Conventional commits, shared coding standards |
 | `navigability-and-traceability.md` | M57–60 | Commit ↔ task linking, trace tool |
 | `observability-and-channels.md` | M53–56 | WebSocket monitor, unified dashboard |
+
+### Tools System Elevation (2026-04-07) 🔨
+
+| Document | Content | Status |
+|----------|---------|--------|
+| `tools-system-session-index.md` | Master plan: 8 phases, 12 research docs, code changes, trajectory | 🔨 Active |
+| `tools-system-session-handoff.md` | Session handoff: what was built, honest status, file list | 🔨 Active |
+| `tool-chain-elevation-plan.md` | Group calls (Layer 1): tree execution, cross-platform propagation | 📝 Research |
+| `role-specific-tooling-elevation-plan.md` | Layers 2-7: MCP, plugins, skills, CRONs, sub-agents, hooks | 📝 Research |
+| `gateway-automation-capabilities.md` | CRONs, Tasks, TaskFlow, Hooks, Standing Orders reference | 📝 Research |
+| `skills-and-plugins-ecosystem-research.md` | 5 skill sources, 32 plugins, skill loading pipeline | 📝 Research |
+| `strategic-agent-capabilities-research.md` | Sub-agents, Agent Teams, extended thinking, hooks | 📝 Research |
+| `tools-system-full-capability-map.md` | Full scope: 7 layers, per-role inventory, phase/labor connections | 📝 Research |
+| `tools-system-directives-and-usage.md` | 7 directive types, autocomplete chain, immune system | 📝 Research |
+| `tools-system-session-decisions.md` | PO requirements, decisions made, open questions | 📝 Research |
+| `phase-a-operations-analysis.md` | Every operation in every elevated tree | 📝 Research |
+| `phase-b-mcp-plugin-findings.md` | MCP package verification, plugin evaluation | 📝 Research |
+| `phase-c-group-call-architecture.md` | Role-aware registration, per-role module pattern | 📝 Research |
+
+**Artifacts built:** 30 skills, 12 sub-agents, 36 group calls, 17 CRONs, 14 standing orders, 5 hooks, TOOLS.md per agent (270-324 lines). 2075 tests, 0 failures.
 
 ### Planning & Vision Documents 📝
 

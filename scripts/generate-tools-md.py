@@ -245,13 +245,16 @@ def generate_tools_md(agent_name: str) -> str:
         sections.append("\n".join(tool_entries))
 
     # ── 2. Role-Specific Group Calls ────────────────────────────
-    role_tools = extract_role_tools(agent_name)
-    if role_tools:
+    role_tools_list = extract_role_tools(agent_name)
+    role_chain_tools = chains.get("role_tools", {})
+    if role_tools_list:
         sections.append("## Role-Specific Tools\n")
         sections.append(f"These tools are exclusive to the {display_name} role.\n")
         tool_entries = []
-        for tool in role_tools:
-            tool_entries.append(format_tool_doc(tool["name"], tool["doc"]))
+        for tool in role_tools_list:
+            # Use chain docs from role_tools section if available
+            role_chain = role_chain_tools.get(tool["name"])
+            tool_entries.append(format_tool_doc(tool["name"], tool["doc"], role_chain))
         sections.append("\n".join(tool_entries))
 
     # ── 3. MCP Servers ──────────────────────────────────────────

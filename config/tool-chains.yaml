@@ -169,3 +169,273 @@ tools:
     chain: "Plane → OCMC sync"
     input: "(none)"
     auto: ""
+
+# ═══════════════════════════════════════════════════════════════════════
+# Role-Specific Group Calls — chain docs per role tool
+# These are only visible to agents with the corresponding role.
+# ═══════════════════════════════════════════════════════════════════════
+
+role_tools:
+
+  # ── PM Group Calls ────────────────────────────────────────────────
+  pm_sprint_standup:
+    what: "Generate sprint standup summary — tasks by status, velocity, blockers, action items"
+    when: "Every heartbeat with active sprint — the PM's core rhythm"
+    chain: "load tasks → compute velocity → identify blockers → check contributions → format report → post board memory [sprint, standup] → post IRC #sprint → trail"
+    input: "sprint_id (empty = current sprint)"
+    auto: "Board memory posting, IRC posting, trail recording"
+
+  pm_contribution_check:
+    what: "Check if a task has all required contributions before advancing to work stage"
+    when: "Before advancing any task to work stage — MANDATORY check"
+    chain: "read task type → load synergy matrix → read comments for contributions → compute completeness → list gaps → suggest fleet_task_create commands → trail"
+    input: "task_id"
+    auto: "Synergy matrix lookup, completeness computation"
+
+  pm_epic_breakdown:
+    what: "Analyze an epic and prepare context for breaking it into subtasks"
+    when: "Reasoning stage — when an epic needs decomposition"
+    chain: "read epic → identify subtask candidates → dependency chain → contribution requirements"
+    input: "task_id (the epic)"
+    auto: ""
+
+  pm_gate_route:
+    what: "Package a gate request with full context for PO decision"
+    when: "Task readiness 90%, phase advancement request"
+    chain: "read task → gather plan status → contribution completeness → format for PO → ntfy"
+    input: "task_id, gate_type (readiness_90 | phase_advance)"
+    auto: ""
+
+  pm_blocker_resolve:
+    what: "Evaluate a blocked task and suggest resolution options"
+    when: "Task is blocked — never >2 active blockers fleet-wide"
+    chain: "read blocked tasks → count fleet blockers → evaluate dependencies → suggest resolution → warn if >2"
+    input: "task_id"
+    auto: ""
+
+  # ── Fleet-Ops Group Calls ─────────────────────────────────────────
+  ops_real_review:
+    what: "Perform a REAL structured review of a completed task"
+    when: "Review stage — after agent completes and submits for approval"
+    chain: "read task + verbatim → read PR/summary → verify trail completeness → verify contributions → check phase standards → compare to verbatim → produce review → recommend approve/reject/escalate → trail"
+    input: "task_id, approval_id (optional)"
+    auto: "Trail verification, contribution check, phase standards evaluation"
+    blocked: "REQUIRES reading the actual work — no rubber stamps"
+
+  ops_board_health_scan:
+    what: "Scan the board for health issues — stuck tasks, stale reviews, offline agents"
+    when: "Heartbeat — continuous monitoring of board health"
+    chain: "load tasks + agents → identify stuck (>48h) → stale reviews (>24h) → offline agents with work → stale contributions → count blockers → format report → post board memory [health] → alert PM → trail"
+    input: "(none)"
+    auto: "Board memory posting, PM alerting on critical issues"
+
+  ops_compliance_spot_check:
+    what: "Sample recently completed tasks and check methodology compliance"
+    when: "Periodic — verify process adherence across the fleet"
+    chain: "sample done tasks → check trail completeness → check stage traversal → report gaps"
+    input: "(none)"
+    auto: ""
+
+  ops_budget_assessment:
+    what: "Assess fleet budget status and recommend mode changes if needed"
+    when: "Heartbeat — check budget health, recommend tempo"
+    chain: "read budget status → assess spend rate → recommend mode → report"
+    input: "(none)"
+    auto: ""
+
+  # ── Architect Group Calls ─────────────────────────────────────────
+  arch_design_contribution:
+    what: "Prepare context for producing a design_input contribution"
+    when: "Contribution task — architect assigned to provide design input"
+    chain: "read target task verbatim → read existing analysis → determine phase-appropriate depth → prepare design template → trail"
+    input: "task_id (target task needing design input)"
+    auto: "Phase-appropriate depth guide, design contribution template"
+
+  arch_codebase_assessment:
+    what: "Assess codebase architecture health for a specific area"
+    when: "Analysis stage — evaluating existing code structure"
+    chain: "identify scope → prepare assessment framework → trail"
+    input: "directory (path to assess), scope (optional focus area)"
+    auto: ""
+
+  arch_option_comparison:
+    what: "Prepare context for comparing multiple design approaches"
+    when: "Investigation stage — evaluating options (minimum 2)"
+    chain: "read task requirements → prepare comparison template"
+    input: "task_id"
+    auto: ""
+
+  arch_complexity_estimate:
+    what: "Assess task complexity — story points, architectural impact, risks"
+    when: "Reasoning stage — PM needs complexity estimate for sprint planning"
+    chain: "read task → assess scope + unknowns + dependencies → guide"
+    input: "task_id"
+    auto: ""
+
+  # ── DevSecOps Group Calls ─────────────────────────────────────────
+  sec_contribution:
+    what: "Prepare context for producing a security_requirement contribution"
+    when: "Contribution task — security review of a task before work"
+    chain: "read target task verbatim → read architect design → assess security implications → prepare template → post to own task → trail"
+    input: "task_id (target task)"
+    auto: "Assessment template with STRIDE-like categories, trail"
+
+  sec_pr_security_review:
+    what: "Prepare security review checklist for a PR"
+    when: "Review stage — PR submitted, needs security review"
+    chain: "read task PR + branch → prepare security checklist → trail"
+    input: "task_id (task with PR to review)"
+    auto: "Checklist template, trail recording"
+
+  sec_dependency_audit:
+    what: "Audit project dependencies for known vulnerabilities"
+    when: "Heartbeat CRON or contribution task — check deps for CVEs"
+    chain: "identify dep files → run pip audit / npm audit → format findings"
+    input: "project (optional, defaults to current)"
+    auto: ""
+
+  sec_code_scan:
+    what: "Prepare context for scanning code for security patterns"
+    when: "Analysis stage — code review for security issues"
+    chain: "identify scope → prepare scan framework → trail"
+    input: "directory, pattern (optional focus)"
+    auto: ""
+
+  sec_secret_scan:
+    what: "Scan repository for exposed credentials and secrets"
+    when: "CRON or manual — check for leaked secrets"
+    chain: "scan for patterns → check .gitignore coverage → report findings"
+    input: "(none)"
+    auto: ""
+
+  sec_infrastructure_health:
+    what: "Check fleet infrastructure for security issues"
+    when: "CRON — periodic security posture check"
+    chain: "check exposed ports → verify auth → check file permissions → report"
+    input: "(none)"
+    auto: ""
+
+  # ── Engineer Group Calls ──────────────────────────────────────────
+  eng_contribution_check:
+    what: "Check that all required contributions are available before starting work"
+    when: "FIRST thing in work stage — before writing a single line of code"
+    chain: "read task type → check synergy matrix → read comments for contributions → list received with summaries → list missing with request commands → trail"
+    input: "task_id (optional, defaults to current task)"
+    auto: "Synergy matrix lookup, contribution extraction from comments"
+
+  eng_fix_task_response:
+    what: "Read rejection feedback and prepare fix context"
+    when: "After fleet-ops rejects — re-read feedback, re-ground in verbatim"
+    chain: "read rejection comments → identify what failed → read verbatim → prepare fix context → trail"
+    input: "task_id (optional, defaults to current task)"
+    auto: ""
+
+  # ── DevOps Group Calls ────────────────────────────────────────────
+  devops_infrastructure_health:
+    what: "Check fleet infrastructure health — MC, gateway, agents"
+    when: "CRON or heartbeat — verify services are operational"
+    chain: "check MC API → check agent status → format report → post board memory [infrastructure] → alert on critical → trail"
+    input: "(none)"
+    auto: "Board memory posting, alerting"
+
+  devops_deployment_contribution:
+    what: "Prepare context for producing a deployment_manifest contribution"
+    when: "Contribution task — devops provides deployment guidance"
+    chain: "read target task + delivery phase → prepare manifest template → trail"
+    input: "task_id"
+    auto: "Phase-appropriate deployment template"
+
+  devops_cicd_review:
+    what: "Review CI/CD pipeline changes for correctness and security"
+    when: "Contribution or review — when pipeline config is modified"
+    chain: "read task + pipeline files → prepare review checklist"
+    input: "task_id"
+    auto: ""
+
+  devops_phase_infrastructure:
+    what: "Assess infrastructure maturity gap for delivery phase"
+    when: "Phase advancement — is infrastructure ready for next phase?"
+    chain: "read delivery phase → assess current infra → identify gaps → trail"
+    input: "task_id"
+    auto: ""
+
+  # ── QA Group Calls ────────────────────────────────────────────────
+  qa_test_predefinition:
+    what: "Predefine test criteria for a task entering reasoning stage"
+    when: "Contribution task — QA defines TC-XXX BEFORE implementation"
+    chain: "read verbatim + acceptance criteria → read architect design → determine phase rigor → produce TC-XXX criteria → contribute to target task → trail"
+    input: "task_id (target task)"
+    auto: "Phase-appropriate rigor level, architect input extraction"
+
+  qa_test_validation:
+    what: "Validate a completed task against predefined test criteria"
+    when: "Review stage — verify each TC-XXX criterion is met"
+    chain: "read predefined criteria → read completion + PR → validate each TC-XXX → produce validation report → flag gaps to fleet-ops → trail"
+    input: "task_id"
+    auto: ""
+
+  qa_coverage_analysis:
+    what: "Analyze test coverage for a project"
+    when: "CRON or contribution — assess coverage gaps"
+    chain: "identify test files → compute coverage metrics → format report"
+    input: "project (optional)"
+    auto: ""
+
+  qa_acceptance_criteria_review:
+    what: "Review task acceptance criteria for testability"
+    when: "Reasoning stage — ensure criteria are specific enough to test"
+    chain: "read task criteria → assess testability → suggest improvements"
+    input: "task_id"
+    auto: ""
+
+  # ── Writer Group Calls ────────────────────────────────────────────
+  writer_doc_contribution:
+    what: "Prepare context for producing a documentation_outline contribution"
+    when: "Contribution task — writer provides doc outline for a feature"
+    chain: "read target task → read architect design → prepare outline template"
+    input: "task_id"
+    auto: ""
+
+  writer_staleness_scan:
+    what: "Scan for stale documentation — recently completed features without docs"
+    when: "CRON or heartbeat — find features that need documentation"
+    chain: "list done stories/epics → filter by type → check for existing docs → flag undocumented"
+    input: "(none)"
+    auto: ""
+
+  # ── UX Group Calls ────────────────────────────────────────────────
+  ux_spec_contribution:
+    what: "Prepare context for producing a ux_spec contribution"
+    when: "Contribution task — UX assessment for user-facing work"
+    chain: "read target task → prepare UX template (states, interactions, accessibility) → trail"
+    input: "task_id"
+    auto: "UX assessment template covering all UX levels (not just UI)"
+
+  ux_accessibility_audit:
+    what: "Prepare context for a WCAG accessibility audit"
+    when: "Contribution or review — check accessibility compliance"
+    chain: "prepare WCAG checklist → trail"
+    input: "task_id (optional, empty = general audit)"
+    auto: ""
+
+  # ── Accountability Group Calls ────────────────────────────────────
+  acct_trail_reconstruction:
+    what: "Reconstruct the complete audit trail for a task"
+    when: "Review or compliance check — full chronological task history"
+    chain: "query board memory by task tag → filter trail events → sort chronologically → format trail document → trail"
+    input: "task_id"
+    auto: "Board memory querying, chronological sorting"
+
+  acct_sprint_compliance:
+    what: "Check sprint tasks for methodology compliance"
+    when: "Sprint boundary — verify all done tasks followed methodology"
+    chain: "load sprint tasks → for each: query trail → check stages/contributions/gates → produce compliance report → post board memory [compliance] → trail"
+    input: "sprint_id (optional, defaults to current)"
+    auto: "Compliance scoring per task, board memory posting"
+
+  acct_pattern_detection:
+    what: "Analyze compliance data for recurring anti-patterns"
+    when: "Periodic — feed signals to the immune system"
+    chain: "load done tasks → check trail coverage → identify patterns (no-trail, skipped-stages, missing-contributions) → format report"
+    input: "(none)"
+    auto: ""

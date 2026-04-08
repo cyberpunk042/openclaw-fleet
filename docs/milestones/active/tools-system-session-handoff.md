@@ -202,7 +202,7 @@
 
 **Phase G (~65%):** generate-tools-md.py reads all 7 layers + tool-roles.yaml role-specific descriptions (merged with chain info). "Always Available" skills section + per-stage with dedup. _cross_role_tools section added for 10 previously unassigned tools (fleet_task_progress, fleet_notify_human, fleet_task_context, fleet_heartbeat_context, fleet_artifact_read, 5 Plane tools). TOOLS.md generated for all 10 agents, deployed to 7 workspaces. Remaining: minor tool-chains.yaml enrichment.
 
-**Phase H (~30%):** validate-tooling-configs.py: 0 errors, 3 warnings. 52 integration tests in test_tooling_pipeline.py: config parsing (8), sub-agent validation (6), skill validation (3), cross-config refs (7), TOOLS.md output (24), tooling consistency (2). Test suite: 2060 passed, 0 failed, 19 skipped. Remaining: per-agent smoke test (needs gateway), documentation updates.
+**Phase H (~35%):** validate-tooling-configs.py: 0 errors, 3 warnings. 52 integration tests in test_tooling_pipeline.py. 29 behavioral tests across all 10 roles in test_role_tools.py (up from 14). Test suite: 2075 passed, 0 failed, 19 skipped. Remaining: per-agent smoke test (needs gateway), documentation updates.
 
 ---
 
