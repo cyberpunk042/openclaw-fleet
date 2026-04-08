@@ -288,6 +288,57 @@ class Validator:
 
         self.ok("Hook roles checked")
 
+    def check_agents_md(self, roster: set[str]):
+        """Check 13: Generated AGENTS.md exists and has expected structure."""
+        for agent in sorted(roster):
+            agents_path = FLEET_DIR / "agents" / agent / "AGENTS.md"
+            if not agents_path.exists():
+                self.warn(f"agents/{agent}/AGENTS.md does not exist — run generate-agents-md.py")
+            else:
+                content = agents_path.read_text()
+                if "Fleet Awareness" not in content:
+                    self.warn(f"agents/{agent}/AGENTS.md looks like old hand-written version")
+                if "Contribution Relationships" not in content:
+                    self.warn(f"agents/{agent}/AGENTS.md missing contribution relationships")
+                lines = len(content.splitlines())
+                if lines < 30:
+                    self.warn(f"agents/{agent}/AGENTS.md only {lines} lines — may be incomplete")
+
+        self.ok("AGENTS.md existence checked")
+
+    def check_synergy_matrix(self, roster: set[str]):
+        """Check 14: Synergy matrix roles match agent roster."""
+        synergy = load_yaml(CONFIG / "synergy-matrix.yaml")
+        contributions = synergy.get("contributions", {})
+
+        for target_agent, contribs in contributions.items():
+            if target_agent not in roster:
+                self.error(f"synergy-matrix.yaml target '{target_agent}' not in roster")
+            for c in contribs:
+                source = c.get("role", "")
+                if source and source not in roster:
+                    self.error(f"synergy-matrix.yaml source '{source}' (for {target_agent}) not in roster")
+                if not c.get("type"):
+                    self.error(f"synergy-matrix.yaml: contribution to {target_agent} from {source} missing type")
+
+        self.ok("Synergy matrix roles checked")
+
+    def check_stage_effort_config(self):
+        """Check 15: Stage-aware effort configuration is valid."""
+        try:
+            from fleet.core.model_selection import _STAGE_EFFORT_FLOOR, _EFFORT_ORDER
+            stages = ["conversation", "analysis", "investigation", "reasoning", "work"]
+            for stage in stages:
+                if stage not in _STAGE_EFFORT_FLOOR:
+                    self.error(f"model_selection: stage '{stage}' missing from _STAGE_EFFORT_FLOOR")
+                else:
+                    effort = _STAGE_EFFORT_FLOOR[stage]
+                    if effort not in _EFFORT_ORDER:
+                        self.error(f"model_selection: stage '{stage}' floor '{effort}' not a valid effort level")
+            self.ok("Stage-aware effort config valid")
+        except ImportError:
+            self.warn("Cannot import model_selection — stage effort check skipped")
+
     def check_tools_md(self, roster: set[str]):
         """Check 11: Generated TOOLS.md exists for all agents."""
         for agent in sorted(roster):
@@ -390,6 +441,9 @@ class Validator:
         self.check_hook_roles(roster)
         self.check_tooling_consistency()
         self.check_tools_md(roster)
+        self.check_agents_md(roster)
+        self.check_synergy_matrix(roster)
+        self.check_stage_effort_config()
         self.check_workspace_deployment(roster)
 
         # Report

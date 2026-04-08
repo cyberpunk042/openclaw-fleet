@@ -45,7 +45,7 @@ def select_model_for_task(
     agent_name: str = "",
     backend_mode: str = "claude",
 ) -> ModelConfig:
-    """Select model and effort based on task + agent.
+    """Select model and effort based on task + agent + methodology stage.
 
     Priority:
     1. Backend mode override (localai/hybrid short-circuits all logic below)
@@ -54,6 +54,7 @@ def select_model_for_task(
     4. Task type (epic/story/blocker → opus)
     5. Agent role (deep reasoning agents get opus on medium+ tasks)
     6. Default: sonnet with medium effort
+    7. Stage adjustment: thinking stages raise effort floor
 
     Returns:
         ModelConfig with model, effort, and reason for the selection.
@@ -82,7 +83,57 @@ def select_model_for_task(
             )
         # Fall through to normal claude selection for complex tasks
 
-    return _select_unconstrained(task, agent_name)
+    config = _select_unconstrained(task, agent_name)
+
+    # Stage-aware adjustment — thinking stages raise the effort floor
+    stage = task.custom_fields.task_stage if task.custom_fields else ""
+    if stage:
+        config = _apply_stage_adjustment(config, stage)
+
+    return config
+
+
+# Effort level ordering for comparisons
+_EFFORT_ORDER = {"low": 0, "medium": 1, "high": 2, "max": 3}
+
+# Minimum effort per methodology stage
+# Thinking stages (conversation → reasoning) require deeper cognitive work
+# Work stage uses whatever complexity-based selection determined
+_STAGE_EFFORT_FLOOR: dict[str, str] = {
+    "conversation": "medium",   # understanding requirements
+    "analysis": "medium",       # examining existing systems
+    "investigation": "high",    # exploring and evaluating options
+    "reasoning": "high",        # planning the approach
+    "work": "low",              # executing — complexity already factored in
+}
+
+
+def _apply_stage_adjustment(config: ModelConfig, stage: str) -> ModelConfig:
+    """Raise effort floor based on methodology stage.
+
+    Thinking stages (conversation through reasoning) need deeper cognitive
+    effort than pure execution. This ONLY raises effort — never lowers it.
+    If complexity-based selection already chose high, stage won't reduce it.
+
+    Returns:
+        ModelConfig with potentially raised effort.
+    """
+    floor = _STAGE_EFFORT_FLOOR.get(stage)
+    if not floor:
+        return config
+
+    current = _EFFORT_ORDER.get(config.effort, 1)
+    minimum = _EFFORT_ORDER.get(floor, 1)
+
+    if current < minimum:
+        effort_name = floor
+        return ModelConfig(
+            model=config.model,
+            effort=effort_name,
+            reason=f"{config.reason} + stage:{stage} raises effort to {effort_name}",
+        )
+
+    return config
 
 
 def _select_unconstrained(task: Task, agent_name: str) -> ModelConfig:

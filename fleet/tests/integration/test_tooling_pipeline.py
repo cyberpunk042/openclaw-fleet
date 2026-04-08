@@ -297,3 +297,96 @@ class TestAgentToolingConsistency:
         for agent in AGENT_ROSTER:
             assert agent in tooling.get("agents", {}), \
                 f"{agent} missing from agent-tooling.yaml"
+
+
+# ── AGENTS.md Generation Output ───────────────────────────────────
+
+class TestAgentsMdOutput:
+    """Generated AGENTS.md files have expected structure."""
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_agents_md_exists(self, agent):
+        path = FLEET_DIR / "agents" / agent / "AGENTS.md"
+        assert path.exists(), f"agents/{agent}/AGENTS.md not found"
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_agents_md_has_header(self, agent):
+        path = FLEET_DIR / "agents" / agent / "AGENTS.md"
+        if not path.exists():
+            pytest.skip("AGENTS.md not generated")
+        content = path.read_text()
+        assert "Fleet Awareness" in content, \
+            f"{agent}: AGENTS.md missing 'Fleet Awareness' header"
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_agents_md_has_contribution_section(self, agent):
+        path = FLEET_DIR / "agents" / agent / "AGENTS.md"
+        if not path.exists():
+            pytest.skip("AGENTS.md not generated")
+        content = path.read_text()
+        assert "Contribution Relationships" in content, \
+            f"{agent}: AGENTS.md missing contribution relationships"
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_agents_md_has_colleagues(self, agent):
+        path = FLEET_DIR / "agents" / agent / "AGENTS.md"
+        if not path.exists():
+            pytest.skip("AGENTS.md not generated")
+        content = path.read_text()
+        assert "Fleet Colleagues" in content, \
+            f"{agent}: AGENTS.md missing fleet colleagues section"
+        # Should list other agents (not self)
+        other_agents = [a for a in AGENT_ROSTER if a != agent]
+        for colleague in other_agents[:3]:  # spot-check at least 3
+            assert colleague in content, \
+                f"{agent}: AGENTS.md doesn't mention colleague {colleague}"
+
+
+# ── Synergy Matrix ────────────────────────────────────────────────
+
+class TestSynergyMatrix:
+    """Synergy matrix is internally consistent."""
+
+    def test_synergy_matrix_parses(self):
+        data = load_yaml(CONFIG / "synergy-matrix.yaml")
+        assert "contributions" in data
+
+    def test_synergy_targets_in_roster(self):
+        data = load_yaml(CONFIG / "synergy-matrix.yaml")
+        for target in data.get("contributions", {}):
+            assert target in AGENT_ROSTER, \
+                f"synergy target '{target}' not in roster"
+
+    def test_synergy_sources_in_roster(self):
+        data = load_yaml(CONFIG / "synergy-matrix.yaml")
+        for target, contribs in data.get("contributions", {}).items():
+            for c in contribs:
+                source = c.get("role", "")
+                assert source in AGENT_ROSTER, \
+                    f"synergy source '{source}' (for {target}) not in roster"
+
+    def test_contributions_have_type_and_priority(self):
+        data = load_yaml(CONFIG / "synergy-matrix.yaml")
+        for target, contribs in data.get("contributions", {}).items():
+            for c in contribs:
+                assert c.get("type"), f"contribution to {target} missing type"
+                assert c.get("priority"), f"contribution to {target} missing priority"
+
+
+# ── Stage-Aware Model Selection ──────────────────────────────────
+
+class TestStageAwareModelSelection:
+    """Stage-aware effort config is valid."""
+
+    def test_all_stages_have_floor(self):
+        from fleet.core.model_selection import _STAGE_EFFORT_FLOOR
+        for stage in ["conversation", "analysis", "investigation", "reasoning", "work"]:
+            assert stage in _STAGE_EFFORT_FLOOR
+
+    def test_thinking_stages_floor_gte_work(self):
+        from fleet.core.model_selection import _STAGE_EFFORT_FLOOR, _EFFORT_ORDER
+        work_level = _EFFORT_ORDER[_STAGE_EFFORT_FLOOR["work"]]
+        for stage in ["conversation", "analysis", "investigation", "reasoning"]:
+            stage_level = _EFFORT_ORDER[_STAGE_EFFORT_FLOOR[stage]]
+            assert stage_level >= work_level, \
+                f"{stage} floor should be >= work floor"

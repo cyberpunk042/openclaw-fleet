@@ -1,16 +1,27 @@
-"""Tests for dynamic model and effort selection."""
+"""Tests for dynamic model and effort selection.
 
-from fleet.core.model_selection import select_model_for_task
+Includes stage-aware effort adjustment tests.
+"""
+
+from fleet.core.model_selection import (
+    select_model_for_task,
+    _apply_stage_adjustment,
+    _EFFORT_ORDER,
+    _STAGE_EFFORT_FLOOR,
+    ModelConfig,
+)
 from fleet.core.models import Task, TaskCustomFields, TaskStatus
 
 
 def _task(
     sp: int = 0, task_type: str = "task", model: str = "",
+    stage: str = "", complexity: str = "",
 ) -> Task:
     return Task(
         id="t1", board_id="b1", title="Test", status=TaskStatus.INBOX,
         custom_fields=TaskCustomFields(
             story_points=sp, task_type=task_type, model=model,
+            task_stage=stage, complexity=complexity,
         ),
     )
 
@@ -77,3 +88,68 @@ def test_default_no_sp():
 
 # Budget mode constraint tests removed — select_model_for_task
 # no longer takes budget_mode parameter.
+
+
+# ── Stage-aware effort adjustment ───────────────────────────────────
+
+def test_reasoning_stage_raises_low_to_high():
+    """Subtask at reasoning stage: low → high."""
+    config = select_model_for_task(_task(sp=1, task_type="subtask", stage="reasoning"), "software-engineer")
+    assert config.effort == "high"
+    assert "stage:reasoning" in config.reason
+
+
+def test_investigation_stage_raises_low_to_high():
+    """Subtask at investigation stage: low → high."""
+    config = select_model_for_task(_task(sp=1, task_type="subtask", stage="investigation"), "software-engineer")
+    assert config.effort == "high"
+
+
+def test_conversation_stage_raises_low_to_medium():
+    """Subtask at conversation stage: low → medium."""
+    config = select_model_for_task(_task(sp=1, task_type="subtask", stage="conversation"), "software-engineer")
+    assert _EFFORT_ORDER[config.effort] >= _EFFORT_ORDER["medium"]
+
+
+def test_analysis_stage_raises_low_to_medium():
+    """Subtask at analysis stage: low → medium."""
+    config = select_model_for_task(_task(sp=1, task_type="subtask", stage="analysis"), "software-engineer")
+    assert _EFFORT_ORDER[config.effort] >= _EFFORT_ORDER["medium"]
+
+
+def test_work_stage_no_raise():
+    """Subtask at work stage: stays low."""
+    config = select_model_for_task(_task(sp=1, task_type="subtask", stage="work"), "software-engineer")
+    assert config.effort == "low"
+
+
+def test_stage_never_lowers_high():
+    """Large task already at high: work stage doesn't lower it."""
+    config = select_model_for_task(_task(sp=8, stage="work"), "software-engineer")
+    assert config.effort == "high"
+
+
+def test_epic_max_survives_reasoning():
+    """Epic already at max: reasoning doesn't change it."""
+    config = select_model_for_task(_task(task_type="epic", sp=5, stage="reasoning"), "project-manager")
+    assert config.effort == "max"
+
+
+def test_standard_task_at_reasoning():
+    """Standard 3-point task at reasoning: medium → high."""
+    config = select_model_for_task(_task(sp=3, stage="reasoning"), "devops")
+    assert config.effort == "high"
+    assert "stage:reasoning" in config.reason
+
+
+def test_all_stages_have_floor():
+    """Every methodology stage should have a defined effort floor."""
+    for stage in ["conversation", "analysis", "investigation", "reasoning", "work"]:
+        assert stage in _STAGE_EFFORT_FLOOR
+
+
+def test_thinking_floors_higher_than_work():
+    """Investigation and reasoning floors should exceed work floor."""
+    work_floor = _EFFORT_ORDER[_STAGE_EFFORT_FLOOR["work"]]
+    for stage in ["investigation", "reasoning"]:
+        assert _EFFORT_ORDER[_STAGE_EFFORT_FLOOR[stage]] > work_floor
