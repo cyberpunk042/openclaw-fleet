@@ -170,6 +170,63 @@ tools:
     input: "(none)"
     auto: ""
 
+  fleet_phase_advance:
+    what: "Request delivery phase advancement (poc → mvp → staging → production)"
+    when: "Current phase standards met — requires PO approval"
+    chain: "check phase standards → post gate to board memory [gate, po-required, phase] → IRC #gates → ntfy to PO → Plane comment → trail"
+    input: "task_id, from_phase, to_phase, evidence (what's been met)"
+    auto: "Phase standards checking, PO notification, Plane cross-reference"
+    blocked: "Phase standards must pass — if they don't, advance is blocked with specific gaps"
+
+  fleet_task_context:
+    what: "Get full task context in one call — task data, methodology, artifact, comments, related tasks, Plane"
+    when: "Starting work, reviewing task, need complete picture"
+    chain: "none (read-only — aggregates from MC, methodology, artifacts, Plane)"
+    input: "task_id (optional, defaults to current)"
+    auto: ""
+
+  fleet_heartbeat_context:
+    what: "Get role-specific heartbeat data in one call"
+    when: "Heartbeat — instead of multiple separate calls"
+    chain: "none (read-only — aggregates events, messages, directives, role data)"
+    input: "(none)"
+    auto: ""
+
+  fleet_plane_sprint:
+    what: "Get current sprint details: issues, progress, velocity"
+    when: "Any stage — checking sprint state on Plane (when connected)"
+    chain: "none (read-only)"
+    input: "project (default: AICP)"
+    auto: ""
+
+  fleet_plane_create_issue:
+    what: "Create an issue in Plane — used by PM to keep both surfaces in sync"
+    when: "After fleet_task_create — create matching Plane issue"
+    chain: "create issue → add to module → link parent → apply labels → event"
+    input: "project, title, description, priority, assignee, labels, module, parent_issue"
+    auto: "Module assignment, parent linking, label application"
+
+  fleet_plane_comment:
+    what: "Post a comment on a Plane issue — cross-surface communication"
+    when: "Any stage — updates, mentions, and status that should appear on Plane"
+    chain: "post comment (with HTML wrapping) → mention routing"
+    input: "project, issue_id, comment, mention (optional agent)"
+    auto: "HTML wrapping, mention formatting"
+
+  fleet_plane_update_issue:
+    what: "Update a Plane issue — change state, priority, or assignment"
+    when: "Task state change in OCMC that should reflect on Plane"
+    chain: "update issue fields → label updates → state transition"
+    input: "project, issue_id, state, priority, assignee, labels"
+    auto: "Label resolution, state mapping"
+
+  fleet_plane_list_modules:
+    what: "List modules (epics) in a Plane project with their status and lead"
+    when: "Any stage — checking project structure on Plane"
+    chain: "none (read-only)"
+    input: "project (default: AICP)"
+    auto: ""
+
 # ═══════════════════════════════════════════════════════════════════════
 # Role-Specific Group Calls — chain docs per role tool
 # These are only visible to agents with the corresponding role.

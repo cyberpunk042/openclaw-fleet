@@ -43,6 +43,27 @@ defaults:
         "
       description: "Enforce conventional commit format on fleet_commit"
 
+    # Completion without progress — warn if agent completes without ever reporting progress.
+    # Fleet-ops needs progress trail to do a meaningful review. Completing "out of nowhere"
+    # means the review has no context about what happened during work.
+    - matcher: "fleet_task_complete"
+      type: command
+      command: |
+        TRAIL_LOG="${FLEET_DIR:-.}/.fleet-trail.log"
+        if [[ -f "$TRAIL_LOG" ]]; then
+          AGENT="${FLEET_AGENT:-unknown}"
+          if grep -q "fleet_task_progress.*$AGENT" "$TRAIL_LOG" 2>/dev/null; then
+            exit 0  # progress was reported
+          fi
+          if grep -q "fleet_commit.*$AGENT" "$TRAIL_LOG" 2>/dev/null; then
+            exit 0  # commits exist — work trail present
+          fi
+        fi
+        echo "Warning: No progress reports or commits found in trail for this session."
+        echo "Fleet-ops reviews without context. Consider fleet_task_progress before completing."
+        exit 1  # warn
+      description: "Warn if completing without prior progress reports or commits"
+
   PostToolUse:
     # Trail recording — every state-modifying tool call gets a trail event
     # This ensures trail completeness even if individual tools forget to record
@@ -109,6 +130,78 @@ roles:
           sys.exit(0)  # allow — the tool itself enforces the actual check
           "
         description: "Remind to verify security_hold before approval"
+
+  project-manager:
+    PreToolUse:
+      # Task creation field completeness — prevent bad dispatch from missing fields
+      # Missing story_points = wrong model selection. Missing agent_name = unassigned.
+      # Missing task_stage = wrong methodology protocol. These cascade into 5 systems.
+      - matcher: "fleet_task_create"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          missing = []
+          # title is required by the tool itself
+          if not data.get('agent_name'):
+              missing.append('agent_name (who does this?)')
+          if not data.get('task_type'):
+              missing.append('task_type (epic/story/task/subtask)')
+          # Warn but don't block — PM may be creating contribution subtasks
+          # where some fields are inferred
+          if missing:
+              print('Task creation missing recommended fields:')
+              for m in missing:
+                  print(f'  - {m}')
+              print('Missing fields degrade dispatch quality, model selection, and contributions.')
+              sys.exit(1)  # warn
+          "
+        description: "Warn PM when creating tasks without key fields that affect dispatch"
+
+  architect:
+    PreToolUse:
+      # Design input should reference specific files — vague design degrades implementation
+      - matcher: "fleet_contribute"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          ctype = data.get('contribution_type', '')
+          content = data.get('content', '')
+          if ctype == 'design_input':
+              # Check for file path patterns (at least one specific reference)
+              import re
+              has_file_ref = bool(re.search(r'[a-zA-Z_/]+\.(py|ts|js|yaml|yml|json|md|sh)', content))
+              has_dir_ref = bool(re.search(r'[a-zA-Z_]+/', content))
+              if not has_file_ref and not has_dir_ref:
+                  print('Design input has no file or directory references.')
+                  print('Engineers need SPECIFIC target files to implement your design.')
+                  print('Include at least: target files, modified files, or directory scope.')
+                  sys.exit(1)  # warn
+          "
+        description: "Warn if design_input contribution lacks specific file references"
+
+  qa-engineer:
+    PreToolUse:
+      # QA predefinition should use TC-XXX format — the validation system depends on it
+      - matcher: "fleet_contribute"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          ctype = data.get('contribution_type', '')
+          content = data.get('content', '')
+          if ctype == 'qa_test_definition':
+              if 'TC-' not in content and 'tc-' not in content:
+                  print('QA test definition should use structured TC-XXX format.')
+                  print('Example: TC-001: API returns 200 for valid input | unit | required')
+                  print('TC-XXX criteria become validation checkpoints during review.')
+                  sys.exit(1)  # warn
+          "
+        description: "Warn if QA test definition lacks structured TC-XXX criteria"
 
 # ─── Monitoring Hooks (Future — PO Observation Stream) ────────────────
 # When a monitoring service is available, enable these to stream

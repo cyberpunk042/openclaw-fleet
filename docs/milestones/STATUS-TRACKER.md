@@ -163,45 +163,59 @@
 
 ---
 
-## TOOLS SYSTEM ELEVATION (2026-04-07)
+## TOOLS SYSTEM ELEVATION (updated 2026-04-08)
 
 8-phase effort making every agent a top-tier expert with 7 capability layers.
 Session index: `docs/milestones/active/tools-system-session-index.md`
 
 | Phase | What | Status | Key Metric |
 |-------|------|--------|------------|
-| A: Foundation | Building blocks, 16 elevated tools, chain builders | ~65-70% | 7 modules, 2075 tests |
-| B: MCP+Plugins | Per-agent mcp.json, plugin config | ~40% | 7/10 workspaces. Plugins blocked on gateway |
-| C: Group Calls | 36 role-specific tools across 10 roles | ~70% | 65 tests (36 registration + 29 behavioral) |
-| D: Skills | 30 workspace skills, 140 mapping entries | ~45% | 7 gateway + 13 broad + 10 deep |
-| E: CRONs+Orders | 17 CRONs, 14 standing orders, sync script | ~30% | Deployment blocked on gateway |
-| F: Sub-agents+Hooks | 12 sub-agents, hooks config + deployment | ~25% | Role-aware deployment via push-soul.sh |
-| G: Generation | Python pipeline reads 7 layers + tool-roles.yaml | ~70% | TOOLS.md per agent (270-324 lines) |
-| H: Validation | Cross-validation script, 52 pipeline tests | ~35% | 0 errors, 3 warnings (missing workspaces) |
+| A: Foundation | 30 elevated tools, 9 building blocks, chain builders, stage-aware effort | ~80% | 93 tool operation tests, 2218 total |
+| B: MCP+Plugins | Per-agent mcp.json, plugin evaluation (4 INSTALL) | ~45% | 7/10 workspaces. Install blocked on gateway |
+| C: Group Calls | 36 role-specific tools across 10 roles | ~80% | 89 tests (36 registration + 53 behavioral) |
+| D: Skills | 38 workspace skills, stage mappings, 8 cross-system flow skills | ~55% | 7 gateway + 13 broad + 18 role-specific |
+| E: CRONs+Orders | 17 CRONs, 14 standing orders, sync script | ~35% | Deployment blocked on gateway |
+| F: Sub-agents+Hooks | 12 sub-agents, hooks, stage-aware effort in dispatch | ~30% | Role-aware deployment via push-soul.sh |
+| G: Generation | Python pipeline, 66 chain docs (30 generic + 36 role) | ~80% | TOOLS.md per agent (307-358 lines) |
+| H: Validation | 14 config checks, 2218 tests, 19 cross-flow integration | ~50% | 0 errors, 3 warnings (missing workspaces) |
+
+**Test suite: 2218 passed, 0 failures, 19 skipped.**
 
 **New scripts:**
 
 | Script | Purpose |
 |--------|---------|
 | `generate-tools-md.py` | Generate per-agent TOOLS.md from all 7 layers |
+| `generate-agents-md.py` | Generate per-agent AGENTS.md (synergy + colleagues) |
 | `validate-tooling-configs.py` | Cross-validate all tooling configs (0 errors) |
 | `sync-agent-crons.sh` | Deploy CRONs from agent-crons.yaml to gateway |
 | `configure-agent-settings.sh` | ✅ REWRITTEN: reads agent-hooks.yaml, deploys hooks |
 | `push-soul.sh` | ✅ UPDATED: role-aware sub-agent symlinks |
-| `push-agent-framework.sh` | ✅ UPDATED: deploys generated TOOLS.md |
+| `push-agent-framework.sh` | ✅ UPDATED: deploys TOOLS.md + AGENTS.md |
 | `reprovision-agents.sh` | ✅ UPDATED: includes push-soul.sh step |
 
 **New configs:**
 
 | Config | Entries |
 |--------|--------|
-| `config/skill-stage-mapping.yaml` | 140 entries (stages × roles × skills) |
+| `config/skill-stage-mapping.yaml` | ~105 entries (stages × roles × 38 skills) |
 | `config/agent-crons.yaml` | 17 CRON jobs across 8 roles |
 | `config/standing-orders.yaml` | 14 standing orders across 10 roles |
-| `config/agent-hooks.yaml` | 5 hooks (2 default + 3 role-specific) |
-| `config/tool-chains.yaml` | ✅ UPDATED: 20 generic + 36 role-specific chain docs |
+| `config/agent-hooks.yaml` | 6 hooks (2 default + 4 role-specific) |
+| `config/tool-chains.yaml` | 30 generic + 36 role-specific = 66 chain docs (100% coverage) |
 | `config/tool-roles.yaml` | ✅ UPDATED: cross-role tools section |
-| `config/agent-tooling.yaml` | ✅ UPDATED: sub_agents per role |
+| `config/agent-tooling.yaml` | ✅ UPDATED: sub_agents + plugins per role |
+| `config/plugin-evaluation.yaml` | 4 INSTALL, 5 DEFER, 3 SKIP |
+| `config/synergy-matrix.yaml` | Contribution requirements per role |
+
+**Runtime wiring (code modules):**
+
+| Module | What It Does |
+|--------|-------------|
+| `fleet/core/skill_recommendations.py` | Cached YAML → stage+role skill recs in context/preembed |
+| `fleet/core/standing_orders.py` | Cached YAML → per-role authority + orders in heartbeat preembed |
+| `fleet/core/model_selection.py` | Stage-aware effort floor (reasoning/investigation → high) |
+| `fleet/cli/dispatch.py` | Stage-aware model_config for Claude backend dispatch records |
 
 **New tests:**
 

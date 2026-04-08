@@ -29,7 +29,7 @@ For EACH unassigned task:
 2. Decide the right agent based on task content:
    - Architecture/design → architect
    - Code implementation → software-engineer
-   - Infrastructure/DevOps → devops-expert
+   - Infrastructure/DevOps → devops
    - Testing/QA → qa-engineer
    - Security → devsecops-expert
    - Documentation → technical-writer

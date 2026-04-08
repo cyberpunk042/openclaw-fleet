@@ -147,6 +147,12 @@ roles:
       - skill: fleet-pm-orchestration
         source: workspace
         why: "Task triage with ALL fields, PO routing, contribution orchestration"
+      - skill: fleet-task-triage
+        source: workspace
+        why: "How to triage inbox tasks — set ALL 12 fields, assign agents, foundation for correct dispatch"
+      - skill: fleet-blocker-resolution
+        source: workspace
+        why: "Resolve blocked tasks — 5 options, 2-blocker fleet limit, when to escalate"
     reasoning:
       - skill: fleet-plan
         source: workspace
@@ -176,6 +182,9 @@ roles:
       - skill: fleet-review
         source: workspace
         why: "Structured review protocol — 7+ step real review"
+      - skill: fleet-methodology-compliance
+        source: workspace
+        why: "Detect methodology violations — code during analysis, skipped stages, readiness jumps, missing contributions"
       - skill: fleet-ops-review-protocol
         source: workspace
         why: "10-step REAL review — verbatim match, trail, contributions, phase standards"
@@ -216,6 +225,10 @@ roles:
         why: "Plan alignment, code quality, architecture/design review"
 
   architect:
+    all_stages:
+      - skill: fleet-architecture-health
+        source: workspace
+        why: "Monitor drift, coupling, pattern inconsistency — continuous vigilance, not just at planning time"
     analysis:
       - skill: fleet-gap
         source: gateway
@@ -227,6 +240,13 @@ roles:
       - skill: fleet-adr-creation
         source: workspace
         why: "Architecture Decision Records — context, options, rationale for future agents"
+      - skill: fleet-design-pattern-selection
+        source: workspace
+        why: "When each pattern fits/doesn't — selection flows into design_input contributions"
+    investigation:
+      - skill: fleet-option-exploration
+        source: workspace
+        why: "Research multiple approaches — structured comparison table, not just the first idea"
     plugin_skills:
       - skill: brainstorming
         plugin: superpowers
@@ -263,10 +283,16 @@ roles:
       - skill: fleet-engineer-workflow
         source: workspace
         why: "Contribution consumption, TDD mindset, conventional commits, humble expertise"
+      - skill: fleet-contribution-consumption
+        source: workspace
+        why: "How to consume architect/QA/security/UX contributions as REQUIREMENTS, not suggestions"
     work:
       - skill: fleet-test
         source: workspace
         why: "Run and analyze test results"
+      - skill: fleet-fix-task-handling
+        source: workspace
+        why: "Handle rejections — read feedback, find root cause, add regression tests, re-submit"
     plugin_skills:
       - skill: test-driven-development
         plugin: superpowers
@@ -314,6 +340,9 @@ roles:
       - skill: fleet-phase-testing
         source: workspace
         why: "Phase-appropriate testing — POC vs MVP vs staging vs production rigor levels"
+      - skill: fleet-test-validation
+        source: workspace
+        why: "Validate completed work against predefined TC-XXX criteria — verify each with evidence"
     reasoning:
       - skill: fleet-test
         source: workspace
@@ -350,6 +379,9 @@ roles:
       - skill: fleet-security-contribution
         source: workspace
         why: "Specific actionable controls — auth, input validation, deps, secrets"
+      - skill: fleet-vulnerability-assessment
+        source: workspace
+        why: "Dependency audit, code scan, severity classification — maps to sec_dependency_audit and sec_code_scan"
     analysis:
       - skill: fleet-threat-modeling
         source: workspace
@@ -371,6 +403,9 @@ roles:
       - skill: fleet-devops-iac
         source: workspace
         why: "IaC principles, everything scriptable, phase-appropriate infrastructure"
+      - skill: fleet-deployment-strategy
+        source: workspace
+        why: "Phase-appropriate deployment — rolling, blue-green, canary. Maps to devops_deployment_contribution"
     reasoning:
       - skill: fleet-cicd-pipeline
         source: workspace
@@ -406,6 +441,9 @@ roles:
       - skill: fleet-doc-lifecycle
         source: workspace
         why: "Living documentation — staleness detection, proactive maintenance, complementary work"
+      - skill: fleet-doc-contribution-protocol
+        source: workspace
+        why: "How to produce documentation_outline contributions — audience-aware, complementary with architect/engineer"
     work:
       - skill: fleet-api-documentation
         source: workspace
@@ -427,6 +465,9 @@ roles:
       - skill: fleet-ux-every-level
         source: workspace
         why: "UX beyond UI — CLI, API, config, errors, events, logs, code ergonomics"
+      - skill: fleet-interaction-design
+        source: workspace
+        why: "ux_spec contribution protocol — all states, all interactions, all UX levels"
     analysis:
       - skill: fleet-gap
         source: gateway
@@ -449,6 +490,9 @@ roles:
       - skill: fleet-accountability-trail
         source: workspace
         why: "Trail reconstruction, compliance checking, pattern detection for immune system"
+      - skill: fleet-compliance-verification
+        source: workspace
+        why: "Sprint compliance reports — stage traversal, contributions, gates, trail completeness for PO"
 
 # ─── Plugins to Evaluate ─────────────────────────────────────────────
 # From research (skills-and-plugins-ecosystem-research.md §NOT YET ASSIGNED).
