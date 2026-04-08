@@ -200,9 +200,9 @@
 
 **Phase F (~25%):** 12 sub-agents defined (all read-only, model-appropriate, tool-restricted). Hook configs created. configure-agent-settings.sh deploys hooks to workspaces. Remaining: Agent Teams evaluation, stage-aware effort connection, monitoring hooks need service.
 
-**Phase G (~55%):** generate-tools-md.py rewritten in Python — reads all 7 layers (tools.py, roles/*.py, tool-chains.yaml, agent-tooling.yaml, skill-stage-mapping.yaml, agent-crons.yaml, standing-orders.yaml, agent-hooks.yaml, identities, sub-agent frontmatter). Skills section has "Always Available" + per-stage with dedup. TOOLS.md generated for all 10 agents (270-324 lines each). Deployed to 7 workspaces. Remaining: tool-chains.yaml role-specific entries, tool-roles.yaml validation.
+**Phase G (~65%):** generate-tools-md.py reads all 7 layers + tool-roles.yaml role-specific descriptions (merged with chain info). "Always Available" skills section + per-stage with dedup. _cross_role_tools section added for 10 previously unassigned tools (fleet_task_progress, fleet_notify_human, fleet_task_context, fleet_heartbeat_context, fleet_artifact_read, 5 Plane tools). TOOLS.md generated for all 10 agents, deployed to 7 workspaces. Remaining: minor tool-chains.yaml enrichment.
 
-**Phase H (~20%):** validate-tooling-configs.py cross-validates all configs: 0 errors, 3 warnings (3 missing workspaces — gateway provisioning). 11 checks pass: agent roster, sub-agent refs, skill refs, CRON group call refs, hook tool refs, standing order/CRON/hook roles, agent-tooling internal consistency, TOOLS.md existence, workspace deployment. Full test suite passing (2008/0/19). Remaining: per-agent smoke test (needs gateway), documentation updates.
+**Phase H (~30%):** validate-tooling-configs.py: 0 errors, 3 warnings. 52 integration tests in test_tooling_pipeline.py: config parsing (8), sub-agent validation (6), skill validation (3), cross-config refs (7), TOOLS.md output (24), tooling consistency (2). Test suite: 2060 passed, 0 failed, 19 skipped. Remaining: per-agent smoke test (needs gateway), documentation updates.
 
 ---
 

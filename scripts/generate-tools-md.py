@@ -176,6 +176,7 @@ def generate_tools_md(agent_name: str) -> str:
     # Load all configs
     tooling = load_yaml(CONFIG / "agent-tooling.yaml")
     chains = load_yaml(CONFIG / "tool-chains.yaml")
+    tool_roles = load_yaml(CONFIG / "tool-roles.yaml")
     identities = load_yaml(CONFIG / "agent-identities.yaml")
     skill_mapping = load_yaml(CONFIG / "skill-stage-mapping.yaml")
     crons_config = load_yaml(CONFIG / "agent-crons.yaml")
@@ -192,6 +193,18 @@ def generate_tools_md(agent_name: str) -> str:
     agent_config = tooling.get("agents", {}).get(agent_name, {})
     chain_tools = chains.get("tools", {})
 
+    # Role-specific tool descriptions from tool-roles.yaml
+    role_tool_descs = (tool_roles.get(agent_name, {}).get("tools", {})
+                       if isinstance(tool_roles.get(agent_name), dict) else {})
+
+    # Cross-role tools: apply if this agent is in the tool's roles list
+    cross_role = tool_roles.get("_cross_role_tools", {})
+    if isinstance(cross_role, dict):
+        for tool_name, desc in cross_role.items():
+            if isinstance(desc, dict) and agent_name in desc.get("roles", []):
+                if tool_name not in role_tool_descs:
+                    role_tool_descs[tool_name] = desc
+
     sections = []
 
     # ── Header ──────────────────────────────────────────────────
@@ -204,7 +217,30 @@ def generate_tools_md(agent_name: str) -> str:
         tool_entries = []
         for tool in generic_tools:
             chain_info = chain_tools.get(tool["name"])
-            tool_entries.append(format_tool_doc(tool["name"], tool["doc"], chain_info))
+            role_desc = role_tool_descs.get(tool["name"])
+
+            # Merge: role-specific what/when override generic, keep chain info
+            if role_desc and chain_info:
+                merged = dict(chain_info)
+                if role_desc.get("usage"):
+                    merged["what"] = role_desc["usage"]
+                if role_desc.get("when"):
+                    merged["when"] = role_desc["when"]
+                if role_desc.get("note"):
+                    merged["auto"] = (merged.get("auto", "") + " " + role_desc["note"]).strip()
+                tool_entries.append(format_tool_doc(tool["name"], tool["doc"], merged))
+            elif role_desc:
+                # Role desc but no chain info — build from role desc
+                pseudo_chain = {
+                    "what": role_desc.get("usage", ""),
+                    "when": role_desc.get("when", ""),
+                }
+                if role_desc.get("note"):
+                    pseudo_chain["auto"] = role_desc["note"]
+                tool_entries.append(format_tool_doc(tool["name"], tool["doc"], pseudo_chain))
+            else:
+                tool_entries.append(format_tool_doc(tool["name"], tool["doc"], chain_info))
+
         sections.append("## Fleet MCP Tools\n")
         sections.append("\n".join(tool_entries))
 

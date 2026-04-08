@@ -443,3 +443,51 @@ accountability-generator:
     fleet_chat:
       usage: "Report compliance findings, flag process gaps to PM"
       when: "Trail verification complete, patterns identified"
+
+# ═══════════════════════════════════════════════════════════════════════
+# CROSS-ROLE TOOLS — used by multiple roles but not role-specific enough
+# to warrant per-role customization. These get generic descriptions.
+# ═══════════════════════════════════════════════════════════════════════
+
+# fleet_task_progress — most implementing roles use this
+_cross_role_tools:
+  fleet_task_progress:
+    roles: [software-engineer, architect, devops, qa-engineer, devsecops-expert, technical-writer, ux-designer]
+    usage: "Report progress on current task"
+    when: "Meaningful progress to report — readiness change, checkpoint, blocker resolution"
+  fleet_notify_human:
+    roles: [project-manager, fleet-ops]
+    usage: "Send push notification to PO"
+    when: "Urgent matters requiring immediate PO attention"
+  fleet_task_context:
+    roles: [software-engineer, fleet-ops, qa-engineer, architect]
+    usage: "Get full task context in one call"
+    when: "Starting work, reviewing task, need complete picture"
+  fleet_heartbeat_context:
+    roles: [project-manager, fleet-ops, accountability-generator]
+    usage: "Get role-specific heartbeat data in one call"
+    when: "Heartbeat processing — aggregated data for your role"
+  fleet_artifact_read:
+    roles: [software-engineer, fleet-ops, architect, qa-engineer, accountability-generator]
+    usage: "Read the current artifact on a task"
+    when: "Checking artifact state, reading analysis/plan before contributing"
+  fleet_plane_sprint:
+    roles: [project-manager]
+    usage: "Get current Plane sprint details"
+    when: "Sprint planning, standup, velocity tracking"
+  fleet_plane_create_issue:
+    roles: [project-manager]
+    usage: "Create an issue in Plane"
+    when: "New work item needs to exist in Plane"
+  fleet_plane_comment:
+    roles: [project-manager, fleet-ops]
+    usage: "Post a comment on a Plane issue"
+    when: "Cross-surface communication, updates to Plane stakeholders"
+  fleet_plane_update_issue:
+    roles: [project-manager]
+    usage: "Update a Plane issue state, priority, or assignment"
+    when: "Sprint management, priority changes"
+  fleet_plane_list_modules:
+    roles: [project-manager, architect]
+    usage: "List modules (epics) in a Plane project"
+    when: "Epic planning, architecture review of project structure"
