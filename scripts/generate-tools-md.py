@@ -247,32 +247,49 @@ def generate_tools_md(agent_name: str) -> str:
     stages = ["conversation", "analysis", "investigation", "reasoning", "work"]
     has_stage_recs = False
 
+    # All-stages skills first (always available regardless of stage)
+    always_recs = []
+    generic_all = generic_mapping.get("all_stages", {})
+    if isinstance(generic_all, dict):
+        for r in generic_all.get("recommended", []):
+            always_recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
+    role_all = role_mapping.get("all_stages", [])
+    if isinstance(role_all, list):
+        for r in role_all:
+            always_recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
+
+    if always_recs:
+        has_stage_recs = True
+        skills_section.append("### Always Available")
+        skills_section.extend(always_recs)
+        skills_section.append("")
+
+    # Per-stage skills
     for stage in stages:
         recs = []
+        seen_skills = set()
         # Generic for this stage
         generic_stage = generic_mapping.get(stage, {})
         if isinstance(generic_stage, dict):
             for r in generic_stage.get("recommended", []):
-                recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
+                key = r["skill"]
+                if key not in seen_skills:
+                    seen_skills.add(key)
+                    recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
             for r in generic_stage.get("plugin_recommended", []):
-                recs.append(f"  - /{r['skill']} ({r.get('plugin', '')}) — {r.get('why', '')}")
+                key = f"{r['skill']}:{r.get('plugin', '')}"
+                if key not in seen_skills:
+                    seen_skills.add(key)
+                    recs.append(f"  - /{r['skill']} ({r.get('plugin', '')}) — {r.get('why', '')}")
 
-        # Role-specific for this stage
+        # Role-specific for this stage (dedup against generic)
         role_stage = role_mapping.get(stage, [])
         if isinstance(role_stage, list):
             for r in role_stage:
-                recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
-
-        # Generic all_stages
-        if stage == stages[0]:  # only show all_stages once
-            generic_all = generic_mapping.get("all_stages", {})
-            if isinstance(generic_all, dict):
-                for r in generic_all.get("recommended", []):
-                    recs.insert(0, f"  - /{r['skill']} — {r.get('why', '')}")
-            role_all = role_mapping.get("all_stages", [])
-            if isinstance(role_all, list):
-                for r in role_all:
-                    recs.insert(0, f"  - /{r['skill']} — {r.get('why', '')}")
+                key = r["skill"]
+                if key not in seen_skills:
+                    seen_skills.add(key)
+                    recs.append(f"  - /{r['skill']} — {r.get('why', '')}")
 
         if recs:
             has_stage_recs = True
