@@ -255,3 +255,201 @@ def test_acct_patterns():
     c, t = _ctx("accountability-generator"); t.status = MagicMock(value="done")
     r = _tool("accountability-generator", "acct_pattern_detection", c)
     assert r["ok"]; assert "patterns" in r
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BEHAVIORAL TESTS — verify MC API calls, trail, contribution detection
+# ═══════════════════════════════════════════════════════════════════════
+
+# ─── PM behavioral ───────────────────────────────────────────────────
+
+def test_pm_standup_posts_to_board_memory_and_irc():
+    c, t = _ctx("project-manager"); t.custom_fields.plan_id = "sprint-1"
+    r = _tool("project-manager", "pm_sprint_standup", c, sprint_id="sprint-1")
+    assert r["ok"]
+    # Should post standup report + trail to board memory
+    assert c.mc.post_memory.call_count >= 2
+    # Should notify IRC #sprint
+    c.irc.notify.assert_called()
+    irc_args = c.irc.notify.call_args
+    assert "#sprint" in str(irc_args)
+
+
+def test_pm_contribution_check_detects_missing():
+    c, t = _ctx("project-manager")
+    t.custom_fields.agent_name = "software-engineer"
+    t.custom_fields.task_type = "story"
+    # No contributions in comments → should detect missing
+    c.mc.list_comments = AsyncMock(return_value=[])
+    r = _tool("project-manager", "pm_contribution_check", c, task_id="task-12345678")
+    assert r["ok"]
+    assert not r["all_received"]
+    assert len(r["missing"]) > 0
+    assert "suggested_actions" in r
+
+
+def test_pm_blocker_warns_when_over_limit():
+    c, _ = _ctx("project-manager")
+    # Create 3 blocked tasks (limit is 2)
+    blocked_tasks = []
+    for i in range(3):
+        bt = MockTask()
+        bt.is_blocked = True
+        bt.blocked_by_task_ids = [f"dep-{i}"]
+        bt.title = f"Blocked task {i}"
+        blocked_tasks.append(bt)
+    c.mc.list_tasks = AsyncMock(return_value=blocked_tasks)
+    r = _tool("project-manager", "pm_blocker_resolve", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["fleet_blocked_count"] == 3
+    assert "RESOLVE URGENTLY" in r["warning"]
+
+
+# ─── Fleet-ops behavioral ───────────────────────────────────────────
+
+def test_ops_review_detects_no_verbatim():
+    c, t = _ctx("fleet-ops")
+    t.custom_fields.requirement_verbatim = ""
+    r = _tool("fleet-ops", "ops_real_review", c, task_id="task-12345678")
+    assert r["ok"]
+    review = r["review"]
+    assert not review["verbatim_exists"]
+    assert any("verbatim" in i.lower() for i in review["issues"])
+
+
+def test_ops_review_detects_no_trail():
+    c, t = _ctx("fleet-ops")
+    c.mc.list_memory = AsyncMock(return_value=[])  # no trail events
+    r = _tool("fleet-ops", "ops_real_review", c, task_id="task-12345678")
+    review = r["review"]
+    assert not review["checks"]["trail_exists"]
+    assert any("trail" in i.lower() for i in review["issues"])
+
+
+def test_ops_review_recommends_approve_when_clean():
+    c, t = _ctx("fleet-ops")
+    t.custom_fields.requirement_verbatim = "Build the feature"
+    # Provide trail events
+    trail_entry = MagicMock()
+    trail_entry.tags = ["trail", "task:task-12345678"]
+    trail_entry.content = "**[trail]** plan_accepted"
+    c.mc.list_memory = AsyncMock(return_value=[trail_entry])
+    r = _tool("fleet-ops", "ops_real_review", c, task_id="task-12345678")
+    review = r["review"]
+    assert review["checks"]["trail_exists"]
+    assert review["verbatim_exists"]
+
+
+def test_ops_board_health_detects_blocked():
+    c, _ = _ctx("fleet-ops")
+    blocked = []
+    for i in range(4):
+        bt = MockTask()
+        bt.is_blocked = True; bt.title = f"Blocked {i}"; bt.id = f"b{i}"
+        blocked.append(bt)
+    c.mc.list_tasks = AsyncMock(return_value=blocked)
+    c.mc.list_agents = AsyncMock(return_value=[])
+    r = _tool("fleet-ops", "ops_board_health_scan", c)
+    assert r["ok"]
+    assert r["tasks_blocked"] == 4
+    assert not r["healthy"]
+
+
+# ─── Engineer behavioral ─────────────────────────────────────────────
+
+def test_eng_contribution_check_shows_received():
+    c, t = _ctx("software-engineer")
+    t.custom_fields.agent_name = "software-engineer"
+    t.custom_fields.task_type = "story"
+    # Simulate a received design_input contribution
+    comment = MagicMock()
+    comment.message = "**Contribution (design_input)** from architect:\n\nUse repository pattern."
+    c.mc.list_comments = AsyncMock(return_value=[comment])
+    r = _tool("software-engineer", "eng_contribution_check", c)
+    assert r["ok"]
+    assert len(r["received_contributions"]) == 1
+    assert r["received_contributions"][0]["type"] == "design_input"
+
+
+# ─── Accountability behavioral ───────────────────────────────────────
+
+def test_acct_trail_counts_events():
+    c, t = _ctx("accountability-generator")
+    events = []
+    for i in range(5):
+        e = MagicMock()
+        e.tags = ["trail", "task:task-12345678"]
+        e.content = f"**[trail]** event {i}"
+        events.append(e)
+    c.mc.list_memory = AsyncMock(return_value=events)
+    r = _tool("accountability-generator", "acct_trail_reconstruction", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["trail_events_count"] == 5
+    assert "event" in r["trail_document"]
+
+
+def test_acct_sprint_compliance_detects_gaps():
+    c, _ = _ctx("accountability-generator")
+    # 2 done tasks, 0 trail events → 0% compliant
+    t1 = MockTask(); t1.status = MagicMock(value="done"); t1.id = "task-aaa"
+    t1.custom_fields.plan_id = "sprint-1"; t1.title = "Task A"
+    t2 = MockTask(); t2.status = MagicMock(value="done"); t2.id = "task-bbb"
+    t2.custom_fields.plan_id = "sprint-1"; t2.title = "Task B"
+    c.mc.list_tasks = AsyncMock(return_value=[t1, t2])
+    c.mc.list_memory = AsyncMock(return_value=[])  # no trail
+    r = _tool("accountability-generator", "acct_sprint_compliance", c, sprint_id="sprint-1")
+    assert r["ok"]
+    assert r["total_done"] == 2
+    assert r["compliant"] == 0
+    assert r["gaps"] == 2
+
+
+def test_acct_pattern_detects_no_trail():
+    c, _ = _ctx("accountability-generator")
+    t1 = MockTask(); t1.status = MagicMock(value="done"); t1.id = "done-1"
+    t2 = MockTask(); t2.status = MagicMock(value="done"); t2.id = "done-2"
+    c.mc.list_tasks = AsyncMock(return_value=[t1, t2])
+    c.mc.list_memory = AsyncMock(return_value=[])  # no trail events at all
+    r = _tool("accountability-generator", "acct_pattern_detection", c)
+    assert r["ok"]
+    assert len(r["patterns"]) >= 1
+    assert r["patterns"][0]["pattern"] == "tasks_without_trail"
+
+
+# ─── QA behavioral ──────────────────────────────────────────────────
+
+def test_qa_predefinition_reads_architect_input():
+    c, t = _ctx("qa-engineer")
+    t.custom_fields.delivery_phase = "production"
+    comment = MagicMock()
+    comment.message = "**Contribution (design_input)** from architect:\n\nUse onion architecture."
+    c.mc.list_comments = AsyncMock(return_value=[comment])
+    r = _tool("qa-engineer", "qa_test_predefinition", c, task_id="task-12345678")
+    assert r["ok"]
+    assert r["context"]["architect_input"] != ""
+    assert r["context"]["test_rigor"] == "Complete: all paths, performance, resilience."
+
+
+def test_qa_validation_warns_missing_criteria():
+    c, t = _ctx("qa-engineer")
+    c.mc.list_comments = AsyncMock(return_value=[])  # no predefined criteria
+    r = _tool("qa-engineer", "qa_test_validation", c, task_id="task-12345678")
+    assert r["ok"]
+    vc = r["validation_context"]
+    assert not vc["has_predefined_criteria"]
+    assert "warning" in vc
+
+
+# ─── Writer behavioral ──────────────────────────────────────────────
+
+def test_writer_staleness_finds_done_stories():
+    c, _ = _ctx("technical-writer")
+    t1 = MockTask(); t1.status = MagicMock(value="done"); t1.custom_fields.task_type = "story"
+    t1.title = "Implement auth"; t1.id = "s1"
+    t2 = MockTask(); t2.status = MagicMock(value="done"); t2.custom_fields.task_type = "subtask"
+    t2.title = "Minor fix"; t2.id = "s2"
+    c.mc.list_tasks = AsyncMock(return_value=[t1, t2])
+    r = _tool("technical-writer", "writer_staleness_scan", c)
+    assert r["ok"]
+    # story should be flagged, subtask should not
+    assert r["tasks_to_check"] == 1

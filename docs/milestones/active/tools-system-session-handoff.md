@@ -64,7 +64,7 @@
 - config/agent-tooling.yaml: 3 package names corrected, lightrag made conditional
 - Per-agent mcp.json regenerated and deployed to 7/10 workspaces
 
-**256 tests across 8 files, 0 failures:**
+**2008 tests, 0 failures, 19 skipped (full suite):**
 - fleet/tests/core/test_phase_standards.py (41)
 - fleet/tests/core/test_plan_verbatim.py (20)
 - fleet/tests/core/test_contributions.py (17)
@@ -72,19 +72,50 @@
 - fleet/tests/core/test_new_chain_builders.py (17)
 - fleet/tests/core/test_event_chain.py (25)
 - fleet/tests/mcp/test_tool_operations.py (84)
-- fleet/tests/mcp/test_role_tools.py (36)
+- fleet/tests/mcp/test_role_tools.py (50 — 36 registration + 14 behavioral)
+
+---
+
+## Session 2 Changes (2026-04-07)
+
+**Test fixes (6 pre-existing failures → 0):**
+- 3 backend router tests: updated count from 4 to 5 (openrouter-qwen36plus added)
+- TestE06_MCPStageEnforcement: rewrote to use methodology_config.is_tool_blocked()
+- TestF02_FleetControlBar: updated path from openclaw-fleet to openfleet
+- TestMethodologyMCPFlow: removed COMMIT_ALLOWED_STAGES import
+
+**IaC fixes:**
+- config/agent-tooling.yaml: removed phantom pytest-mcp MCP server entries (no package exists)
+- scripts/setup-mcp-deps.sh: removed bad pytest-mcp install, added semgrep to venv
+- Per-agent mcp.json regenerated (engineer 5→4, QA 4→3 servers)
+- semgrep 1.157.0 installed and verified for devsecops
+
+**Phase C behavioral tests (14 new):**
+- PM: standup posts to board memory + IRC, contribution check detects gaps, blocker warns >2
+- Fleet-ops: review detects no verbatim, no trail, blocked tasks
+- Engineer: contribution check shows received inputs
+- Accountability: trail counting, sprint compliance gaps, pattern detection
+- QA: predefinition reads architect input, validation warns missing criteria
+- Writer: staleness scan filters by task type
+
+**Phase D foundation:**
+- config/skill-stage-mapping.yaml created — maps skills to methodology stages
+  - 5 stages × generic + role-specific + plugin recommendations
+  - 10 roles mapped with role-specific skill recommendations
+  - Stage restrictions (advisory, complement methodology.yaml tools_blocked)
+  - All 15 referenced local skills verified to exist
 
 ---
 
 ## Honest Status Per Phase
 
-**Phase A (~60-70%):** Building blocks built+tested. Tools elevated with full operations. Chain builders evolved. Context system updated. Tests cover behavioral outcomes. Remaining: more edge case tests, chain builders could be richer.
+**Phase A (~65-70%):** Building blocks built+tested. Tools elevated with full operations. Chain builders evolved. Context system updated. Tests cover behavioral outcomes. 6 pre-existing test failures fixed. Remaining: some edge case tests, chain builders could be richer.
 
-**Phase B (~30%):** Config fixed, deployed to 7/10 workspaces. Plugins blocked on running gateway. 3 agent workspaces missing (qa-engineer, ux-designer, devsecops-expert need MC provisioning).
+**Phase B (~40%):** Config fixed and validated. Phantom pytest-mcp server removed. Semgrep installed via setup-mcp-deps.sh. Per-agent mcp.json regenerated. install-plugins.sh exists and reads from config. Remaining: plugin install execution needs running gateway.
 
-**Phase C (~55%):** Architecture built (role-aware registration). 36 of ~36 identified group calls implemented across all 10 roles. Tests pass. Remaining: deeper behavioral tests per group call, more complex operations within some calls.
+**Phase C (~65%):** Architecture built (role-aware registration). 36 group calls implemented across all 10 roles. 50 tests (36 registration + 14 behavioral). Real MC API work in PM, fleet-ops, engineer, accountability, QA, writer calls. Remaining: deeper behavioral tests for remaining roles.
 
-**Phase D (0%):** Skills — 0 of 1000+ built. Ecosystem evaluation not done. Foundation skills (M81-M86) not built.
+**Phase D (~10%):** Foundation skills M81-M86 already existed (gateway skills + templates). config/skill-stage-mapping.yaml created with full stage×role mapping. Marketplace skills configured in skill-assignments.yaml. Remaining: role-specific custom skills (40+ per role), ecosystem evaluation per role.
 
 **Phase E (0%):** CRONs — 0 configured. Standing orders not written. config/agent-crons.yaml not created.
 

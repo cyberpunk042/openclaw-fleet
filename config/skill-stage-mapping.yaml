@@ -1,0 +1,484 @@
+# Skill-Stage Mapping — which skills are recommended at each methodology stage
+#
+# This config drives TOOLS.md generation (Phase G) and context system
+# skill recommendations. When an agent is at a given stage, their TOOLS.md
+# and context tell them which skills to consider.
+#
+# Sources:
+#   config/methodology.yaml (stages)
+#   config/agent-tooling.yaml (per-role MCP/plugins/skills)
+#   skills-and-plugins-ecosystem-research.md (ecosystem inventory)
+#   tools-system-full-capability-map.md (plugin capability table)
+#   strategic-agent-capabilities-research.md (sub-agents, thinking)
+#
+# Three skill layers:
+#   generic   — all agents, regardless of role
+#   role      — specific roles only
+#   plugin    — from installed plugins (superpowers, pr-review-toolkit, etc.)
+#
+# Plugin skills only available to agents that have the plugin installed
+# (see config/agent-tooling.yaml for plugin assignments).
+#
+# PO can modify this file to adjust stage recommendations.
+# No code changes required — generation pipeline reads this.
+
+# ─── Generic Skills (all agents) ──────────────────────────────────────
+# These are recommended regardless of role. Stage determines WHEN.
+
+generic:
+  conversation:
+    recommended:
+      - skill: fleet-communicate
+        source: workspace
+        why: "Know which channel for what (IRC/ntfy/board/Plane)"
+    plugin_recommended:
+      - skill: brainstorming
+        plugin: superpowers
+        why: "Socratic exploration of problem space before committing to approach"
+        note: "Mandatory before any creative work per superpowers design"
+
+  analysis:
+    recommended:
+      - skill: fleet-urls
+        source: gateway
+        why: "Every file/task reference must be a clickable URL"
+      - skill: fleet-comment
+        source: gateway
+        why: "Post structured analysis findings to task"
+      - skill: fleet-gap
+        source: gateway
+        why: "Identify gaps between current state and requirements"
+    plugin_recommended:
+      - skill: systematic-debugging
+        plugin: superpowers
+        why: "4-phase root cause: hypothesis → evidence → fix → verify"
+      - skill: brainstorming
+        plugin: superpowers
+        why: "Explore the problem space at analysis depth"
+
+  investigation:
+    recommended:
+      - skill: fleet-report
+        source: gateway
+        why: "Structure investigation findings for PO review"
+    plugin_recommended:
+      - skill: brainstorming
+        plugin: superpowers
+        why: "Explore multiple approaches — not just the first one"
+      - skill: dispatching-parallel-agents
+        plugin: superpowers
+        why: "Research multiple independent topics in parallel via sub-agents"
+      - skill: systematic-debugging
+        plugin: superpowers
+        why: "Investigating existing behavior with evidence-based methodology"
+
+  reasoning:
+    recommended:
+      - skill: fleet-plan
+        source: workspace
+        why: "Break down epics into sprint tasks with dependencies"
+      - skill: fleet-task-create
+        source: gateway
+        why: "Create subtasks with all fields set"
+      - skill: fleet-task-update
+        source: gateway
+        why: "Update task metadata as plan develops"
+    plugin_recommended:
+      - skill: writing-plans
+        plugin: superpowers
+        why: "Detailed implementation roadmap with bite-sized tasks"
+
+  work:
+    recommended:
+      - skill: fleet-commit
+        source: gateway
+        why: "Conventional commits with task reference"
+      - skill: fleet-pr
+        source: gateway
+        why: "Publication-quality PRs with changelog and URLs"
+      - skill: fleet-comment
+        source: gateway
+        why: "Structured completion/progress comments"
+      - skill: fleet-memory
+        source: gateway
+        why: "Post decisions, alerts, knowledge to board memory"
+      - skill: fleet-urls
+        source: gateway
+        why: "All references must be clickable links"
+      - skill: fleet-alert
+        source: gateway
+        why: "Raise alerts for security/quality/architecture issues found during work"
+    plugin_recommended:
+      - skill: verification-before-completion
+        plugin: superpowers
+        why: "Run verification commands before ANY success claims"
+      - skill: executing-plans
+        plugin: superpowers
+        why: "Batch execution of plan steps with checkpoints"
+      - skill: test-driven-development
+        plugin: superpowers
+        why: "RED-GREEN-REFACTOR cycle with anti-patterns reference"
+
+# ─── Role-Specific Skills ─────────────────────────────────────────────
+# These are recommended for specific roles at specific stages.
+# plugin_skills reference plugins from config/agent-tooling.yaml.
+
+roles:
+  project-manager:
+    all_stages:
+      - skill: fleet-sprint
+        source: workspace
+        why: "Sprint lifecycle management"
+      - skill: fleet-plane
+        source: workspace
+        why: "Plane integration for sprint management"
+    reasoning:
+      - skill: fleet-plan
+        source: workspace
+        why: "Epic breakdown and sprint planning"
+    plugin_skills:
+      - skill: annotate
+        plugin: plannotator
+        stage: all
+        why: "Visual plan annotation for team feedback"
+      - skill: review
+        plugin: plannotator
+        stage: work
+        why: "PR review with visual annotations"
+      - skill: archive
+        plugin: plannotator
+        stage: all
+        why: "Archive saved decisions and annotations"
+
+  fleet-ops:
+    all_stages:
+      - skill: fleet-review
+        source: workspace
+        why: "Structured review protocol — 7+ step real review"
+    plugin_skills:
+      # pr-review-toolkit provides 6 parallel sub-agents
+      - skill: code-reviewer
+        plugin: pr-review-toolkit
+        stage: work
+        why: "CLAUDE.md compliance, style, bugs — 0-100 score"
+      - skill: code-simplifier
+        plugin: pr-review-toolkit
+        stage: work
+        why: "Simplification recommendations preserving functionality"
+      - skill: comment-analyzer
+        plugin: pr-review-toolkit
+        stage: work
+        why: "Comment accuracy, doc completeness, comment rot detection"
+      - skill: pr-test-analyzer
+        plugin: pr-review-toolkit
+        stage: work
+        why: "Behavioral coverage, test gaps, edge cases — 1-10 rating"
+      - skill: silent-failure-hunter
+        plugin: pr-review-toolkit
+        stage: work
+        why: "Silent catch blocks, inadequate fallbacks, missing logging"
+      - skill: type-design-analyzer
+        plugin: pr-review-toolkit
+        stage: work
+        why: "Type encapsulation, invariant expression — 1-10 per dimension"
+      # superpowers code-reviewer as additional layer
+      - skill: code-reviewer
+        plugin: superpowers
+        stage: work
+        why: "Plan alignment, code quality, architecture/design review"
+
+  architect:
+    analysis:
+      - skill: fleet-gap
+        source: gateway
+        why: "Architecture gap analysis with file references"
+    plugin_skills:
+      - skill: brainstorming
+        plugin: superpowers
+        stage: conversation
+        why: "Explore design space with Socratic questioning"
+      - skill: writing-plans
+        plugin: superpowers
+        stage: reasoning
+        why: "Detailed architecture plans with dependencies"
+      - skill: adversarial-spec
+        plugin: adversarial-spec
+        stage: investigation
+        why: "Multi-LLM debate for spec refinement — 10+ providers, --focus security/scalability/performance/ux/reliability/cost"
+      - skill: subagent-driven-development
+        plugin: superpowers
+        stage: work
+        why: "2-stage review: spec compliance + code quality before submission"
+      - skill: dispatching-parallel-agents
+        plugin: superpowers
+        stage: investigation
+        why: "Explore multiple design approaches simultaneously"
+      - skill: systematic-debugging
+        plugin: superpowers
+        stage: analysis
+        why: "Investigate existing behavior with evidence-based methodology"
+    # context7 MCP provides docs lookup (not a skill, but maps to analysis/investigation)
+    mcp_recommendations:
+      - mcp: context7
+        stage: [analysis, investigation]
+        why: "Fetch current library/framework documentation for accurate design"
+
+  software-engineer:
+    work:
+      - skill: fleet-test
+        source: workspace
+        why: "Run and analyze test results"
+    plugin_skills:
+      - skill: test-driven-development
+        plugin: superpowers
+        stage: work
+        why: "RED-GREEN-REFACTOR with anti-patterns reference"
+      - skill: systematic-debugging
+        plugin: superpowers
+        stage: [analysis, work]
+        why: "4-phase root cause analysis for bugs"
+      - skill: subagent-driven-development
+        plugin: superpowers
+        stage: work
+        why: "2-stage pre-completion review: spec compliance + code quality"
+      - skill: requesting-code-review
+        plugin: superpowers
+        stage: work
+        why: "Pre-review checklist — validation before submitting to fleet-ops"
+      - skill: receiving-code-review
+        plugin: superpowers
+        stage: work
+        why: "Technical rigor for feedback integration — no performative agreement"
+      - skill: using-git-worktrees
+        plugin: superpowers
+        stage: work
+        why: "Isolated parallel development with safety verification"
+      - skill: finishing-a-development-branch
+        plugin: superpowers
+        stage: work
+        why: "Structured decision: merge, PR, or cleanup"
+      - skill: verification-before-completion
+        plugin: superpowers
+        stage: work
+        why: "Run verification commands before claiming done"
+      - skill: writing-plans
+        plugin: superpowers
+        stage: reasoning
+        why: "Implementation plan with file targets and dependencies"
+    mcp_recommendations:
+      - mcp: context7
+        stage: [analysis, investigation, work]
+        why: "Fetch current library docs — training data may be stale"
+
+  qa-engineer:
+    reasoning:
+      - skill: fleet-test
+        source: workspace
+        why: "Test predefinition and structured TC-XXX criteria"
+    work:
+      - skill: fleet-test
+        source: workspace
+        why: "Test execution and coverage analysis"
+    plugin_skills:
+      - skill: test-driven-development
+        plugin: superpowers
+        stage: work
+        why: "Structured test creation with RED-GREEN-REFACTOR"
+      - skill: systematic-debugging
+        plugin: superpowers
+        stage: [analysis, work]
+        why: "Root cause analysis for test failures"
+      - skill: verification-before-completion
+        plugin: superpowers
+        stage: work
+        why: "Verify all TC-XXX criteria met before claiming validation complete"
+
+  devsecops-expert:
+    all_stages:
+      - skill: fleet-security-audit
+        source: workspace
+        why: "Security review methodology — threat model, controls, compliance"
+    plugin_skills:
+      # security-guidance provides 9 PreToolUse hooks (not skills, but structural enforcement)
+      # sage provides Agent Detection and Response
+      - skill: systematic-debugging
+        plugin: superpowers
+        stage: [analysis, work]
+        why: "Investigate security vulnerabilities with evidence-based methodology"
+    mcp_recommendations:
+      - mcp: semgrep
+        stage: [analysis, work]
+        why: "Security scanning — 30+ languages, custom rules, free tier"
+
+  devops:
+    plugin_skills:
+      - skill: hookify
+        plugin: hookify
+        stage: work
+        why: "Create hooks from natural language descriptions"
+      - skill: hookify:configure
+        plugin: hookify
+        stage: work
+        why: "Configure hook behavior and rules"
+      - skill: writing-rules
+        plugin: hookify
+        stage: reasoning
+        why: "Define rules for hook enforcement"
+      - skill: commit
+        plugin: commit-commands
+        stage: work
+        why: "Conventional commit with optional push + PR"
+      - skill: commit-push-pr
+        plugin: commit-commands
+        stage: work
+        why: "Commit + push + PR creation in one flow"
+      - skill: using-git-worktrees
+        plugin: superpowers
+        stage: work
+        why: "Isolated development branches for infrastructure changes"
+
+  technical-writer:
+    plugin_skills:
+      - skill: writing-plans
+        plugin: superpowers
+        stage: reasoning
+        why: "Plan documentation structure before writing"
+    mcp_recommendations:
+      - mcp: context7
+        stage: [analysis, work]
+        why: "Fetch current library docs for accurate documentation"
+    # evaluate: elements-of-style plugin — 18 Strunk writing rules
+    # evaluate: ars-contexta plugin — knowledge systems from conversation
+
+  ux-designer:
+    analysis:
+      - skill: fleet-gap
+        source: gateway
+        why: "UX gap analysis across all levels (UI, CLI, API, config, errors)"
+    plugin_skills:
+      - skill: brainstorming
+        plugin: superpowers
+        stage: conversation
+        why: "Explore UX design space — all states, all interactions"
+    # evaluate: frontend-design plugin — production-grade frontend avoiding AI slop
+
+  accountability-generator:
+    all_stages:
+      - skill: fleet-review
+        source: workspace
+        why: "Compliance verification methodology — process, not quality"
+
+# ─── Plugins to Evaluate ─────────────────────────────────────────────
+# From research (skills-and-plugins-ecosystem-research.md §NOT YET ASSIGNED).
+# These are NOT installed. Evaluate and assign in Phase D.
+
+evaluate:
+  high_priority:
+    - plugin: feature-dev
+      potential_agents: [architect, software-engineer]
+      what: "3 sub-agents: code-explorer (sonnet), code-architect (sonnet), code-reviewer (sonnet)"
+      stage: [analysis, reasoning, work]
+
+    - plugin: code-review
+      potential_agents: [fleet-ops, qa-engineer]
+      what: "Automated code review with confidence-based scoring, multiple specialized agents"
+      stage: work
+
+    - plugin: skill-creator
+      potential_agents: [architect, software-engineer]
+      what: "Create, improve, eval, benchmark skills at scale — essential for building fleet skills"
+      stage: all
+
+    - plugin: claude-code-setup
+      potential_agents: [all]
+      what: "Analyze codebase, recommend automations (hooks, skills, MCP, subagents)"
+      stage: analysis
+
+    - plugin: claude-md-management
+      potential_agents: [all]
+      what: "CLAUDE.md quality audit, capture learnings, maintain memory"
+      stage: all
+
+  medium_priority:
+    - plugin: episodic-memory
+      potential_agents: [all]
+      what: "Semantic search over past conversations — cross-session continuity"
+      stage: all
+      note: "Complements claude-mem"
+
+    - plugin: double-shot-latte
+      potential_agents: [all]
+      what: "Auto-continuation — stops 'Would you like me to continue?' waste"
+      stage: all
+      note: "Could reduce wasted heartbeat cycles"
+
+    - plugin: elements-of-style
+      potential_agents: [technical-writer]
+      what: "18 Strunk writing rules for documentation quality"
+      stage: work
+
+    - plugin: serena
+      potential_agents: [architect, software-engineer]
+      what: "Semantic code analysis via LSP — deeper than grep"
+      stage: [analysis, investigation]
+
+    - plugin: frontend-design
+      potential_agents: [ux-designer, software-engineer]
+      what: "Production-grade frontend design avoiding AI slop"
+      stage: work
+
+  low_priority:
+    - plugin: claude-session-driver
+      potential_agents: [fleet-ops]
+      what: "Launch, control, monitor other Claude Code sessions via tmux"
+      note: "Could enable fleet orchestrator to manage sessions"
+
+    - plugin: superpowers-chrome
+      potential_agents: [software-engineer, qa-engineer]
+      what: "Direct Chrome DevTools Protocol access, 17 CLI commands"
+      stage: work
+
+# ─── Stage Restrictions ───────────────────────────────────────────────
+# Skills that should NOT be used at certain stages.
+# Complements methodology.yaml tools_blocked (MCP-level structural enforcement).
+# Skill restrictions are advisory — enforced by directives in TOOLS.md,
+# not structurally by the MCP layer.
+
+restrictions:
+  conversation:
+    blocked_skills:
+      - fleet-commit
+      - fleet-pr
+      - test-driven-development
+      - executing-plans
+      - subagent-driven-development
+      - using-git-worktrees
+      - finishing-a-development-branch
+      - requesting-code-review
+      - receiving-code-review
+    reason: "Conversation is for understanding, not building"
+
+  analysis:
+    blocked_skills:
+      - fleet-pr
+      - executing-plans
+      - writing-plans
+      - subagent-driven-development
+      - requesting-code-review
+    reason: "Analysis examines what exists, not what to build"
+
+  investigation:
+    blocked_skills:
+      - fleet-pr
+      - fleet-commit
+      - executing-plans
+      - test-driven-development
+      - subagent-driven-development
+    reason: "Investigation researches options, not implements them"
+
+  reasoning:
+    blocked_skills:
+      - fleet-pr
+      - executing-plans
+      - test-driven-development
+    reason: "Reasoning plans the approach — execute after PO confirms"

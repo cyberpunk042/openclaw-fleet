@@ -63,9 +63,13 @@ agents:
         package: "@modelcontextprotocol/server-github"
       - name: playwright
         package: "@playwright/mcp@latest"
-      - name: pytest-mcp
-        command: "python"
-        args: ["-m", "pytest_mcp_server"]
+      # pytest-mcp: NO working MCP server package exists on PyPI.
+      # pytest-mcp (pip) = mcp_eval test framework, NOT an MCP server.
+      # Agents run pytest directly via Bash tool.
+      # Re-enable when a real pytest MCP server is available.
+      # - name: pytest-mcp
+      #   command: "python"
+      #   args: ["-m", "pytest_mcp_server"]
     plugins:
       - context7
       - superpowers           # TDD, systematic-debugging, verification (132K stars)
@@ -86,9 +90,11 @@ agents:
         args: ["{{WORKSPACE}}"]
       - name: playwright
         package: "@playwright/mcp@latest"
-      - name: pytest-mcp
-        command: "python"
-        args: ["-m", "pytest_mcp_server"]
+      # pytest-mcp: NO working MCP server package exists on PyPI.
+      # See software-engineer section for details.
+      # - name: pytest-mcp
+      #   command: "python"
+      #   args: ["-m", "pytest_mcp_server"]
     plugins:
       - superpowers           # TDD, systematic-debugging (132K stars)
     skills:

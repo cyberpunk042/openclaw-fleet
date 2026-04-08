@@ -58,9 +58,21 @@ else
     uv pip install --no-deps "git+https://github.com/desimpkins/daniel-lightrag-mcp.git" 2>&1 | tail -1
 fi
 
-pip_install_if_missing "pytest-mcp"   "Pytest test analysis — failures, coverage, traces"
+# pytest-mcp: only the mcp_eval test framework (NOT an MCP server).
+# Already in pyproject.toml dev deps. Disabled in pytest via addopts.
+# No working pytest MCP server package exists on PyPI.
+
 pip_install_if_missing "anthropic"    "Anthropic SDK — required by daniel-lightrag-mcp transitive dep"
 pip_install_if_missing "openai"       "OpenAI SDK — required by daniel-lightrag-mcp transitive dep"
+
+# ── Semgrep (DevSecOps MCP server) ────────────────────────────────
+# semgrep provides `semgrep --mcp` for security scanning.
+# Install into venv so devsecops agent can use it.
+
+echo ""
+echo "Security tools:"
+
+pip_install_if_missing "semgrep"      "security scanning — devsecops MCP server (semgrep --mcp)"
 
 # ── System packages (check only, don't install) ───────────────────
 
@@ -77,7 +89,6 @@ check_system() {
     fi
 }
 
-check_system "semgrep"  "security scanning — pip install semgrep"
 check_system "npx"      "npx for MCP servers (Node.js)"
 check_system "node"     "Node.js runtime"
 
