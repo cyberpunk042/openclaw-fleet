@@ -60,51 +60,132 @@ FLEET CONTROL STATE
     │  Fallback chain: localai → openrouter → claude sonnet → claude opus → queue
 ```
 
-## Backend → Profile → Context Depth
+## Backend → Capability Tier → Context Adaptation
 
-The backend determines the CONFIDENCE TIER, which determines the PROFILE,
-which determines HOW MUCH context to inject. This is not just about what
-fits — it's about what the model can HANDLE. Don't overwhelm a trainee.
+> "I would not overwhelm my trainee" — PO, 2026-04-09
+
+Context adaptation is about what the model can HANDLE, not just what fits.
+The transition from Claude to other backends is PROGRESSIVE — tested tier
+by tier, not a sudden switch. Each tier maps to AICP operational profiles.
+
+LocalAI has evolved beyond the legacy hermes-3b/8K assumption:
+- qwen3-8b: 16K context, thinking mode, native tool calling
+- qwen3-4b: 16K context, lightweight fleet model
+- gemma4-e2b: 16K (8K in fleet-light), 53 tok/s, multimodal
+- Dual GPU (8+11GB) enables: qwen3-30b MoE, gemma4-26b at 256K
 
 ```
-BACKEND → CONFIDENCE TIER → PROFILE → CONTEXT ADAPTATION
+CAPABILITY TIERS
 │
-├── claude-code opus [1m] ─── expert ──── opus-1m ────── FULL
+├── EXPERT ─────────────────────────────────────── [TIER-EXPERT]
+│   │  Claude opus/sonnet (200K-1M context)
+│   │  AICP profile: N/A (cloud backend)
+│   │
 │   │  Full content everywhere. All knowledge map branches.
 │   │  All contribution content inline. Full chain awareness.
 │   │  All skills, sub-agents, plugins. Trust the agent.
-│   │  Budget: ~50K tokens for knowledge context.
+│   │  Full methodology (MUST/MUST NOT/CAN/How to advance).
+│   │  Full role data formatted. Full events. Full standing orders.
+│   │  Knowledge budget: ~50K tokens.
+│   │
+│   │  Agent reasons autonomously. Brain provides context, agent decides.
 │
-├── claude-code sonnet/opus [200k] ── expert ── sonnet-200k ── CONDENSED
+├── CAPABLE ────────────────────────────────────── [TIER-CAPABLE]
+│   │  qwen3-8b (16K, thinking), qwen3-30b MoE (8K-32K dual GPU)
+│   │  OpenRouter capable models (~32K)
+│   │  AICP profiles: default, code-review, thorough, reliable
+│   │
 │   │  Condensed: summaries + references to full content.
-│   │  Core fields only on tasks. MUST/MUST NOT only on protocol.
-│   │  Contribution type+from+status (not full content).
-│   │  Top 3 per list. Methodology ALWAYS full (never compress process).
-│   │  Budget: ~15K tokens for knowledge context.
+│   │  Core fields on tasks. MUST/MUST NOT on protocol (no CAN/advance).
+│   │  Contributions: type + from + status (not full inline content).
+│   │  Top 3 per role data list. Methodology ALWAYS full (never compress).
+│   │  Skills: names only. Events: up to 5.
+│   │  Knowledge budget: ~10-15K tokens.
+│   │
+│   │  Agent follows clear instructions. Can handle multi-step protocols.
+│   │  Brain provides focused context, agent executes with guidance.
 │
-├── openrouter-free [~32k] ── community ── openrouter-32k ── FOCUSED
-│   │  NEW PROFILE NEEDED. Between condensed and minimal.
-│   │  Clear instructions. Key fields. Stage rules.
-│   │  Verbatim always full. Contributions as names + status.
-│   │  No complex chain awareness. No full knowledge map.
-│   │  Skills: names only. Events: count only.
-│   │  Budget: ~5K tokens for knowledge context.
-│   │  Community tier → flag as community in labor stamps.
+├── LIGHTWEIGHT ────────────────────────────────── [TIER-LIGHTWEIGHT]
+│   │  gemma4-e2b (8-16K, 53 tok/s), qwen3-4b (16K)
+│   │  OpenRouter free models (variable quality)
+│   │  AICP profiles: fleet-light, fast
+│   │
+│   │  Focused. Direct. Simple instructions.
+│   │  Task: title + stage + verbatim + one-line action.
+│   │  Protocol: MUST/MUST NOT as short rules (2-3 lines).
+│   │  Contributions: names only. No inline content.
+│   │  No chain awareness. No standing orders. No events detail.
+│   │  Role data: counts only.
+│   │  Knowledge budget: ~3-5K tokens.
+│   │
+│   │  "Don't overwhelm my trainee."
+│   │  Brain supervises. Agent executes prescribed work.
+│   │  Clear assignment, not autonomous reasoning.
 │
-├── localai [8k] ─────────── trainee ──── localai-8k ───── MINIMAL
-│   │  SIMPLE. CLEAR. DIRECT. Don't overwhelm the trainee.
-│   │  Mission one-liner. Stage MUST/MUST NOT (2-3 lines).
-│   │  Verbatim always full (anchor). "fleet_read_context for more."
-│   │  No contribution content. No chain awareness. No events.
-│   │  No skills. No knowledge map. No standing orders.
-│   │  Budget: ~2K tokens for knowledge context.
-│   │  Trainee tier → flag as trainee in labor stamps.
+├── FLAGSHIP-LOCAL ─────────────────────────────── [TIER-FLAGSHIP]
+│   │  gemma4-26b (256K, dual GPU), future large local models
+│   │  AICP profiles: dual-gpu
+│   │
+│   │  Large context like sonnet-200k, but local model capabilities.
+│   │  Same adaptation as CAPABLE tier but with more context budget.
+│   │  Can receive more contribution content inline.
+│   │  Can see full knowledge map at condensed depth.
+│   │  Knowledge budget: ~15K tokens.
+│   │
+│   │  Agent follows instructions like CAPABLE. More context available
+│   │  but model reasoning is local-tier, not Claude-tier.
+│   │  Trust with verification — labor stamp marks as local.
 │
-└── direct ────────────────── standard ─── (none) ──────── NO CONTEXT
+└── DIRECT ─────────────────────────────────────── [TIER-DIRECT]
     │  No LLM. Pure MCP tool calls. Deterministic operations.
     │  Brain handles these without creating an agent session.
     │  No context injection needed.
+    │
+    │  Examples: heartbeat silent response, template-based status,
+    │  simple task state transitions the brain can evaluate in Python.
 ```
+
+### Tier Selection Logic
+
+```
+Fleet backend_mode + task complexity + agent role → tier
+│
+├── backend_mode: claude
+│   └── always EXPERT
+│
+├── backend_mode: localai
+│   ├── AICP profile: fleet-light → LIGHTWEIGHT
+│   ├── AICP profile: dual-gpu → FLAGSHIP-LOCAL or CAPABLE
+│   └── AICP profile: default → CAPABLE
+│
+├── backend_mode: openrouter
+│   ├── free model, simple task → LIGHTWEIGHT
+│   └── capable model, medium task → CAPABLE
+│
+├── backend_mode: hybrid (claude+localai, etc.)
+│   ├── security/architect agents → always EXPERT (never trainee)
+│   ├── complex task → EXPERT (routed to claude)
+│   ├── medium task → CAPABLE (routed to qwen3-8b or openrouter)
+│   └── simple task → LIGHTWEIGHT (routed to gemma4-e2b or qwen3-4b)
+│
+└── brain evaluates "no LLM needed" → DIRECT
+```
+
+### Progressive Rollout
+
+The PO does NOT flip to all-backends mode suddenly.
+Each tier is validated through the tree's scenarios before enabling:
+
+```
+Phase 1: EXPERT only (current — claude backend)
+Phase 2: EXPERT + CAPABLE (add qwen3-8b for medium tasks)
+Phase 3: EXPERT + CAPABLE + LIGHTWEIGHT (add gemma4-e2b for heartbeats)
+Phase 4: EXPERT + CAPABLE + FLAGSHIP-LOCAL (dual GPU, add gemma4-26b)
+Phase 5: Full spectrum (all tiers operational, cheapest capable wins)
+```
+
+Each phase requires: infrastructure ready, profiles configured,
+tree scenarios validated for that tier, PO confirmed.
 
 ## Master Tree
 
@@ -117,7 +198,7 @@ ROOT
 │   │   ├── agent IS active in current phase ──── proceed to context assembly
 │   │   └── agent NOT active in current phase ─── "Fleet in {phase}. You are not active. HEARTBEAT_OK."
 │   │
-│   ├── Profile: opus-1m (expert) ─────────────────────── [HB-FULL]
+│   ├── Tier: EXPERT (claude, 200K-1M) ────────────────── [HB-EXPERT]
 │   │   │
 │   │   ├── §2 PO Directives
 │   │   │   ├── none ─────────────────────────────────── "None."
@@ -187,7 +268,7 @@ ROOT
 │   │       ├── paused ───────────────────────────────── mode shows "work-paused"
 │   │       └── storm ────────────────────────────────── mode shows storm severity
 │   │
-│   ├── Profile: sonnet-200k ──────────────────────────── [HB-CONDENSED]
+│   ├── Tier: CAPABLE (qwen3-8b 16K, openrouter ~32K) ── [HB-CAPABLE]
 │   │   │
 │   │   ├── §2 PO Directives ────────────────────────── SAME (never compress PO words)
 │   │   ├── §3 Messages ─────────────────────────────── SAME (actionable, can't compress)
@@ -198,7 +279,12 @@ ROOT
 │   │   ├── §8 Context Awareness ────────────────────── SAME (safety, never compress)
 │   │   └── §9 Fleet State ──────────────────────────── SAME (one line)
 │   │
-│   └── Profile: localai-8k ───────────────────────────── [HB-MINIMAL]
+│   ├── Tier: FLAGSHIP-LOCAL (gemma4-26b 256K, dual GPU) ─ [HB-FLAGSHIP]
+│   │   │  Same structure as CAPABLE but more context budget.
+│   │   │  Can show more items in role data lists (top 5 vs top 3).
+│   │   └── (same sections as CAPABLE, slightly more detail)
+│   │
+│   └── Tier: LIGHTWEIGHT (gemma4-e2b 8-16K, qwen3-4b) ── [HB-LIGHTWEIGHT]
 │       │
 │       ├── §2 PO Directives ────────────────────────── SAME (never compress PO words)
 │       ├── §3 Messages ─────────────────────────────── first 100 chars + "fleet_read_context for full"
@@ -378,16 +464,16 @@ ROOT
     │   ├── set ───────────────────────────────────────── §5: "> {verbatim}" (THE ANCHOR, never compressed)
     │   └── not set ───────────────────────────────────── §5: "(No verbatim requirement set — ask PO for clarification.)"
     │
-    └── Profile (cross-cutting — affects ALL sections above)
+    └── Tier (cross-cutting — affects ALL sections above)
         │
-        ├── opus-1m ───────────────────────────────────── [TK-FULL]
+        ├── EXPERT (claude, 200K-1M) ──────────────────── [TK-EXPERT]
         │   All sections: full content
         │   Contributions: full content inline
         │   Stage protocol: MUST + MUST NOT + CAN + How to advance
         │   Phase standards: full per-standard detail
         │   Chain awareness: full chain descriptions
         │
-        ├── sonnet-200k ───────────────────────────────── [TK-CONDENSED]
+        ├── CAPABLE (qwen3-8b 16K, openrouter ~32K) ──── [TK-CAPABLE]
         │   §2 task detail: title + ID + stage + readiness + verbatim (core only)
         │   §5 verbatim: SAME (never compress anchor)
         │   §6 protocol: MUST + MUST NOT only (no CAN, no How to advance)
@@ -395,28 +481,23 @@ ROOT
         │   §8 phase: one-liner per standard
         │   §10 chains: one-line per chain
         │
-        ├── openrouter-32k (community — NEW PROFILE) ──── [TK-FOCUSED]
-        │   §2 task detail: title + ID + stage + readiness + verbatim + type
-        │   §5 verbatim: SAME (never compress anchor)
-        │   §6 protocol: MUST + MUST NOT (clear, direct — don't overwhelm)
-        │   §7 contributions: type + from + status (no inline content)
-        │   §8 phase: phase name + one-liner
-        │   §9 action: clear single directive
-        │   §10 chains: one-line summary only
-        │   Community tier → flag in labor stamp
+        ├── FLAGSHIP-LOCAL (gemma4-26b 256K, dual GPU) ── [TK-FLAGSHIP]
+        │   Same structure as CAPABLE but more knowledge budget.
+        │   Can include more contribution detail (summaries, not full inline).
+        │   Can include condensed Navigator knowledge context.
         │
-        └── localai-8k (trainee) ──────────────────────── [TK-MINIMAL]
-            §0: "Call fleet_read_context() for full task context"
+        └── LIGHTWEIGHT (gemma4-e2b 8-16K, qwen3-4b) ─── [TK-LIGHTWEIGHT]
+            §0: "Your task data is below. fleet_read_context() for full details."
             §1: identity (same)
-            §2: title + stage only
+            §2: title + stage + type only
             §3: stage (same)
             §5: verbatim (SAME — never compress anchor)
             §6: MUST + MUST NOT as short rules (2-3 lines)
             §7: names only ("Inputs: design_input (architect), qa_tests (QA)")
             §8: phase name only
-            §9: one-line action
+            §9: one-line clear directive
             §10: omit
-            Trainee tier → flag in labor stamp
+            Labor stamp: flag as lightweight/trainee tier
             "I would not overwhelm my trainee" — PO
 ```
 
@@ -425,7 +506,7 @@ ROOT
 ```
 NAVIGATOR (knowledge-context.md)
 │
-├── Profile: opus-1m
+├── Tier: EXPERT
 │   ├── agent_manual ────────── full section (~35 lines)
 │   ├── methodology ─────────── full stage content (all subsections)
 │   ├── standards ───────────── full for artifact type
@@ -439,7 +520,7 @@ NAVIGATOR (knowledge-context.md)
 │   ├── LightRAG ────────────── up to remaining budget (graph query)
 │   └── claude-mem ──────────── 5 recent observations
 │
-├── Profile: sonnet-200k
+├── Tier: CAPABLE
 │   ├── agent_manual ────────── mission + primary tools + 3 rules
 │   ├── methodology ─────────── current stage only (full — methodology never compressed)
 │   ├── standards ───────────── required fields list
@@ -447,35 +528,30 @@ NAVIGATOR (knowledge-context.md)
 │   ├── commands ────────────── top 3 for current stage
 │   ├── tools ───────────────── name + purpose one-liner
 │   ├── plugins ─────────────── names only
-│   ├── contributions ───────── received names + contributor (not full content)
+│   ├── contributions ───────── received names + contributor (not content)
 │   ├── trail ───────────────── summary line
 │   ├── context_awareness ───── "Context: 45% | Rate: 23%"
 │   ├── LightRAG ────────────── proportional to remaining budget
 │   └── claude-mem ──────────── 3 recent observations
 │
-├── Profile: openrouter-32k (NEW)
-│   ├── agent_manual ────────── mission + primary tools (no rules detail)
-│   ├── methodology ─────────── current stage MUST/MUST NOT (full — methodology never compressed)
-│   ├── standards ───────────── omit (too much for community model)
-│   ├── skills ──────────────── top 3 names for current stage
-│   ├── commands ────────────── top 2 for current stage
-│   ├── tools ───────────────── name only ("fleet_commit, fleet_task_complete")
-│   ├── plugins ─────────────── omit
-│   ├── contributions ───────── names only
-│   ├── trail ───────────────── omit
-│   ├── context_awareness ───── both percentages if pressure
-│   ├── LightRAG ────────────── omit (save tokens for task content)
-│   └── claude-mem ──────────── omit
+├── Tier: FLAGSHIP-LOCAL
+│   │  Same as CAPABLE (large context, but local model capabilities).
+│   │  More knowledge budget available — can load more KB branches.
+│   └── (same structure as CAPABLE, expanded to ~15K budget)
 │
-├── Profile: localai-8k
+├── Tier: LIGHTWEIGHT
 │   ├── agent_manual ────────── "You are {name}, {role}. {mission}."
 │   ├── methodology ─────────── "Stage: {stage}. MUST: {list}. MUST NOT: {list}."
-│   ├── tools ───────────────── "Call fleet_read_context for full context."
+│   ├── tools ───────────────── "fleet_read_context for full context."
 │   ├── contributions ───────── names only ("Inputs: design_input, qa_tests")
 │   └── (all others) ────────── omitted
 │
-└── Profile: heartbeat
+├── Tier: DIRECT
+│   └── no Navigator output (no LLM to inject into)
+│
+└── Heartbeat mode (any tier)
     └── (all branches) ──────── none (fleet-context.md handles dynamic, static files handle identity)
+```
 ```
 
 ## Never-Compress Rules
@@ -527,31 +603,32 @@ PO confirms each. Isolated test locks it.
 ### Heartbeat Scenarios
 
 ```
-[ ] HB-01  idle, no tasks, no messages (opus-1m)
-[ ] HB-02  has 1 in-progress task at work stage (opus-1m)
-[ ] HB-03  has messages from PM (opus-1m)
-[ ] HB-04  fleet-ops with pending reviews — FORMATTED (opus-1m)
-[ ] HB-05  PM with unassigned tasks — FORMATTED (opus-1m)
-[ ] HB-06  urgent PO directive (opus-1m)
-[ ] HB-07  normal PO directive (opus-1m)
-[ ] HB-08  multiple tasks at different stages (opus-1m)
-[ ] HB-09  architect with design tasks — FORMATTED (opus-1m)
-[ ] HB-10  devsecops with security tasks — FORMATTED (opus-1m)
-[ ] HB-11  worker with contribution tasks pending (opus-1m)
-[ ] HB-12  worker with contributions received — FORMATTED (opus-1m)
-[ ] HB-13  has events since last heartbeat (opus-1m)
-[ ] HB-14  context pressure: prepare (93%) (opus-1m)
-[ ] HB-15  rate limit pressure: conserve (85%) (opus-1m)
-[ ] HB-16  fleet in storm (warning) (opus-1m)
-[ ] HB-17  compound: directive + tasks + messages (opus-1m)
-[ ] HB-18  compound: idle with standing orders (opus-1m)
-[ ] HB-19  HB-01 at sonnet-200k (condensed)
-[ ] HB-20  HB-01 at localai-8k (minimal)
-[ ] HB-21  HB-04 at sonnet-200k (condensed fleet-ops)
-[ ] HB-22  HB-05 at sonnet-200k (condensed PM)
-[ ] HB-23  HB-04 at localai-8k (minimal fleet-ops)
-[ ] HB-24  HB-02 at sonnet-200k (condensed task detail)
-[ ] HB-25  HB-02 at localai-8k (minimal task detail)
+[ ] HB-01  idle, no tasks, no messages (EXPERT)
+[ ] HB-02  has 1 in-progress task at work stage (EXPERT)
+[ ] HB-03  has messages from PM (EXPERT)
+[ ] HB-04  fleet-ops with pending reviews — FORMATTED (EXPERT)
+[ ] HB-05  PM with unassigned tasks — FORMATTED (EXPERT)
+[ ] HB-06  urgent PO directive (EXPERT)
+[ ] HB-07  normal PO directive (EXPERT)
+[ ] HB-08  multiple tasks at different stages (EXPERT)
+[ ] HB-09  architect with design tasks — FORMATTED (EXPERT)
+[ ] HB-10  devsecops with security tasks — FORMATTED (EXPERT)
+[ ] HB-11  worker with contribution tasks pending (EXPERT)
+[ ] HB-12  worker with contributions received — FORMATTED (EXPERT)
+[ ] HB-13  has events since last heartbeat (EXPERT)
+[ ] HB-14  context pressure: prepare (93%) (EXPERT)
+[ ] HB-15  rate limit pressure: conserve (85%) (EXPERT)
+[ ] HB-16  fleet in storm (warning) (EXPERT)
+[ ] HB-17  compound: directive + tasks + messages (EXPERT)
+[ ] HB-18  compound: idle with standing orders (EXPERT)
+[ ] HB-19  HB-01 at CAPABLE (qwen3-8b condensed)
+[ ] HB-20  HB-01 at LIGHTWEIGHT (gemma4-e2b minimal)
+[ ] HB-21  HB-04 at CAPABLE (condensed fleet-ops reviews)
+[ ] HB-22  HB-05 at CAPABLE (condensed PM triage)
+[ ] HB-23  HB-04 at LIGHTWEIGHT (minimal fleet-ops)
+[ ] HB-24  HB-02 at CAPABLE (condensed task detail)
+[ ] HB-25  HB-02 at LIGHTWEIGHT (minimal task detail)
+[ ] HB-26  HB-01 at FLAGSHIP-LOCAL (gemma4-26b dual GPU)
 ```
 
 ### Task Scenarios
@@ -586,8 +663,8 @@ PO confirms each. Isolated test locks it.
 [ ] TK-27  spike task (no work stage)
 [ ] TK-28  rejection rework iteration 3
 [ ] TK-29  no verbatim requirement
-[ ] TK-30  TK-01 at sonnet-200k (condensed golden path)
-[ ] TK-31  TK-01 at localai-8k (minimal golden path)
+[ ] TK-30  TK-01 at CAPABLE (condensed golden path)
+[ ] TK-31  TK-01 at LIGHTWEIGHT (minimal golden path)
 [ ] TK-32  delivery phase: production (full standards)
 [ ] TK-33  delivery phase: poc (minimal standards)
 [ ] TK-34  engineer role-specific reasoning
@@ -596,10 +673,12 @@ PO confirms each. Isolated test locks it.
 [ ] TK-37  work with coworkers
 [ ] TK-38  contribution task: target task visible (I1 fix)
 [ ] TK-39  work + progress 0% + iteration 2 (rework start)
-[ ] TK-40  TK-06 at sonnet-200k (condensed rejection)
-[ ] TK-41  TK-07 at sonnet-200k (condensed contribution)
+[ ] TK-40  TK-06 at CAPABLE (condensed rejection)
+[ ] TK-41  TK-07 at CAPABLE (condensed contribution)
 [ ] TK-42  concern task (no work stage)
 [ ] TK-43  request task (all stages except investigation)
+[ ] TK-44  TK-01 at FLAGSHIP-LOCAL (gemma4-26b dual GPU golden path)
+[ ] TK-45  TK-01 at LIGHTWEIGHT (gemma4-e2b simple task)
 ```
 
 ### Fleet-Level Scenarios
@@ -627,7 +706,7 @@ PO confirms each. Isolated test locks it.
 [ ] FL-20  compound: crisis + storm warning — devsecops active, budget-aware, reduced dispatch
 ```
 
-### Total: 25 heartbeat + 43 task + 20 fleet-level = 88 scenarios
+### Total: 26 heartbeat + 45 task + 20 fleet-level = 91 scenarios
 
 Each gets:
 1. Rendered by generate-validation-matrix.py
