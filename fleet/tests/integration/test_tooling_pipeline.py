@@ -424,6 +424,39 @@ class TestHeartbeatTemplates:
         assert "HEARTBEAT_OK" in content
 
 
+class TestCronGroupCallRefs:
+    """CRON messages reference valid group calls."""
+
+    def test_cron_calls_exist(self):
+        """Every Call xxx() in CRON messages should reference an existing tool or group call."""
+        import re
+        crons = load_yaml(CONFIG / "agent-crons.yaml")
+        # Collect all tool/group call names
+        tools_py = FLEET_DIR / "fleet" / "mcp" / "tools.py"
+        import ast
+        tree = ast.parse(tools_py.read_text())
+        available = {n.name for n in ast.walk(tree)
+                     if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))
+                     and (n.name.startswith("fleet_") or "_" in n.name)}
+        for role_py in ROLES_DIR.glob("*.py"):
+            if role_py.name.startswith("_"): continue
+            rtree = ast.parse(role_py.read_text())
+            for n in ast.walk(rtree):
+                if isinstance(n, ast.AsyncFunctionDef):
+                    available.add(n.name)
+
+        for role_key, role_data in crons.items():
+            if role_key == "fleet_state_guard" or not isinstance(role_data, list):
+                continue
+            for cron in role_data:
+                msg = cron.get("message", "")
+                calls = re.findall(r"Call\s+(\w+)\(\)", msg)
+                calls += re.findall(r"(fleet_\w+)\(\)", msg)
+                for call in calls:
+                    assert call in available, \
+                        f"CRON {role_key}/{cron['name']} references {call}() which doesn't exist"
+
+
 class TestStageAwareModelSelection:
     """Stage-aware effort config is valid."""
 

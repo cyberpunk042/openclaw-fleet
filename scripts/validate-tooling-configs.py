@@ -424,6 +424,38 @@ class Validator:
 
         self.ok("agent-tooling.yaml internal consistency checked")
 
+    def check_skill_orphans(self):
+        """Check 14: skills exist as directories but are NOT in skill-stage-mapping."""
+        skills_dir = FLEET_DIR / ".claude" / "skills"
+        mapping = load_yaml(CONFIG / "skill-stage-mapping.yaml")
+        mapping_text = yaml.dump(mapping) if mapping else ""
+
+        orphans = []
+        for skill_dir in sorted(skills_dir.glob("fleet-*")):
+            if (skill_dir / "SKILL.md").exists():
+                if skill_dir.name not in mapping_text:
+                    orphans.append(skill_dir.name)
+
+        if orphans:
+            for o in orphans:
+                self.warn(f"Skill '{o}' exists but is NOT in skill-stage-mapping.yaml (orphan)")
+        total = len(list(skills_dir.glob("fleet-*/SKILL.md")))
+        referenced = total - len(orphans)
+        self.ok(f"Skill orphan check: {referenced}/{total} referenced, {len(orphans)} orphans")
+
+    def check_heartbeat_templates(self, roster: set[str]):
+        """Check 15: every agent has a role-specific heartbeat template."""
+        hb_dir = FLEET_DIR / "agents" / "_template" / "heartbeats"
+        missing = []
+        for agent in sorted(roster):
+            if not (hb_dir / f"{agent}.md").exists():
+                missing.append(agent)
+
+        if missing:
+            for m in missing:
+                self.warn(f"Agent '{m}' has no heartbeat template (uses generic worker fallback)")
+        self.ok(f"Heartbeat templates: {len(roster) - len(missing)}/{len(roster)} role-specific")
+
     def run_all(self):
         """Run all validation checks."""
         print("=" * 60)
@@ -444,6 +476,8 @@ class Validator:
         self.check_agents_md(roster)
         self.check_synergy_matrix(roster)
         self.check_stage_effort_config()
+        self.check_skill_orphans()
+        self.check_heartbeat_templates(roster)
         self.check_workspace_deployment(roster)
 
         # Report

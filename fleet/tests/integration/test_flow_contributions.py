@@ -162,10 +162,136 @@ def test_skill_recommendations_for_pm():
 
 def test_skill_recommendations_blocked_at_stage():
     """Some skills should be blocked at certain stages."""
-    # Conversation stage typically blocks implementation skills
     recs = get_skill_recommendations("software-engineer", "conversation")
-    # The blocked list may be empty depending on config, but structure should exist
     assert "blocked" in recs
+
+
+# ── Skill Recommendations: Full Role Coverage ─────────────────────
+
+AGENT_ROSTER = [
+    "architect", "software-engineer", "qa-engineer", "devops",
+    "devsecops-expert", "fleet-ops", "project-manager",
+    "technical-writer", "ux-designer", "accountability-generator",
+]
+
+STAGES = ["conversation", "analysis", "investigation", "reasoning", "work"]
+
+
+def _all_skills(agent, stage):
+    """Get all skill names for an agent at a stage."""
+    recs = get_skill_recommendations(agent, stage)
+    skills = set()
+    for s in recs.get("always", []):
+        skills.add(s["skill"] if isinstance(s, dict) else s)
+    for s in recs.get("stage", []):
+        skills.add(s["skill"] if isinstance(s, dict) else s)
+    return skills
+
+
+def test_all_roles_have_always_available_skills():
+    """Every role should have at least generic methodology skills at every stage."""
+    for agent in AGENT_ROSTER:
+        for stage in STAGES:
+            recs = get_skill_recommendations(agent, stage)
+            assert len(recs["always"]) >= 2, \
+                f"{agent} at {stage} should have >=2 always-available skills"
+
+
+def test_all_roles_have_fleet_methodology_guide():
+    """fleet-methodology-guide should be in always-available for every role."""
+    for agent in AGENT_ROSTER:
+        skills = _all_skills(agent, "work")
+        assert "fleet-methodology-guide" in skills, \
+            f"{agent} missing fleet-methodology-guide"
+
+
+def test_all_roles_have_fleet_contribution():
+    """fleet-contribution should be in always-available for every role."""
+    for agent in AGENT_ROSTER:
+        skills = _all_skills(agent, "work")
+        assert "fleet-contribution" in skills, \
+            f"{agent} missing fleet-contribution"
+
+
+def test_pm_has_triage_and_orchestration():
+    """PM should have task-triage and pm-orchestration at all stages."""
+    skills = _all_skills("project-manager", "work")
+    assert "fleet-task-triage" in skills
+    assert "fleet-pm-orchestration" in skills
+
+
+def test_engineer_has_contribution_consumption():
+    """Engineer should have contribution-consumption at all stages."""
+    skills = _all_skills("software-engineer", "work")
+    assert "fleet-contribution-consumption" in skills
+    assert "fleet-conventional-commits" in skills
+
+
+def test_fleet_ops_has_review_skills():
+    """Fleet-ops should have review protocol and methodology compliance."""
+    skills = _all_skills("fleet-ops", "work")
+    assert "fleet-ops-review-protocol" in skills
+    assert "fleet-methodology-compliance" in skills
+
+
+def test_architect_has_design_skills():
+    """Architect should have design contribution and pattern selection at reasoning."""
+    skills = _all_skills("architect", "reasoning")
+    assert "fleet-design-contribution" in skills
+    assert "fleet-design-pattern-selection" in skills
+
+
+def test_qa_has_predefinition_at_reasoning():
+    """QA should have predefinition skills at reasoning stage."""
+    skills = _all_skills("qa-engineer", "reasoning")
+    assert "fleet-qa-predefinition" in skills
+    assert "fleet-boundary-value-analysis" in skills
+
+
+def test_devsecops_has_security_skills():
+    """DevSecOps should have threat modeling at analysis, vulnerability assessment always."""
+    analysis_skills = _all_skills("devsecops-expert", "analysis")
+    assert "fleet-threat-modeling" in analysis_skills
+    all_skills = _all_skills("devsecops-expert", "work")
+    assert "fleet-vulnerability-assessment" in all_skills
+
+
+def test_devops_has_infrastructure_skills():
+    """DevOps should have IaC and fleet infrastructure always available."""
+    skills = _all_skills("devops", "work")
+    assert "fleet-devops-iac" in skills
+    assert "fleet-fleet-infrastructure" in skills
+
+
+def test_writer_has_doc_skills():
+    """Writer should have doc lifecycle and contribution protocol."""
+    skills = _all_skills("technical-writer", "work")
+    assert "fleet-doc-lifecycle" in skills
+    assert "fleet-doc-contribution-protocol" in skills
+
+
+def test_ux_has_interaction_design():
+    """UX should have interaction design and UX-every-level."""
+    skills = _all_skills("ux-designer", "work")
+    assert "fleet-ux-every-level" in skills
+    assert "fleet-interaction-design" in skills
+
+
+def test_accountability_has_compliance_skills():
+    """Accountability should have trail, compliance verification, and pattern detection."""
+    skills = _all_skills("accountability-generator", "work")
+    assert "fleet-accountability-trail" in skills
+    assert "fleet-compliance-verification" in skills
+
+
+def test_minimum_skill_count_per_role():
+    """Every role should have at least 15 skills across all stages combined."""
+    for agent in AGENT_ROSTER:
+        all_agent_skills = set()
+        for stage in STAGES:
+            all_agent_skills.update(_all_skills(agent, stage))
+        assert len(all_agent_skills) >= 15, \
+            f"{agent} has only {len(all_agent_skills)} skills — expected >=15"
 
 
 # ── Standing Orders × Role ─────────────────────────────────────────
