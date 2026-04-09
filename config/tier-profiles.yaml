@@ -1,0 +1,56 @@
+# config/tier-profiles.yaml — Capability tier depth rules
+#
+# Each tier defines HOW MUCH of each section to render.
+# Preembed owns ORDER. Renderer owns DEPTH.
+#
+# Tiers map to AICP operational profiles:
+#   expert → claude (cloud)
+#   capable → qwen3-8b, openrouter (default, code-review)
+#   flagship_local → gemma4-26b dual GPU (dual-gpu)
+#   lightweight → gemma4-e2b, qwen3-4b (fleet-light, fast)
+
+expert:
+  description: "Full context — trust the agent"
+  task_detail: full
+  contributions: full_inline
+  protocol: full
+  phase_standards: full
+  chain_awareness: full
+  role_data: full_formatted
+  events_limit: 10
+  standing_orders: full
+  messages: full
+  action_directive: full
+
+capable:
+  description: "Condensed — clear multi-step instructions"
+  task_detail: core_fields
+  contributions: status_only
+  protocol: must_must_not
+  phase_standards: one_liner
+  chain_awareness: one_line
+  role_data: counts_plus_top3
+  events_limit: 5
+  standing_orders: name_desc_only
+  messages: full
+  action_directive: full
+
+flagship_local:
+  description: "Large context local — more budget, same capability"
+  extends: capable
+  contributions: summary
+  role_data: counts_plus_top5
+  events_limit: 8
+
+lightweight:
+  description: "Focused — don't overwhelm the trainee"
+  task_detail: title_stage_only
+  contributions: names_only
+  protocol: short_rules
+  phase_standards: name_only
+  chain_awareness: omit
+  role_data: counts_only
+  events_limit: 0
+  standing_orders: omit
+  messages: truncated
+  action_directive: one_line
