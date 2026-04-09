@@ -13,6 +13,99 @@ epic: E001
 
 Every path from root to leaf = one validated scenario.
 
+> "I would not overwhelm my trainee"
+> — PO, 2026-04-09
+
+## Fleet-Level Axes (apply to EVERYTHING below)
+
+These three axes are set at the fleet level via OCMC dropdowns. They affect
+what gets injected, who gets context, and how much they see.
+
+```
+FLEET CONTROL STATE
+│
+├── Work Mode (where new work comes from)
+│   ├── full-autonomous ────── all agents active, Plane pulls enabled
+│   ├── project-management-work ── PM-driven, normal dispatch
+│   ├── local-work-only ────── OCMC tasks only, no Plane pull
+│   ├── finish-current-work ── no NEW dispatch, in-progress continues
+│   └── work-paused ────────── no dispatch at all
+│
+├── Cycle Phase (what KIND of activity — FILTERS ACTIVE AGENTS)
+│   ├── execution ──────────── all agents active (normal operations)
+│   ├── planning ───────────── ONLY project-manager + architect active
+│   ├── analysis ───────────── ONLY architect + project-manager active
+│   ├── investigation ──────── any assigned agent active
+│   ├── review ─────────────── ONLY fleet-ops active
+│   └── crisis-management ──── ONLY fleet-ops + devsecops active
+│   │
+│   │  IMPACT ON CONTEXT:
+│   │  Agent NOT active in current phase →
+│   │    heartbeat: "Fleet is in {phase} mode. You are not active. HEARTBEAT_OK."
+│   │  Agent IS active in current phase →
+│   │    heartbeat: normal context + phase indicator in fleet state line
+│   │  dispatch: only dispatches to agents active in current phase
+│
+└── Backend Mode (which AI backends are enabled — determines routing)
+    ├── claude ─────────────── expert only (opus/sonnet, 200K-1M)
+    ├── localai ────────────── trainee only (hermes/phi, 8K)
+    ├── openrouter ─────────── community only (free models, ~32K)
+    ├── claude+localai ─────── expert + trainee (route by complexity)
+    ├── claude+openrouter ──── expert + community (route by complexity)
+    ├── localai+openrouter ─── trainee + community (free-only fleet)
+    └── claude+localai+openrouter ── all backends (cheapest capable wins)
+    │
+    │  ROUTING: cheapest capable backend for each task
+    │  Security/architecture agents NEVER go to trainee/community
+    │  Fallback chain: localai → openrouter → claude sonnet → claude opus → queue
+```
+
+## Backend → Profile → Context Depth
+
+The backend determines the CONFIDENCE TIER, which determines the PROFILE,
+which determines HOW MUCH context to inject. This is not just about what
+fits — it's about what the model can HANDLE. Don't overwhelm a trainee.
+
+```
+BACKEND → CONFIDENCE TIER → PROFILE → CONTEXT ADAPTATION
+│
+├── claude-code opus [1m] ─── expert ──── opus-1m ────── FULL
+│   │  Full content everywhere. All knowledge map branches.
+│   │  All contribution content inline. Full chain awareness.
+│   │  All skills, sub-agents, plugins. Trust the agent.
+│   │  Budget: ~50K tokens for knowledge context.
+│
+├── claude-code sonnet/opus [200k] ── expert ── sonnet-200k ── CONDENSED
+│   │  Condensed: summaries + references to full content.
+│   │  Core fields only on tasks. MUST/MUST NOT only on protocol.
+│   │  Contribution type+from+status (not full content).
+│   │  Top 3 per list. Methodology ALWAYS full (never compress process).
+│   │  Budget: ~15K tokens for knowledge context.
+│
+├── openrouter-free [~32k] ── community ── openrouter-32k ── FOCUSED
+│   │  NEW PROFILE NEEDED. Between condensed and minimal.
+│   │  Clear instructions. Key fields. Stage rules.
+│   │  Verbatim always full. Contributions as names + status.
+│   │  No complex chain awareness. No full knowledge map.
+│   │  Skills: names only. Events: count only.
+│   │  Budget: ~5K tokens for knowledge context.
+│   │  Community tier → flag as community in labor stamps.
+│
+├── localai [8k] ─────────── trainee ──── localai-8k ───── MINIMAL
+│   │  SIMPLE. CLEAR. DIRECT. Don't overwhelm the trainee.
+│   │  Mission one-liner. Stage MUST/MUST NOT (2-3 lines).
+│   │  Verbatim always full (anchor). "fleet_read_context for more."
+│   │  No contribution content. No chain awareness. No events.
+│   │  No skills. No knowledge map. No standing orders.
+│   │  Budget: ~2K tokens for knowledge context.
+│   │  Trainee tier → flag as trainee in labor stamps.
+│
+└── direct ────────────────── standard ─── (none) ──────── NO CONTEXT
+    │  No LLM. Pure MCP tool calls. Deterministic operations.
+    │  Brain handles these without creating an agent session.
+    │  No context injection needed.
+```
+
 ## Master Tree
 
 ```
@@ -20,7 +113,11 @@ ROOT
 │
 ├── HEARTBEAT (agent wakes on CRON)
 │   │
-│   ├── Profile: opus-1m ──────────────────────────────── [HB-FULL]
+│   ├── Cycle Phase Check (FIRST — before anything else)
+│   │   ├── agent IS active in current phase ──── proceed to context assembly
+│   │   └── agent NOT active in current phase ─── "Fleet in {phase}. You are not active. HEARTBEAT_OK."
+│   │
+│   ├── Profile: opus-1m (expert) ─────────────────────── [HB-FULL]
 │   │   │
 │   │   ├── §2 PO Directives
 │   │   │   ├── none ─────────────────────────────────── "None."
@@ -298,7 +395,17 @@ ROOT
         │   §8 phase: one-liner per standard
         │   §10 chains: one-line per chain
         │
-        └── localai-8k ────────────────────────────────── [TK-MINIMAL]
+        ├── openrouter-32k (community — NEW PROFILE) ──── [TK-FOCUSED]
+        │   §2 task detail: title + ID + stage + readiness + verbatim + type
+        │   §5 verbatim: SAME (never compress anchor)
+        │   §6 protocol: MUST + MUST NOT (clear, direct — don't overwhelm)
+        │   §7 contributions: type + from + status (no inline content)
+        │   §8 phase: phase name + one-liner
+        │   §9 action: clear single directive
+        │   §10 chains: one-line summary only
+        │   Community tier → flag in labor stamp
+        │
+        └── localai-8k (trainee) ──────────────────────── [TK-MINIMAL]
             §0: "Call fleet_read_context() for full task context"
             §1: identity (same)
             §2: title + stage only
@@ -309,6 +416,8 @@ ROOT
             §8: phase name only
             §9: one-line action
             §10: omit
+            Trainee tier → flag in labor stamp
+            "I would not overwhelm my trainee" — PO
 ```
 
 ## Knowledge Context Tree (Navigator — separate file)
@@ -344,6 +453,20 @@ NAVIGATOR (knowledge-context.md)
 │   ├── LightRAG ────────────── proportional to remaining budget
 │   └── claude-mem ──────────── 3 recent observations
 │
+├── Profile: openrouter-32k (NEW)
+│   ├── agent_manual ────────── mission + primary tools (no rules detail)
+│   ├── methodology ─────────── current stage MUST/MUST NOT (full — methodology never compressed)
+│   ├── standards ───────────── omit (too much for community model)
+│   ├── skills ──────────────── top 3 names for current stage
+│   ├── commands ────────────── top 2 for current stage
+│   ├── tools ───────────────── name only ("fleet_commit, fleet_task_complete")
+│   ├── plugins ─────────────── omit
+│   ├── contributions ───────── names only
+│   ├── trail ───────────────── omit
+│   ├── context_awareness ───── both percentages if pressure
+│   ├── LightRAG ────────────── omit (save tokens for task content)
+│   └── claude-mem ──────────── omit
+│
 ├── Profile: localai-8k
 │   ├── agent_manual ────────── "You are {name}, {role}. {mission}."
 │   ├── methodology ─────────── "Stage: {stage}. MUST: {list}. MUST NOT: {list}."
@@ -371,6 +494,7 @@ NEVER COMPRESS (any profile, any scenario):
 ```
 COMPOUND HEARTBEAT STATES
 ├── idle (nothing) ──────────────────────────── HEARTBEAT_OK, no tools
+├── not active in cycle_phase ───────────────── "Fleet in {phase}. You are not active. HEARTBEAT_OK."
 ├── directive only ──────────────────────────── execute directive, then check rest
 ├── messages only ───────────────────────────── respond, then HEARTBEAT_OK
 ├── tasks only ──────────────────────────────── follow stage protocol
@@ -379,7 +503,8 @@ COMPOUND HEARTBEAT STATES
 ├── reviews + storm (fleet-ops) ─────────────── budget-aware review, reduced dispatch
 ├── unassigned + blocked (PM) ───────────────── triage unassigned, resolve blockers
 ├── contribution tasks + own work (worker) ──── contribution tasks first if urgent
-└── context pressure + active work ──────────── save state, prepare for compaction
+├── context pressure + active work ──────────── save state, prepare for compaction
+└── planning phase + architect ──────────────── focused on design work, ignore execution tasks
 
 COMPOUND TASK STATES
 ├── work + all contributions + plan visible ─── golden path (TK-01)
@@ -477,7 +602,32 @@ PO confirms each. Isolated test locks it.
 [ ] TK-43  request task (all stages except investigation)
 ```
 
-### Total: 25 heartbeat + 43 task = 68 scenarios
+### Fleet-Level Scenarios
+
+```
+[ ] FL-01  cycle_phase: planning — PM gets context, engineer gets "not active"
+[ ] FL-02  cycle_phase: review — fleet-ops gets context, others get "not active"
+[ ] FL-03  cycle_phase: crisis-management — fleet-ops + devsecops active, others "not active"
+[ ] FL-04  cycle_phase: execution — all agents active (baseline)
+[ ] FL-05  work_mode: work-paused — no dispatch, agents see "paused" in fleet state
+[ ] FL-06  work_mode: finish-current-work — in-progress continues, no new dispatch
+[ ] FL-07  work_mode: local-work-only — no Plane pull, OCMC tasks only
+[ ] FL-08  backend_mode: claude — expert profile, full context
+[ ] FL-09  backend_mode: localai — trainee profile, minimal context ("don't overwhelm")
+[ ] FL-10  backend_mode: openrouter — community profile, focused context
+[ ] FL-11  backend_mode: claude+localai — routing split: complex→claude, trivial→localai
+[ ] FL-12  backend_mode: claude+openrouter — routing split: complex→claude, simple→openrouter
+[ ] FL-13  backend_mode: localai+openrouter — free-only fleet, both trainee/community
+[ ] FL-14  backend_mode: claude+localai+openrouter — full routing, cheapest capable wins
+[ ] FL-15  security agent (devsecops) NEVER routes to trainee/community
+[ ] FL-16  architecture agent (architect) NEVER routes to trainee/community
+[ ] FL-17  budget_mode: turbo (5s cycle) — faster heartbeats, same context
+[ ] FL-18  budget_mode: economic (60s cycle) — slower heartbeats, same context
+[ ] FL-19  compound: planning phase + claude+localai backend — PM→claude, but PM is the only one active
+[ ] FL-20  compound: crisis + storm warning — devsecops active, budget-aware, reduced dispatch
+```
+
+### Total: 25 heartbeat + 43 task + 20 fleet-level = 88 scenarios
 
 Each gets:
 1. Rendered by generate-validation-matrix.py
