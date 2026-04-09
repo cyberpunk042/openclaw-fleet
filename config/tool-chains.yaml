@@ -14,10 +14,10 @@
 tools:
 
   fleet_read_context:
-    what: "Load full task and project context"
-    when: "FIRST call every session — before any decision or work"
+    what: "Load or refresh task and project context"
+    when: "injection:none → REQUIRED first call. injection:full → optional (for refresh or different task data)"
     chain: "none (read-only)"
-    input: "(none — reads context for current agent)"
+    input: "task_id (optional — defaults to current), project (optional)"
     auto: ""
 
   fleet_task_accept:

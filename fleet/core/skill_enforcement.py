@@ -4,7 +4,7 @@ Ensures agents use the right fleet tools for their task type:
 - Code tasks MUST use fleet_commit (not raw git)
 - Review tasks MUST use fleet_approve (not raw API)
 - Planning tasks MUST use fleet_task_create (produce tasks, not text)
-- All tasks MUST use fleet_read_context first
+- All tasks use fleet_read_context when data not pre-embedded (injection:none)
 
 Missing required tools lower the confidence score in the approval,
 which fleet-ops considers during review.

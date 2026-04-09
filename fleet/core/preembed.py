@@ -64,7 +64,11 @@ def format_task_full(task: Task) -> str:
     return "\n".join(lines)
 
 
-def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
+def build_task_preembed(
+    task: Task,
+    completeness_summary: str = "",
+    injection_level: str = "full",
+) -> str:
     """Build task pre-embed in autocomplete chain order.
 
     The 10-section order IS the autocomplete chain — the data arrangement
@@ -72,7 +76,11 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
     stage awareness → verbatim anchoring → protocol → contributions →
     phase → action → consequences.
 
-    Standard: docs/milestones/active/standards/context-files-standard.md
+    Args:
+        task: The task being worked on.
+        completeness_summary: Artifact completeness state.
+        injection_level: "full" (default — data pre-embedded, fleet_read_context optional)
+                         or "none" (no pre-embed — fleet_read_context required).
     """
     cf = task.custom_fields
     agent_name = cf.agent_name or ""
@@ -81,6 +89,14 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
     verbatim = cf.requirement_verbatim or ""
     delivery_phase = cf.delivery_phase or ""
     lines = []
+
+    # § 0. Operational mode indicator
+    lines.append(f"# MODE: task | injection: {injection_level}")
+    if injection_level == "full":
+        lines.append("# Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.")
+    else:
+        lines.append("# NO pre-embedded data. Call fleet_read_context() FIRST to load your task.")
+    lines.append("")
 
     # § 1. Identity grounding
     lines.append(f"# YOU ARE: {agent_name}")
@@ -131,7 +147,10 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
         except Exception:
             pass
 
-    # § 7. Inputs from colleagues (contributions received)
+    # § 7. Inputs from colleagues (contributions)
+    # The base template shows what's REQUIRED. The orchestrator's context refresh
+    # cycle preserves ACTUAL contribution content (## CONTRIBUTION: sections)
+    # that fleet_contribute() appends. Those appear below the requirements list.
     lines.append("## INPUTS FROM COLLEAGUES")
     try:
         from fleet.core.contributions import load_synergy_matrix, get_skip_types
@@ -142,10 +161,11 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
             specs = matrix.get(agent_name, [])
             required = [s for s in specs if s.priority == "required"]
             if required:
+                lines.append("Required contributions (received content appears below if delivered):")
                 for s in required:
-                    lines.append(f"- **{s.contribution_type}** from {s.role}: check task comments for this input")
+                    lines.append(f"- **{s.contribution_type}** from {s.role}")
                 lines.append("")
-                lines.append("Missing inputs → `fleet_request_input()`. Do NOT proceed without required contributions.")
+                lines.append("If contributions are NOT shown below → `fleet_request_input()`. Do NOT proceed without required contributions in work stage.")
             else:
                 lines.append("*(No contributions required for this task type.)*")
         else:
@@ -179,7 +199,7 @@ def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
     elif stage == "reasoning":
         lines.append("Produce a plan that REFERENCES the verbatim requirement above. Specify target files and acceptance criteria mapping.")
     elif stage == "work":
-        lines.append("Execute the confirmed plan. Check contributions above. Call `fleet_read_context()` first, then `fleet_task_accept()`, then implement.")
+        lines.append("Execute the confirmed plan. Your task data and contributions are pre-embedded above. `fleet_task_accept()` then implement. fleet_read_context() only to load a different task.")
     else:
         lines.append("Follow the stage protocol above.")
     lines.append("")
@@ -218,6 +238,9 @@ def build_heartbeat_preembed(
     Not compressed. Full data per role.
     """
     lines = [
+        "# MODE: heartbeat | injection: full",
+        "# Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.",
+        "",
         "# HEARTBEAT CONTEXT",
         "",
         f"Agent: {agent_name}",

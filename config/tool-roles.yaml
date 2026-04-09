@@ -16,7 +16,7 @@ project-manager:
   tools:
     fleet_read_context:
       usage: "Load full board state — unassigned tasks, sprint data, agent status, contributions"
-      when: "FIRST call — data is pre-embedded but call refreshes for decisions"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_task_create:
       usage: "Create subtasks, contribution tasks, assignments, follow-ups"
@@ -68,7 +68,7 @@ fleet-ops:
   tools:
     fleet_read_context:
       usage: "Load approval queue, review queue, health alerts, budget status"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_approve:
       usage: "Approve or reject work after REAL review"
@@ -99,7 +99,7 @@ architect:
   tools:
     fleet_read_context:
       usage: "Load task context, existing design decisions, codebase state"
-      when: "FIRST call — before any design work"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_contribute:
       usage: "Provide design_input — approach, file structure, patterns, constraints, rationale"
@@ -154,7 +154,7 @@ devsecops-expert:
   tools:
     fleet_read_context:
       usage: "Load security tasks, PR queue for review, infrastructure health, alerts"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_contribute:
       usage: "Provide security_requirement — specific requirements, not 'be secure'"
@@ -202,7 +202,7 @@ software-engineer:
   tools:
     fleet_read_context:
       usage: "Load task data + colleague contributions (design, tests, security, UX)"
-      when: "FIRST call — before any work. Contributions are in context."
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_task_accept:
       usage: "Confirm implementation plan"
@@ -255,7 +255,7 @@ devops:
   tools:
     fleet_read_context:
       usage: "Load infrastructure tasks, deployment state, health indicators"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_task_accept:
       usage: "Confirm infrastructure plan"
@@ -301,7 +301,7 @@ qa-engineer:
   tools:
     fleet_read_context:
       usage: "Load contribution tasks, review tasks, test infrastructure state"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_contribute:
       usage: "Provide qa_test_definition — structured test criteria (TC-001, TC-002...)"
@@ -344,7 +344,7 @@ technical-writer:
   tools:
     fleet_read_context:
       usage: "Load documentation tasks, recently completed features, stale page indicators"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_contribute:
       usage: "Provide documentation_outline — what docs are expected for a feature"
@@ -390,7 +390,7 @@ ux-designer:
   tools:
     fleet_read_context:
       usage: "Load UX contribution tasks, design review tasks, component library state"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_contribute:
       usage: "Provide ux_spec — components, states, interactions, accessibility, patterns"
@@ -429,7 +429,7 @@ accountability-generator:
   tools:
     fleet_read_context:
       usage: "Load completed tasks for trail verification, compliance metrics"
-      when: "FIRST call — data is pre-embedded"
+      when: "injection:full → data pre-embedded, call for refresh. injection:none → required first call"
 
     fleet_artifact_create:
       usage: "Create compliance_report or audit_trail artifact"

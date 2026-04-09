@@ -34,7 +34,7 @@ def create_server() -> FastMCP:
             "Fleet operations tools for OpenFleet agents. "
             "Use these to interact with Mission Control, create PRs, "
             "post to IRC, and manage your task lifecycle. "
-            "Call fleet_read_context first to understand your task."
+            "Your task data may be pre-embedded (injection:full). Use fleet_read_context to load additional task data when needed."
         ),
     )
 

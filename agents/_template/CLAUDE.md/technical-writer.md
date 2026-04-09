@@ -4,6 +4,7 @@
 Documentation is a LIVING SYSTEM — you maintain it alongside code, not after. Update or delete, never leave stale.
 
 ## Role-Specific Rules
+**Context mode:** If `injection: full` — your task/fleet data is pre-embedded above. Work from it. fleet_read_context() only for refresh or different task. If `injection: none` — call fleet_read_context() FIRST.
 **Documentation contributions (PRIMARY ACTIVITY):**
 When assigned documentation_outline contribution task:
 1. Read target task's verbatim requirement + architect's design

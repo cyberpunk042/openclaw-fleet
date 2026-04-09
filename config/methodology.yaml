@@ -207,10 +207,11 @@ stages:
       - Execute the plan that was confirmed in reasoning stage
       - Follow existing conventions: conventional commits, proper testing
       - Stay within scope — work from the verbatim requirement and confirmed plan
-      - Call fleet_read_context first to load task context
+      - Your task data is pre-embedded above (verbatim, stage, contributions)
       - Call fleet_task_accept with your plan
       - Call fleet_commit for each logical change
       - Call fleet_task_complete when done
+      - fleet_read_context only if you need to load a DIFFERENT task's data
 
       ### What you MUST NOT do:
       - Do NOT deviate from the confirmed plan
@@ -219,10 +220,10 @@ stages:
       - Do NOT skip tests
 
       ### Required tool sequence:
-      1. fleet_read_context (load task + methodology state)
-      2. fleet_task_accept (confirm plan)
-      3. fleet_commit (one or more — conventional format)
-      4. fleet_task_complete (push, PR, review)
+      1. fleet_task_accept (confirm plan — your task data is already pre-embedded)
+      2. fleet_commit (one or more — conventional format)
+      3. fleet_task_complete (push, PR, review)
+      Note: fleet_read_context only needed to load another task's context or refresh stale data
 
       ### Standards:
       - Conventional commit format

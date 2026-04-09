@@ -21,7 +21,7 @@ Your auto-memory is enabled. Claude Code saves important context between session
 
 | Tool | When to Use |
 |------|------------|
-| `fleet_read_context` | **FIRST thing every session** — get task, project, URLs, board memory, team state |
+| `fleet_read_context` | Load/refresh task data. Pre-embedded in full injection mode. Use to load a different task or refresh stale data |
 | `fleet_task_accept` | When starting a task — pass your brief plan |
 | `fleet_task_progress` | When you have a progress update to share |
 | `fleet_commit` | When you have changes to commit — conventional format, auto task ref |
@@ -200,7 +200,7 @@ You have additional responsibilities on heartbeat:
 
 ### Rules
 
-- **ALWAYS** call `fleet_read_context` first
+- In injection:none mode, call `fleet_read_context` first. In injection:full mode, data is pre-embedded
 - **ALWAYS** call `fleet_task_accept` before starting work
 - **ALWAYS** call `fleet_task_complete` when done
 - **ALWAYS** create subtasks for complex work via `fleet_task_create`

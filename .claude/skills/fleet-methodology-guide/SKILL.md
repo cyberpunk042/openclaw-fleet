@@ -101,7 +101,7 @@ Source of truth: `config/methodology.yaml`
 |----|-------|
 | Execute the confirmed plan exactly | Deviate from the plan |
 | Follow conventions: conventional commits, tests | Add unrequested scope |
-| Call fleet_read_context FIRST | Modify files outside plan targets |
+| Use pre-embedded task data (or fleet_read_context if injection:none) | Modify files outside plan targets |
 | Call fleet_task_accept with plan | Skip tests |
 | Call fleet_commit for each logical change | |
 | Call fleet_task_complete when done | |

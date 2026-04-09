@@ -558,7 +558,33 @@ async def _refresh_agent_contexts(
             # Also write task context for in-progress tasks
             in_progress = [t for t in my_tasks if t.status == TaskStatus.IN_PROGRESS]
             if in_progress:
-                task_text = build_task_preembed(in_progress[0])
+                current_task = in_progress[0]
+                task_text = build_task_preembed(current_task)
+
+                # Preserve existing contribution sections in task-context.md
+                # Contributions are appended by fleet_contribute() MCP tool.
+                # Without this, the 30s refresh cycle would wipe received contributions.
+                try:
+                    from fleet.core.context_writer import AGENTS_DIR
+                    existing_path = AGENTS_DIR / agent_name / "context" / "task-context.md"
+                    if existing_path.exists():
+                        existing = existing_path.read_text()
+                        # Extract contribution sections (## CONTRIBUTION: ... blocks)
+                        contrib_marker = "## CONTRIBUTION:"
+                        if contrib_marker in existing:
+                            # Find first contribution section
+                            idx = existing.index(contrib_marker)
+                            contrib_sections = existing[idx:]
+                            # Inject into INPUTS FROM COLLEAGUES section
+                            if "## INPUTS FROM COLLEAGUES" in task_text:
+                                task_text = task_text.replace(
+                                    "## INPUTS FROM COLLEAGUES",
+                                    f"## INPUTS FROM COLLEAGUES\n\n{contrib_sections}\n",
+                                    1,
+                                )
+                except Exception:
+                    pass  # Contribution preservation must not break context refresh
+
                 write_task_context(agent_name, task_text)
 
             # Write knowledge context from navigator (autocomplete web)
@@ -1594,20 +1620,9 @@ async def _dispatch_ready_tasks(
             continue
 
         try:
-            # Pass budget mode and rate limit for adaptive effort escalation
-            _budget_mode = fleet_state.budget_mode if fleet_state else "standard"
-            _rate_limit = 0.0
-            try:
-                if _budget_monitor._last_reading:
-                    _rate_limit = _budget_monitor._last_reading.weekly_all_pct or 0.0
-            except Exception:
-                pass
-
             result = await _run_dispatch(
                 agent.name, task.id, project,
                 backend_mode=fleet_state.backend_mode if fleet_state else "claude",
-                budget_mode=_budget_mode,
-                rate_limit_pct=_rate_limit,
             )
             if result == 0:
                 state.tasks_dispatched += 1

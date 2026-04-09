@@ -30,17 +30,19 @@ class ContextAction(str, Enum):
     NORMAL = "normal"       # < 70% — work freely
     AWARE = "aware"         # 70% — informed, no change needed
     PREPARE = "prepare"     # 80% — save working state to artifacts
-    EXTRACT = "extract"     # 90% — dump state NOW before forced compact
-    COMPACT = "compact"     # 95% — proactive compact (better than forced)
+    EXTRACT = "extract"     # 95% used (5% remaining) — dump NOW, compact imminent
 
 
 class RateLimitAction(str, Enum):
-    """Progressive action based on rate limit pressure."""
-    NORMAL = "normal"       # < 70%
-    INFORM = "inform"       # 70% — agent informed, conserve when possible
-    CONSERVE = "conserve"   # 85% — effort reduced
-    CRITICAL = "critical"   # 90% — finish current op, no new dispatch
-    STOP = "stop"           # 95% — hold all dispatch, wait for rollover
+    """Progressive action based on rate limit pressure.
+
+    From PO (CW doc §7):
+      85% = start preparing (controlled transition)
+      90% = actively managing (force compact heavy contexts)
+    """
+    NORMAL = "normal"       # < 85%
+    CONSERVE = "conserve"   # 85% — start preparing, controlled transition
+    CRITICAL = "critical"   # 90% — actively managing, compact heavy contexts
 
 
 @dataclass
@@ -60,11 +62,11 @@ class ContextEvaluation:
 
     @property
     def should_block_dispatch(self) -> bool:
-        return self.rate_limit_action in (RateLimitAction.CRITICAL, RateLimitAction.STOP)
+        return self.rate_limit_action == RateLimitAction.CRITICAL
 
     @property
     def should_compact(self) -> bool:
-        return self.context_action == ContextAction.COMPACT
+        return self.context_action == ContextAction.EXTRACT
 
 
 class ContextStrategy:
@@ -74,17 +76,17 @@ class ContextStrategy:
     Results written to agent pre-embed so agents see their position.
     """
 
-    # Context thresholds
-    CONTEXT_AWARE = 70.0
-    CONTEXT_PREPARE = 80.0
-    CONTEXT_EXTRACT = 90.0
-    CONTEXT_COMPACT = 95.0
+    # Context thresholds — from PO requirements (CW doc §1, §6)
+    # "7% remaining" = 93% used = prepare (extract artifacts)
+    # "5% remaining" = 95% used = active management (compact before forced)
+    CONTEXT_PREPARE = 93.0    # 7% remaining — prepare artifacts, save state
+    CONTEXT_EXTRACT = 95.0    # 5% remaining — dump everything NOW, compact imminent
 
-    # Rate limit thresholds
-    RATE_INFORM = 70.0
-    RATE_CONSERVE = 85.0
-    RATE_CRITICAL = 90.0
-    RATE_STOP = 95.0
+    # Rate limit thresholds — from PO requirements (CW doc §7)
+    # "85% rate limit used = start preparing (like 7% context remaining)"
+    # "90% rate limit used = actively managing (like 5% context remaining)"
+    RATE_PREPARE = 85.0       # Start preparing — controlled transition
+    RATE_MANAGE = 90.0        # Actively managing — force compact heavy contexts
 
     def __init__(self):
         # Track compaction times to stagger across agents
@@ -123,14 +125,14 @@ class ContextStrategy:
 
     def should_dispatch(self, rate_limit_pct: float) -> bool:
         """Can the fleet dispatch new work at this rate limit level?"""
-        return rate_limit_pct < self.RATE_CRITICAL
+        return rate_limit_pct < self.RATE_MANAGE
 
     def should_compact_agent(self, agent_name: str, context_pct: float) -> bool:
         """Should this agent be proactively compacted?
 
         Checks context threshold AND stagger (don't compact all agents at once).
         """
-        if context_pct < self.CONTEXT_COMPACT:
+        if context_pct < self.CONTEXT_EXTRACT:
             return False
 
         # Stagger check — don't compact if another agent compacted recently
@@ -154,27 +156,19 @@ class ContextStrategy:
     def _evaluate_context(self, pct: float) -> ContextAction:
         if pct <= 0:
             return ContextAction.NORMAL  # No data
-        if pct >= self.CONTEXT_COMPACT:
-            return ContextAction.COMPACT
         if pct >= self.CONTEXT_EXTRACT:
-            return ContextAction.EXTRACT
+            return ContextAction.EXTRACT  # 5% remaining — dump NOW
         if pct >= self.CONTEXT_PREPARE:
-            return ContextAction.PREPARE
-        if pct >= self.CONTEXT_AWARE:
-            return ContextAction.AWARE
+            return ContextAction.PREPARE  # 7% remaining — save state to artifacts
         return ContextAction.NORMAL
 
     def _evaluate_rate_limit(self, pct: float) -> RateLimitAction:
         if pct <= 0:
             return RateLimitAction.NORMAL  # No data
-        if pct >= self.RATE_STOP:
-            return RateLimitAction.STOP
-        if pct >= self.RATE_CRITICAL:
-            return RateLimitAction.CRITICAL
-        if pct >= self.RATE_CONSERVE:
-            return RateLimitAction.CONSERVE
-        if pct >= self.RATE_INFORM:
-            return RateLimitAction.INFORM
+        if pct >= self.RATE_MANAGE:
+            return RateLimitAction.CRITICAL  # 90% — actively managing, compact heavy contexts
+        if pct >= self.RATE_PREPARE:
+            return RateLimitAction.CONSERVE  # 85% — start preparing, controlled transition
         return RateLimitAction.NORMAL
 
     def _build_message(
@@ -190,39 +184,30 @@ class ContextStrategy:
         if ctx_action == ContextAction.NORMAL and rate_action == RateLimitAction.NORMAL:
             return ""  # No message needed
 
-        if ctx_action == ContextAction.AWARE:
-            parts.append(f"Context: {context_pct:.0f}% used. Aware — no action needed yet.")
-        elif ctx_action == ContextAction.PREPARE:
+        if ctx_action == ContextAction.PREPARE:
             parts.append(
-                f"Context: {context_pct:.0f}% used. PREPARE — save working state "
-                "to artifacts (fleet_task_progress, fleet_artifact_update, fleet_commit) "
-                "before continuing."
+                f"Context: {context_pct:.0f}% used (7% remaining). "
+                "PREPARE — save working state to artifacts "
+                "(fleet_task_progress, fleet_artifact_update, fleet_commit)."
             )
         elif ctx_action == ContextAction.EXTRACT:
             parts.append(
-                f"Context: {context_pct:.0f}% used. EXTRACT — dump all working state "
-                "to artifacts NOW. Commit uncommitted work. Post progress. "
-                "Forced compaction is imminent."
-            )
-        elif ctx_action == ContextAction.COMPACT:
-            parts.append(
-                f"Context: {context_pct:.0f}% used. COMPACT — proactive compaction "
-                "will happen. Your pre-embedded context will be refreshed."
+                f"Context: {context_pct:.0f}% used (5% remaining). "
+                "EXTRACT — dump all working state to artifacts NOW. "
+                "Commit uncommitted work. Post progress. Compaction imminent."
             )
 
-        if rate_action == RateLimitAction.INFORM:
-            parts.append(f"Rate limit: {rate_limit_pct:.0f}%. Conserve when possible.")
-        elif rate_action == RateLimitAction.CONSERVE:
-            parts.append(f"Rate limit: {rate_limit_pct:.0f}%. CONSERVE — effort reduced.")
+        if rate_action == RateLimitAction.CONSERVE:
+            parts.append(
+                f"Rate limit: {rate_limit_pct:.0f}%. "
+                "PREPARE — start controlled transition. "
+                "Don't dispatch 1M context tasks. Compact heavy sessions."
+            )
         elif rate_action == RateLimitAction.CRITICAL:
             parts.append(
-                f"Rate limit: {rate_limit_pct:.0f}%. CRITICAL — finish current "
-                "operation, no new work will be dispatched."
-            )
-        elif rate_action == RateLimitAction.STOP:
-            parts.append(
-                f"Rate limit: {rate_limit_pct:.0f}%. STOP — dispatch halted, "
-                "waiting for rate limit rollover."
+                f"Rate limit: {rate_limit_pct:.0f}%. "
+                "MANAGE — actively managing. Force compact contexts over 40-80K. "
+                "No new dispatches until rollover."
             )
 
         return "\n".join(parts)

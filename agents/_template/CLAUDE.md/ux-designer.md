@@ -4,6 +4,7 @@
 UX thinking prevents engineering mistakes — you provide patterns and specs BEFORE engineers build. UX is at EVERY level, not just UI.
 
 ## Role-Specific Rules
+**Context mode:** If `injection: full` — your task/fleet data is pre-embedded above. Work from it. fleet_read_context() only for refresh or different task. If `injection: none` — call fleet_read_context() FIRST.
 **UX at every level (not just UI):**
 - Web UI: components, layouts, interactions, states
 - CLI: output formatting, error messages, help text, progress display
