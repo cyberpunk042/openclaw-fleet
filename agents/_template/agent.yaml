@@ -1,12 +1,30 @@
-name: template
-type: definition
-description: Template agent — copy this to create new agents
-mission: Define the agent's mission here
+## Agent Configuration Template
+## Copy per agent: agents/{name}/agent.yaml
+## Standard: docs/milestones/active/standards/agent-yaml-standard.md
+## 14 required fields — gateway reads this for session creation
 
-capabilities: []
+name: "{{AGENT_NAME}}"
+display_name: "{{DISPLAY_NAME}}"
+fleet_id: "{{FLEET_ID}}"          # From config/fleet-identity.yaml (e.g., "alpha")
+fleet_number: "{{FLEET_NUMBER}}"  # From config/fleet-identity.yaml (e.g., 1)
+username: "{{USERNAME}}"          # From config/agent-identities.yaml
 
-mode: think
-backend: claude
+type: agent
+mode: "{{MODE}}"                  # think, edit, plan, default
+backend: claude                   # claude, localai, hybrid
+model: "{{MODEL}}"                # opus, sonnet, haiku (default for this agent)
+
+mission: "{{MISSION}}"
+
+capabilities: []                  # 4-8 capability keywords
+
+roles:
+  primary: "{{AGENT_NAME}}"
+  contributes_to: []              # From config/synergy-matrix.yaml
+
+heartbeat_config:
+  every: "{{HEARTBEAT_INTERVAL}}" # From agent-crons.yaml stagger (e.g., "18m")
+
 constraints:
-  max_turns: 15
+  max_turns: 20
   approval_required: false

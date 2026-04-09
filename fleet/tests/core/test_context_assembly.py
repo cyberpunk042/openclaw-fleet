@@ -230,10 +230,14 @@ class TestPreembedIntegration:
     def test_task_preembed_from_task(self):
         task = _make_task(task_stage="work", task_readiness=99)
         text = build_task_preembed(task)
-        assert "TASK CONTEXT" in text
-        assert "work" in text
-        assert "99%" in text
-        assert "EXECUTE" in text
+        # Autocomplete chain sections (10-section standard)
+        assert "YOUR TASK" in text
+        assert "YOUR STAGE: work" in text
+        assert "READINESS: 99%" in text
+        assert "VERBATIM REQUIREMENT" in text
+        assert "WHAT TO DO NOW" in text
+        assert "WHAT HAPPENS WHEN YOU ACT" in text
+        assert "Execute the confirmed plan" in text
 
     def test_heartbeat_preembed_format(self):
         tasks = [_make_task()]

@@ -254,13 +254,12 @@ class TestToolsMdOutput:
             f"{agent}: TOOLS.md missing AGENT_NAME"
 
     @pytest.mark.parametrize("section", [
-        "Fleet MCP Tools",
-        "MCP Servers",
-        "Skills",
-        "Hooks (Structural Enforcement)",
+        "Your Tools",
+        "Available",
+        "Boundaries",
     ])
     def test_tools_md_has_required_sections(self, section):
-        """Every agent's TOOLS.md has these sections."""
+        """Every agent's TOOLS.md has required sections from focused redesign."""
         for agent in AGENT_ROSTER:
             path = FLEET_DIR / "agents" / agent / "TOOLS.md"
             if not path.exists():
@@ -269,15 +268,17 @@ class TestToolsMdOutput:
             assert f"## {section}" in content, \
                 f"{agent}: TOOLS.md missing '## {section}'"
 
-    def test_tools_md_minimum_length(self):
-        """TOOLS.md should be substantial, not stubs."""
+    def test_tools_md_focused_size(self):
+        """TOOLS.md should be focused (2-6K chars), not bloated (15-18K)."""
         for agent in AGENT_ROSTER:
             path = FLEET_DIR / "agents" / agent / "TOOLS.md"
             if not path.exists():
                 continue
-            lines = len(path.read_text().splitlines())
-            assert lines >= 200, \
-                f"{agent}: TOOLS.md only {lines} lines (expected 200+)"
+            size = len(path.read_text())
+            assert size >= 1000, \
+                f"{agent}: TOOLS.md too small ({size} chars, expected 1000+)"
+            assert size <= 8000, \
+                f"{agent}: TOOLS.md too large ({size} chars, expected <8000)"
 
 
 # ── Agent Tooling Internal Consistency ─────────────────────────────

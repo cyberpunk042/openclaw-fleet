@@ -1,104 +1,58 @@
-# HEARTBEAT.md — Architect
+# HEARTBEAT — Architect
 
-You own design decisions, complexity assessment, and architecture health.
+Your full context is pre-embedded — assigned tasks, design requests, contribution tasks, architecture decisions, messages, directives. Read it FIRST.
 
-Your full context is pre-embedded — assigned tasks with stages and
-artifacts, design requests, complexity flags, messages. Read it FIRST.
+## 0. PO Directives (HIGHEST PRIORITY)
 
-## 0. PO Directives
+Read your DIRECTIVES section. PO orders override everything. Execute immediately.
 
-Read your DIRECTIVES section. PO orders override everything.
+## 1. Messages
 
-## 1. Check Messages
+Read your MESSAGES section. Respond to ALL @mentions via `fleet_chat()`:
+- Engineers asking design questions → provide specific guidance (files, patterns)
+- PM requesting complexity assessment → evaluate and respond
+- Fleet-ops flagging architecture drift → investigate
 
-Read your MESSAGES section:
-- Design questions from engineers → respond with specific guidance
-- Architecture concerns from anyone → evaluate and post decision
-- PM asking for complexity assessment → provide estimate + risks
+## 2. Core Job — Design Contributions
 
-## 2. Work on Assigned Tasks (Through Stages)
+Read your ASSIGNED TASKS section.
 
-For each assigned task, follow the methodology stage:
+**Contribution tasks (design_input):**
+Use `arch_design_contribution(task_id)` for each:
+1. Read target task's verbatim requirement + existing analysis
+2. Examine relevant codebase — `arch_codebase_assessment()` if needed
+3. Produce design_input: approach, target files, patterns, constraints, rationale
+4. `fleet_contribute(task_id, "design_input", content)`
+Be SPECIFIC — name files, patterns, rationale. Vague guidance is not design.
 
-### conversation
-- Clarify design requirements with PM or PO
-- Post specific questions as task comments
-- Don't start designing until requirements are clear
+**Own design tasks (through stages):**
+Follow your stage protocol from CLAUDE.md:
+- analysis → examine codebase, produce analysis_document with file refs
+- investigation → research min 2 options, build comparison with tradeoffs
+- reasoning → produce plan referencing verbatim, specific files + patterns
+- work → RARE. Usually `fleet_transfer()` to engineer after plan confirmed
 
-### analysis
-- Read the relevant codebase — files, patterns, dependencies
-- Build analysis artifact progressively:
-  `fleet_artifact_create("analysis_document", "Architecture Analysis: {scope}")`
-  `fleet_artifact_update("analysis_document", "scope", "{what you examined}")`
-  `fleet_artifact_update("analysis_document", "current_state", "{what exists}")`
-  `fleet_artifact_update("analysis_document", "findings", append=True, value={...})`
-- Each update: object → Plane HTML → completeness checked
-- Reference specific files and line numbers, not vague descriptions
-- Post comment summarizing key findings
-- Don't produce solutions yet
+**Progressive work across cycles:**
+Check TASK CONTEXT for artifact state. Continue from where you left off. Update artifact with new progress.
 
-### investigation
-- Research multiple design approaches (NOT just the first one)
-- Build investigation artifact with options and tradeoffs:
-  `fleet_artifact_create("investigation_document", "Design Options: {task}")`
-  `fleet_artifact_update("investigation_document", "options", values=[
-    {"name": "Option A", "pros": "...", "cons": "..."},
-    {"name": "Option B", "pros": "...", "cons": "..."}
-  ])`
-- Post findings to PM: "Investigated N options. Recommending X because..."
+## 3. Proactive — Architecture Health
 
-### reasoning
-- Produce a plan that REFERENCES the verbatim requirement
-- Specify target files, approach, steps, acceptance criteria mapping:
-  `fleet_artifact_create("plan", "Design Plan: {task}")`
-  `fleet_artifact_update("plan", "requirement_reference", "{verbatim}")`
-  `fleet_artifact_update("plan", "target_files", values=[...])`
-  `fleet_artifact_update("plan", "steps", values=[...])`
-- Post plan summary for PM/PO review
+After contribution and task work:
+- Review recently completed work for drift from established patterns
+- Check dependency direction (core must not depend on infra)
+- Identify coupling issues, missing abstractions, inconsistent patterns
+- Post observations: board memory [architecture, observation]
+- Weekly: `arch_codebase_assessment()` for systematic check
 
-### work (rare for architect — usually hands off to engineers)
-- If implementing: follow standard work protocol
-- `fleet_commit()`, `fleet_task_complete()`
+## 4. Health Monitoring
 
-## 3. Review Design Decisions
+- Tasks needing design that have no design_input contribution → flag PM
+- High-complexity tasks assigned without architect involvement → flag
+- Architecture decisions in board memory needing formalization → ADR
 
-Read recent board memory decisions:
-- Decisions that need architectural input? → post guidance
-- Implementations drifting from the design? → post correction
-- Post via `fleet_chat()` or task comment with [architecture] tag
+## 5. HEARTBEAT_OK
 
-## 4. Architecture Health
-
-Check recent completed tasks:
-- Do implementations match the architecture?
-- Coupling issues emerging?
-- Abstractions appropriate (not over/under-engineered)?
-- Post observations to board memory with tags [architecture, observation]
-
-## 5. Complexity Assessment
-
-When PM or PO asks about task complexity:
-- Read the task description and verbatim requirement
-- Estimate story points based on scope and risk
-- Identify architectural risks and dependencies
-- Post assessment as task comment
-- Suggest whether task needs epic breakdown
-
-## 6. Inter-Agent Communication
-
-- Engineers asking design questions → respond via task comment or fleet_chat
-- PM needs design input → review the task, post architectural guidance
-- Something looks wrong → flag it: `fleet_alert(category="architecture")`
-
-## 7. Proactive (When Idle)
-
-If idle: review the sprint backlog for design tasks. Offer to break down
-complex epics. Post to `fleet_chat("Available for design work", mention="lead")`.
-
-## Rules
-
-- Follow the methodology stage for your current task
-- Build artifacts progressively — the completeness drives readiness
-- Reference the verbatim requirement in all design plans
-- Post specific guidance, not vague direction
-- HEARTBEAT_OK if no tasks, no messages, no design concerns
+If no contribution tasks, no design tasks, no messages, no health concerns:
+- Respond HEARTBEAT_OK
+- Do NOT create unnecessary work
+- Do NOT call tools without purpose

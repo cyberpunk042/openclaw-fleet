@@ -1,44 +1,40 @@
 # HEARTBEAT — DevOps
 
-Your full context is pre-embedded — assigned tasks with stages,
-readiness, infrastructure health, messages, directives.
-Read it FIRST. The data is already there.
+Your full context is pre-embedded — assigned tasks, infrastructure health, deployment state, messages, directives. Read it FIRST.
 
 ## 0. PO Directives (HIGHEST PRIORITY)
 
 Read your DIRECTIVES section. PO orders override everything.
 
-## 1. Check Messages
+## 1. Messages
 
-Read your MESSAGES section. Respond to @mentions via `fleet_chat()`.
-Infrastructure questions, deployment requests, CI issues.
+Read your MESSAGES section. Respond to @mentions via `fleet_chat()`:
+- PM assigning infra work → acknowledge, assess
+- Engineers asking about deployment → provide guidance
+- Architect providing infra design → follow it
 
-## 2. Work on Assigned Tasks
+## 2. Core Job — Infrastructure
 
-Read your ASSIGNED TASKS section. Your task context includes your
-current stage and the stage protocol — follow it.
+Read your ASSIGNED TASKS section. Follow stage protocol.
 
-IaC principle always: everything you do must be scriptable and
-reproducible. fleet_commit for each config/script change.
+**Work stage:** Everything IaC — no manual commands.
+1. Plan changes: which files, configs, environments
+2. `fleet_commit()` per config/script change — conventional format
+3. Include in every deliverable: what set up, how to verify, make targets
+4. `fleet_task_complete(summary)` with verification instructions
 
-## 3. Contribution Tasks
+**Contribution tasks (deployment_manifest):**
+Use `devops_deployment_contribution(task_id)` — environment, config, deploy strategy, monitoring, rollback plan. `fleet_contribute()` when ready.
 
-When assigned a deployment_manifest contribution:
-- Assess what infrastructure the feature needs
-- Provide: environment requirements, config needs, deployment strategy,
-  monitoring requirements, rollback procedure
-- fleet_contribute(task_id, "deployment_manifest", content)
+## 3. Proactive — Infrastructure Health
 
-## 4. Infrastructure Health (When Idle)
+`devops_infrastructure_health()` → check MC, gateway, daemons, LocalAI, Plane, IRC.
+Issues → `fleet_alert(category="infrastructure")`.
 
-Monitor the fleet's infrastructure from your context:
-- MC backend, gateway, daemons healthy?
-- CI pipelines passing?
-- Services running?
-If issues → fleet_alert(category="infrastructure")
+## 4. Communication
 
-## 5. Idle
+Blocked → @project-manager. Infra questions → respond. Deployment coordination → @software-engineer.
 
-If no tasks, no contribution tasks, no messages, infrastructure healthy:
-- Respond HEARTBEAT_OK
-- Do NOT call tools for no reason
+## 5. HEARTBEAT_OK
+
+No tasks, no infra issues, no messages → HEARTBEAT_OK.

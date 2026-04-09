@@ -390,6 +390,9 @@ async def run_orchestrator_cycle(
     # Step 2: Doctor — immune system observation, detection, response
     doctor_report = await _run_doctor(tasks, agents, state, config, dry_run)
 
+    # Step 2.5: Contribution management — create subtasks, check completeness
+    await _manage_contributions(mc, irc, board_id, tasks, state, dry_run)
+
     # Step 3: Ensure review tasks have approvals (so fleet-ops can review them)
     await _ensure_review_approvals(mc, board_id, tasks, state, dry_run)
 
@@ -399,6 +402,7 @@ async def run_orchestrator_cycle(
     # Step 5: Dispatch unblocked inbox tasks to assigned agents
     # (respects doctor report — skips agents flagged by immune system)
     # (respects fleet control state — filters by cycle phase active agents)
+    # (respects contribution completeness — blocks work stage without required contributions)
     await _dispatch_ready_tasks(mc, irc, board_id, tasks, agent_map, state, dry_run, config,
                                 doctor_report=doctor_report, fleet_state=fleet_state)
 
@@ -698,6 +702,135 @@ async def _execute_doctor_intervention(
         state.errors.append(
             f"Doctor intervention failed for {intervention.agent_name}: {exc}"
         )
+
+
+# ─── Step 2.5: Contribution Management ──────────────────────────────────
+
+
+async def _manage_contributions(
+    mc: MCClient,
+    irc: IRCClient,
+    board_id: str,
+    tasks: list[Task],
+    state: OrchestratorState,
+    dry_run: bool,
+) -> None:
+    """Create contribution subtasks and check completeness.
+
+    When a task enters REASONING stage with an assigned agent, the brain
+    checks the synergy matrix and creates contribution subtasks for required
+    roles (architect → design_input, QA → qa_test_definition, etc.).
+
+    This is the wiring that makes cross-agent synergy operational.
+    Source: fleet-elevation/15, config/synergy-matrix.yaml, E003/E012.
+    """
+    try:
+        from fleet.core.contributions import (
+            detect_contribution_opportunities,
+            check_contribution_completeness,
+        )
+    except ImportError:
+        return  # Module not available
+
+    fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
+    created_count = 0
+
+    for task in tasks:
+        cf = task.custom_fields
+        agent_name = cf.agent_name or ""
+        task_stage = cf.task_stage or ""
+        task_type = cf.task_type or "task"
+
+        # Only create contributions for tasks entering REASONING with an assigned agent
+        if task.status != TaskStatus.INBOX and task.status != TaskStatus.IN_PROGRESS:
+            continue
+        if task_stage != "reasoning":
+            continue
+        if not agent_name:
+            continue
+
+        # Skip if contributions already exist for this task (check children)
+        has_contribution_children = any(
+            t.custom_fields.contribution_target == task.id
+            for t in tasks
+            if t.custom_fields.contribution_target
+        )
+        if has_contribution_children:
+            continue
+
+        # Detect what contributions this task needs
+        opportunities = detect_contribution_opportunities(
+            task_id=task.id,
+            target_agent=agent_name,
+            task_type=task_type,
+            fleet_dir=fleet_dir,
+        )
+
+        if not opportunities:
+            continue
+
+        for opp in opportunities:
+            if dry_run:
+                state.notes.append(
+                    f"[dry_run] WOULD create contribution: {opp.contribution_type} "
+                    f"from {opp.contributor_role} for {task.title[:30]}"
+                )
+                continue
+
+            try:
+                # Create contribution subtask
+                contrib_task = await mc.create_task(
+                    board_id,
+                    title=f"Contribute {opp.contribution_type} for: {task.title[:50]}",
+                    description=(
+                        f"Provide {opp.contribution_type} contribution for task {task.id[:8]}.\n\n"
+                        f"Target agent: {agent_name}\n"
+                        f"Target task: {task.title}\n\n"
+                        f"{opp.description}\n\n"
+                        f"When done, call: fleet_contribute(task_id='{task.id}', "
+                        f"contribution_type='{opp.contribution_type}', content=...)"
+                    ),
+                    custom_fields={
+                        "agent_name": opp.contributor_role,
+                        "task_type": "subtask",
+                        "task_stage": "analysis",
+                        "task_readiness": 50,
+                        "contribution_type": opp.contribution_type,
+                        "contribution_target": task.id,
+                        "parent_task": task.id,
+                    },
+                )
+
+                if contrib_task:
+                    created_count += 1
+                    await _notify(irc, "#fleet",
+                        f"[brain] Contribution: {opp.contributor_role} → "
+                        f"{opp.contribution_type} for {task.title[:30]}")
+
+                    # Trail: record contribution request
+                    try:
+                        from fleet.core.trail_recorder import TrailRecorder, TrailEvent, TrailEventType
+                        recorder = TrailRecorder(mc, board_id)
+                        await recorder.record(TrailEvent(
+                            event_type=TrailEventType.CONTRIBUTION_REQUESTED,
+                            task_id=task.id,
+                            agent="brain",
+                            details={
+                                "contribution_type": opp.contribution_type,
+                                "contributor": opp.contributor_role,
+                            },
+                        ))
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                state.errors.append(
+                    f"Contribution creation failed: {opp.contribution_type} "
+                    f"from {opp.contributor_role} for {task.id[:8]}: {e}"
+                )
+
+    if created_count > 0:
+        state.notes.append(f"Contributions: {created_count} subtasks created")
 
 
 # ─── Step 6: Directives ─────────────────────────────────────────────────
@@ -1183,12 +1316,46 @@ async def _dispatch_ready_tasks(
     # Methodology: ALL assigned inbox tasks are dispatched. Readiness does NOT gate
     # dispatch — it determines the methodology STAGE (what kind of work the agent does).
     # The orchestrator auto-sets task_stage from readiness via config/methodology.yaml.
+    #
+    # EXCEPTION: Work stage tasks are blocked until required contributions are received.
+    # This gate ensures the engineer has architect design input and QA test criteria
+    # before starting implementation. See: E003, E012, fleet-elevation/15.
     all_inbox = [
         t for t in tasks
         if t.status == TaskStatus.INBOX
         and t.assigned_agent_id
         and not t.is_blocked
     ]
+
+    # Contribution completeness gate — block WORK stage without required contributions
+    contribution_blocked = set()
+    try:
+        from fleet.core.contributions import check_contribution_completeness
+        fleet_dir = os.environ.get("FLEET_DIR", str(Path(__file__).resolve().parent.parent.parent))
+        for t in all_inbox:
+            cf = t.custom_fields
+            if (cf.task_stage or "") == "work" and cf.agent_name:
+                # Check what contributions exist (look at child tasks)
+                received = [
+                    child.custom_fields.contribution_type
+                    for child in tasks
+                    if child.custom_fields.contribution_target == t.id
+                    and child.status == TaskStatus.DONE
+                    and child.custom_fields.contribution_type
+                ]
+                status = check_contribution_completeness(
+                    t.id, cf.agent_name, cf.task_type or "task", received, fleet_dir,
+                )
+                if not status.all_received and status.required:
+                    contribution_blocked.add(t.id)
+                    state.notes.append(
+                        f"Contribution gate: {t.title[:30]} blocked — "
+                        f"missing {status.missing}"
+                    )
+    except Exception as e:
+        state.errors.append(f"Contribution gate check failed: {e}")
+
+    all_inbox = [t for t in all_inbox if t.id not in contribution_blocked]
 
     # Auto-set task_stage on each task based on readiness + task_type + verbatim.
     # This is the bridge between the PO setting readiness and the agent seeing
@@ -1346,6 +1513,20 @@ async def _dispatch_ready_tasks(
                     message=f"Task dispatched to {agent.name}. Stage: {stage}. Priority: {task.priority}.",
                     event_type="task_done",
                 )
+
+                # Trail: record dispatch event
+                try:
+                    from fleet.core.trail_recorder import TrailRecorder, TrailEvent, TrailEventType
+                    recorder = TrailRecorder(mc, board_id)
+                    await recorder.record(TrailEvent(
+                        event_type=TrailEventType.TASK_DISPATCHED,
+                        task_id=task.id,
+                        agent=agent.name,
+                        details={"stage": stage, "priority": task.priority},
+                    ))
+                except Exception:
+                    pass  # Trail must not break dispatch
+
         except Exception as e:
             state.errors.append(f"dispatch {task.id[:8]}: {e}")
 

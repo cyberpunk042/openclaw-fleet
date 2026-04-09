@@ -256,6 +256,180 @@ def detect_correction_threshold(
     return None
 
 
+# ─── Additional Detections (7 missing disease patterns) ────────────────
+
+
+def detect_scope_creep(
+    agent_name: str,
+    task_id: str,
+    files_changed: list[str],
+    planned_files: list[str],
+) -> Optional[Detection]:
+    """Detect if agent modified files outside the confirmed plan.
+
+    "Do not add scope. If the requirement doesn't mention it, don't build it."
+    """
+    if not planned_files or not files_changed:
+        return None
+
+    planned_set = set(planned_files)
+    extra = [f for f in files_changed if f not in planned_set]
+
+    if len(extra) > 2:  # Allow 1-2 incidental files (test helpers, imports)
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.SCOPE_CREEP,
+            severity=Severity.MEDIUM,
+            signal=f"Modified {len(extra)} files outside plan",
+            evidence=f"Extra files: {', '.join(extra[:5])}",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
+    return None
+
+
+def detect_compression(
+    agent_name: str,
+    task_id: str,
+    verbatim_word_count: int,
+    plan_word_count: int,
+) -> Optional[Detection]:
+    """Detect if agent compressed the PO's vision into something smaller.
+
+    "If the PO described a large system, it IS a large system.
+     Do not minimize it into something smaller."
+    """
+    if verbatim_word_count < 20 or plan_word_count < 10:
+        return None
+
+    ratio = plan_word_count / verbatim_word_count
+    if ratio < 0.3 and verbatim_word_count > 50:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.COMPRESSION,
+            severity=Severity.MEDIUM,
+            signal="Plan significantly shorter than requirement",
+            evidence=f"Verbatim: {verbatim_word_count} words, plan: {plan_word_count} words ({ratio:.0%})",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
+    return None
+
+
+def detect_code_without_reading(
+    agent_name: str,
+    task_id: str,
+    tool_calls: list[str],
+    has_read_calls: bool,
+) -> Optional[Detection]:
+    """Detect if agent produced code without reading existing code first.
+
+    "Before modifying a file, read it. Before calling a function, read its signature."
+    """
+    write_tools = {"fleet_commit"}
+    has_writes = any(t in write_tools for t in tool_calls)
+    read_tools = {"Read", "Grep", "Glob", "fleet_read_context", "code-explorer"}
+    has_reads = has_read_calls or any(t in read_tools for t in tool_calls)
+
+    if has_writes and not has_reads:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.CODE_WITHOUT_READING,
+            severity=Severity.MEDIUM,
+            signal="Committed code without evidence of reading existing code",
+            evidence="No Read/Grep/Glob/fleet_read_context calls before fleet_commit",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
+    return None
+
+
+def detect_cascading_fix(
+    agent_name: str,
+    task_id: str,
+    fix_iteration: int,
+) -> Optional[Detection]:
+    """Detect cascading fix-on-fix pattern.
+
+    When an agent layers fixes instead of starting fresh, each fix
+    introduces new issues. After 2 fix iterations, the approach is wrong.
+    """
+    if fix_iteration >= 3:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.CASCADING_FIX,
+            severity=Severity.HIGH,
+            signal=f"Fix iteration {fix_iteration} — cascading fixes",
+            evidence="Multiple fix attempts suggest the approach is wrong, not the detail",
+            suggested_action=ResponseAction.PRUNE,
+        )
+    return None
+
+
+def detect_abstraction(
+    agent_name: str,
+    task_id: str,
+    verbatim: str,
+    agent_output: str,
+) -> Optional[Detection]:
+    """Detect if agent replaced literal requirements with abstractions.
+
+    "If the requirement says 'Elasticsearch,' you build Elasticsearch —
+     not 'a search solution.'"
+    """
+    if not verbatim or not agent_output:
+        return None
+
+    # Check for specific terms in verbatim that are absent from output
+    # This is a heuristic — real detection needs semantic comparison
+    verbatim_lower = verbatim.lower()
+    output_lower = agent_output.lower()
+
+    # Extract quoted terms and proper nouns from verbatim
+    import re
+    specific_terms = re.findall(r'[A-Z][a-zA-Z]+(?:[A-Z][a-zA-Z]+)*', verbatim)  # CamelCase
+    specific_terms += re.findall(r'"([^"]+)"', verbatim)  # Quoted terms
+
+    missing = [t for t in specific_terms if t.lower() not in output_lower and len(t) > 3]
+
+    if len(missing) >= 3:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.ABSTRACTION,
+            severity=Severity.MEDIUM,
+            signal="Specific terms from requirement missing in output",
+            evidence=f"Missing: {', '.join(missing[:5])}",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
+    return None
+
+
+def detect_not_listening(
+    agent_name: str,
+    task_id: str,
+    po_questions_count: int,
+    agent_answers_count: int,
+) -> Optional[Detection]:
+    """Detect if agent produces output instead of processing PO input.
+
+    "So many in the early stage of question and answer and things
+     no one is able to answer"
+    """
+    if po_questions_count > 0 and agent_answers_count == 0:
+        return Detection(
+            agent_name=agent_name,
+            task_id=task_id,
+            disease=DiseaseCategory.NOT_LISTENING,
+            severity=Severity.MEDIUM,
+            signal=f"PO asked {po_questions_count} questions, agent answered 0",
+            evidence="Agent producing output instead of addressing PO input",
+            suggested_action=ResponseAction.TRIGGER_TEACHING,
+        )
+    return None
+
+
 # ─── Response Decision ──────────────────────────────────────────────────
 
 
@@ -365,23 +539,53 @@ async def run_doctor_cycle(
         task_stage = task.custom_fields.task_stage
         tool_calls = tool_call_history.get(agent_name, [])
 
-        # ── Run detection patterns ──────────────────────────────
+        # ── Run detection patterns (11 disease categories) ─────
 
         detections: list[Detection] = []
+        cf = task.custom_fields
 
-        # Protocol violation
-        d = detect_protocol_violation(
-            agent_name, task.id, task_stage, tool_calls
-        )
+        # 1. Protocol violation — work tools in wrong stage
+        d = detect_protocol_violation(agent_name, task.id, task_stage, tool_calls)
         if d:
             detections.append(d)
 
-        # Correction threshold
+        # 2. Correction threshold — 3 strikes = model is wrong
         d = detect_correction_threshold(
             agent_name, task.id, health.correction_count, correction_threshold
         )
         if d:
             detections.append(d)
+
+        # 3. Code without reading — commits without Read/Grep evidence
+        d = detect_code_without_reading(
+            agent_name, task.id, tool_calls,
+            has_read_calls=any(t in ("Read", "Grep", "Glob") for t in tool_calls),
+        )
+        if d:
+            detections.append(d)
+
+        # 4. Scope creep — files changed outside plan
+        # Only check if we have planned_files data (from task accept)
+        # For now, skip if no plan data available
+        # TODO: wire plan_files from fleet_task_accept into doctor context
+
+        # 5. Compression — plan much shorter than verbatim
+        verbatim = cf.requirement_verbatim or ""
+        # TODO: compare against agent's plan (from fleet_task_accept)
+        # Requires plan text to be available in doctor context
+
+        # 6. Cascading fix — multiple fix iterations
+        fix_iteration = cf.labor_iteration or 1
+        if fix_iteration > 1:
+            d = detect_cascading_fix(agent_name, task.id, fix_iteration)
+            if d:
+                detections.append(d)
+
+        # 7-11: abstraction, not_listening, laziness, stuck
+        # These require data not available in the basic doctor cycle
+        # (agent output text, PO question count, completion time).
+        # They fire when external signals provide the data.
+        # See: signal_rejection(), signal_completion() below.
 
         # ── Process detections ──────────────────────────────────
 

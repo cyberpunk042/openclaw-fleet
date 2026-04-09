@@ -17,13 +17,13 @@ Source of truth: [wiki/log/2026-04-08-fleet-evolution-vision.md](../log/2026-04-
 
 | ID | Epic | Priority | Status | Depends On |
 |----|------|----------|--------|------------|
-| E001 | [Agent Directive Chain Evolution](epics/E001-agent-directive-chain-evolution.md) | P1 | draft | E007 |
-| E002 | [Chain/Bus Architecture](epics/E002-chain-bus-architecture.md) | P1 | draft | E001 |
-| E003 | [Brain Evolution](epics/E003-brain-evolution.md) | P1 | draft | E001, E002 |
+| E001 | [Agent Directive Chain Evolution](epics/E001-agent-directive-chain-evolution.md) | P1 | **Phase 2 complete** — TOOLS.md 77%, Navigator 45 intents, all agent files done, Phase 3 remaining | E007 |
+| E002 | [Chain/Bus Architecture](epics/E002-chain-bus-architecture.md) | P1 | **in progress** — cross-task propagation done, EventStore/ins-outs-middles remaining | E001 |
+| E003 | [Brain Evolution](epics/E003-brain-evolution.md) | P1 | **in progress** — contribution wiring done (auto-create + dispatch gate), context/effort remaining | E001, E002 |
 | E004 | [RAG/Knowledge System (LightRAG)](epics/E004-rag-knowledge-system.md) | P1 | draft | E013 |
 | E005 | [Multi-Model Strategy](epics/E005-multi-model-strategy.md) | P1 | draft | E003 |
 | E006 | [Budget & Tempo Modes](epics/E006-budget-tempo-modes.md) | P1 | draft | E003, E005 |
-| E007 | [Plugin/Skill/Command Ecosystem](epics/E007-plugin-skill-command-ecosystem.md) | P1 | draft | gateway |
+| E007 | [Plugin/Skill/Command Ecosystem](epics/E007-plugin-skill-command-ecosystem.md) | P1 | **Phase 0 partial** — ecosystem researched, packs identified | gateway |
 | E008 | [Agent Lifecycle Fine-Tuning](epics/E008-agent-lifecycle-fine-tuning.md) | P2 | draft | E003 |
 | E009 | [Signatures & Transparency](epics/E009-signatures--transparency.md) | P2 | draft | E002 |
 | E010 | [Config Evolution](epics/E010-config-evolution.md) | P2 | draft | — |

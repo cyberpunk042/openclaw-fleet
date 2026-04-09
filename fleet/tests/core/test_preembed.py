@@ -26,19 +26,20 @@ def _make_task(**kwargs) -> Task:
 
 class TestTaskPreembed:
     def test_basic(self):
+        """Task preembed follows 10-section autocomplete chain."""
         task = _make_task()
         text = build_task_preembed(task)
-        assert "TASK CONTEXT" in text
-        assert "task-123" in text
-        assert "FleetControlBar" in text
-        assert "reasoning" in text
-        assert "80%" in text
-        assert "header bar" in text
+        assert "YOUR TASK: Add FleetControlBar" in text
+        assert "YOUR STAGE: reasoning" in text
+        assert "READINESS: 80%" in text
+        assert "VERBATIM REQUIREMENT" in text
+        assert "WHAT TO DO NOW" in text
+        assert "WHAT HAPPENS WHEN YOU ACT" in text
 
     def test_includes_verbatim(self):
         task = _make_task()
         text = build_task_preembed(task)
-        assert "Verbatim Requirement" in text
+        assert "VERBATIM REQUIREMENT" in text
         assert "Select dropdowns" in text
 
     def test_includes_description(self):
@@ -51,19 +52,45 @@ class TestTaskPreembed:
             task_stage="conversation", task_readiness=20,
         ))
         text = build_task_preembed(task)
-        assert "CONVERSATION" in text
+        assert "YOUR STAGE: conversation" in text
+        assert "clarifying questions" in text.lower() or "CONVERSATION" in text
 
     def test_work_stage(self):
         task = _make_task(custom_fields=TaskCustomFields(
             task_stage="work", task_readiness=99,
         ))
         text = build_task_preembed(task)
-        assert "WORK" in text
+        assert "YOUR STAGE: work" in text
+        assert "Execute the confirmed plan" in text
 
     def test_blocked(self):
         task = _make_task(is_blocked=True)
         text = build_task_preembed(task)
         assert "BLOCKED" in text
+
+    def test_autocomplete_chain_order(self):
+        """Sections appear in the correct autocomplete chain order."""
+        task = _make_task()
+        text = build_task_preembed(task)
+        # Sections must appear in this order (autocomplete chain standard)
+        sections = [
+            "YOU ARE:",
+            "YOUR TASK:",
+            "YOUR STAGE:",
+            "READINESS:",
+            "VERBATIM REQUIREMENT",
+            "WHAT TO DO NOW",
+            "WHAT HAPPENS WHEN YOU ACT",
+        ]
+        positions = []
+        for section in sections:
+            pos = text.find(section)
+            assert pos >= 0, f"Missing section: {section}"
+            positions.append(pos)
+        # Verify order is strictly ascending
+        for i in range(1, len(positions)):
+            assert positions[i] > positions[i-1], \
+                f"Section '{sections[i]}' appears before '{sections[i-1]}'"
 
 
 class TestHeartbeatPreembed:

@@ -33,70 +33,90 @@ Full revision of all agent files — not just one file, but the complete templat
 
 ## Phases
 
-### Phase 0: Document & Audit
+### Phase 0: Document & Audit — COMPLETE
 
-- [x] Audit gateway executor `_build_agent_context` — **4000-char truncation per file** (8000 for context/)
+- [x] Audit gateway executor `_build_agent_context` — truncation per file
 - [x] Measure actual char counts for all agent files across 10 agents
+- [x] Research how REAL gateway (OpenArms/OpenClaw) handles file injection
+- [x] Fix local executor to match real gateway (20K/file, 150K total, .env configurable)
+- [x] Document gateway findings → [wiki/domains/architecture/gateway-file-injection.md](../../../wiki/domains/architecture/gateway-file-injection.md)
+- [x] Map the full skill/plugin/pack ecosystem (1,100+ skills, 580+ plugins across sources)
+- [x] Document per-agent ecosystem allocation → [wiki/domains/architecture/agent-ecosystem-allocation.md](../../../wiki/domains/architecture/agent-ecosystem-allocation.md)
+- [x] Audit Navigator intent-map coverage (33/80 = 41%, 19 gaps) → [wiki/domains/architecture/navigator-intent-gap-analysis.md](../../../wiki/domains/architecture/navigator-intent-gap-analysis.md)
 
-**CRITICAL FINDING:** TOOLS.md is 15,000-18,000 chars. Truncated to 4,000. Agents see ~22%. NEVER see: role group calls, skills, sub-agents, CRONs, standing orders, hooks. All 78 skills INVISIBLE through local gateway.
+**KEY FINDINGS:**
 
-| File | Typical Size | Limit | Lost |
-|------|-------------|-------|------|
-| TOOLS.md | 15-18K | 4,000 | 11-14K (78%) |
-| AGENTS.md | 3.5-4.5K | 4,000 | 0-500 |
-| HEARTBEAT.md | 1.4-6.2K | 4,000 | 0-2.2K (PM worst) |
-| CLAUDE.md | 3.0-3.9K | 4,000 | OK |
-| SOUL.md | 2.6-3.6K | 4,000 | OK |
-| IDENTITY.md | 1.5-2.7K | 4,000 | OK |
-| context/*.md | varies | 8,000 each | Multiple files OK |
+1. **TOOLS.md bloat:** 15-18K per agent. 26 generic tools (6K identical across all) + skills/plugins/hooks/CRONs (~10K). Agents don't need most of it.
 
-**Design options identified:**
-1. Increase truncation limit (may hit LLM system prompt ceiling)
-2. Split TOOLS.md into multiple files under 4000 each
-3. Move role-specific content to context/ (8000 limit, multiple files)
-4. Real gateway (OpenArms) may not have this limit — MUST RESEARCH
-5. Compress: shorter descriptions per tool
-6. Hybrid: critical summary in TOOLS.md, full reference in context/
+2. **Real gateway:** 20K/file, 150K total. Local executor fixed to match. But the PO directive is NOT "raise the limit" — it's "don't flood the agent."
 
-- [ ] **Research how REAL gateway (OpenArms/OpenClaw) handles file injection**
-- [ ] Map operational modes, event types, notification paths agents need
-- [ ] Document what first 4000 chars of TOOLS.md actually contains per agent
+3. **Ecosystem scale:** 1,100+ skills available across superpowers (30+), LerianStudio/ring (89), trailofbits (28 security), NeoLabHQ (14), borghei (225+), marketplace. 78 fleet-* skills are just our custom layer.
 
-### Phase 1: Design
+4. **Navigator gap:** Only 41% of role×stage intents defined. 8 P1 gaps (engineer heartbeat/conversation/analysis, devsecops heartbeat/work, devops heartbeat/reasoning/contribution). Zero pack skills in any intent. Zero sub-agent recommendations.
 
-- [ ] Design file split strategy for TOOLS.md (main + extended? domain folders? per-stage files?)
-- [ ] Design how the gateway should handle extended files (modify executor? new injection mechanism?)
-- [ ] Design the autocomplete chain engineering — how each position flows into the next
-- [ ] Design per-stage method sections that tell agents exactly what to do at each stage
-- [ ] Design the artifact creation flow — what makes it "easy and natural"
-- [ ] Design the chain/bus selection directive — how agents know which propagation bus to use
-- [ ] Design the agent identity structure for multi-fleet support (fleet number, unique names)
-- [ ] Document all design decisions in wiki/domains/architecture/
+5. **Design principle confirmed:** Focused desk (TOOLS.md 2-4K) + dynamic room (Navigator per stage) + filing cabinet (skills on invoke). The desk stays the same size regardless of ecosystem expansion.
 
-### Phase 2: Scaffold
+### Phase 1: Design — COMPLETE
 
-- [ ] Create new file templates for the split strategy
-- [ ] Create per-role file structure if needed
-- [ ] Scaffold the modified gateway executor if needed
-- [ ] Create validation tests for the new structure
+**Core design:** [wiki/domains/architecture/tools-md-redesign.md](../../domains/architecture/tools-md-redesign.md)
 
-### Phase 3: Implement
+- [x] Design the three-layer model (desk/room/cabinet) with clear ownership
+- [x] Design per-role tool sets from tool-roles.yaml (what goes ON the desk)
+- [x] Calculate per-role TOOLS.md size targets (2-5K, 77% avg reduction)
+- [x] Design what moves from TOOLS.md to Navigator (skills, sub-agents, plugins → room)
+- [x] Design what gets removed entirely (CRONs, hooks detail)
+- [x] Design generation pipeline changes (9 sections → 5 sections) → [generate-tools-md-redesign.md](../../domains/architecture/generate-tools-md-redesign.md)
+- [x] Design validation strategy (coverage checks, resilience)
+- [x] Design concern separation verification (no mixing with CLAUDE.md/HEARTBEAT.md)
+- [x] Design Navigator intent-map expansion → [navigator-intent-expansion.md](../../domains/architecture/navigator-intent-expansion.md)
+- [x] Design generate-tools-md.py algorithm → concrete code spec
+- [x] Verify tool-roles.yaml completeness — all 10 roles verified
+- [ ] Design skill-stage-mapping.yaml expansion (pack skills in stage recommendations — tied to E007 Phase 1)
+- [ ] PO review of three-layer model and per-role allocations
 
-- [ ] Rewrite/enhance IDENTITY.md templates for all 10 agents
-- [ ] Rewrite/enhance SOUL.md templates for all 10 agents
-- [ ] Rewrite/enhance CLAUDE.md templates for all 10 agents (within 4000 chars)
-- [ ] Split/restructure TOOLS.md for all 10 agents
-- [ ] Rewrite/enhance AGENTS.md for all 10 agents
-- [ ] Rewrite/enhance HEARTBEAT.md templates for all 10 agents
-- [ ] Update generation pipeline (generate-tools-md.py, generate-agents-md.py) for new structure
-- [ ] Update provision-agent-files.sh for new file structure
-- [ ] Update push-agent-framework.sh for new file structure
+### Phase 2: Scaffold & Implement — IN PROGRESS
 
-### Phase 4: Test & Validate
+**TOOLS.md pipeline (DONE):**
+- [x] Rewrite generate-tools-md.py — 5 focused sections, tool-roles.yaml filter
+- [x] Regenerate TOOLS.md for all 10 agents (77% reduction: 167K → 38K total)
+- [x] Update tests: focused size (1K-8K), required sections, chain awareness, no-bloat checks
+- [x] Full test suite green: 2,347 passed
 
-- [ ] Simulate what each agent sees at each position
-- [ ] Verify truncation doesn't cut critical information
-- [ ] Verify autocomplete chain flows naturally
+**Navigator intent-map (DONE):**
+- [x] Expand intent-map.yaml: 33 → 45 intents
+- [x] All 10 roles have heartbeat intents (was 3/10)
+- [x] Pack skills in 29 intents (superpowers, ring, trailofbits, neolabhq, borghei)
+- [x] Sub-agent recommendations in 29 intents
+- [x] Full test suite green
+
+**Gateway executor (DONE — previous session):**
+- [x] Fix local executor to 20K/file, 150K total (.env configurable)
+- [x] Bloat warnings at 8K per file
+
+**CLAUDE.md templates (DONE):**
+- [x] Rewrite all 10 CLAUDE.md templates — 8 sections per standard, all <4000 chars
+- [x] Role-specific rules from fleet-elevation specs
+- [x] Stage protocol, tool chains, contribution model, boundaries, anti-corruption
+
+**HEARTBEAT.md templates (DONE):**
+- [x] Rewrite all 11 heartbeat templates — universal priority order (PO→Messages→Core→Proactive→Health→OK)
+- [x] 5 types: PM, Fleet-ops, Architect, DevSecOps, Worker (+ 6 per-role worker variants)
+- [x] Role-specific core job sections with group call references
+
+**AGENTS.md generation (VERIFIED):**
+- [x] generate-agents-md.py already aligned — synergy matrix driven, focused output
+- [x] All 10 AGENTS.md at 3.4K-4.5K — contribution relationships + colleague awareness
+
+**Remaining:**
+- [ ] Rewrite/enhance IDENTITY.md templates for all 10 agents (already good, may need minor updates)
+- [ ] Rewrite/enhance SOUL.md templates for all 10 agents (already good, may need minor updates)
+- [ ] Verify push-agent-framework.sh copies all files correctly on setup
+
+### Phase 3: Test & Validate
+
+- [ ] Simulate what each agent sees at each injection position
+- [ ] Verify focused TOOLS.md + Navigator context covers all capabilities
+- [ ] Verify autocomplete chain flows naturally (task-context.md 10 sections)
 - [ ] Diagram the injection flow for PO review
 - [ ] Test with actual gateway (when available)
 

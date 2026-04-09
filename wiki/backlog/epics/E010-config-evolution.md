@@ -5,36 +5,69 @@ domain: backlog
 status: draft
 priority: P2
 created: 2026-04-08
-updated: 2026-04-08
-tags: [readiness, progress, phases, delivery, config]
+updated: 2026-04-09
+tags: [readiness, progress, phases, delivery, config, work-readiness, work-progress]
 ---
 
 # Config Evolution
 
 ## Summary
 
-Differentiate work_readiness (ready to start) from work_progress (ready to review). Evolve phase progression config. Flexible delivery phases (ideal→conceptual→POC→MVP→staging→production or alpha→beta→rc).
+Differentiate work_readiness (ready to start working on) from work_progress (ready to be reviewed). Evolve phase progression configuration. Flexible delivery phases. Make evolving requirements and phases a natural part of the system.
+
+> "i realize we are also going to need a new readiness config, we have work_readiness and it seem to be confused with another needs which would more be more like work_progress, something that differentiate between, its ready to start working on and its ready to reviewed."
+
+> "Things can evolve. The requirements, the things to test, the phases of the task, the various data blob for whatever different type we need + the main one and so on. We do not go small we go big... phases are important too. not to confuse with state and stage that relate to the preparing and processing than the delivery and the phases of this delivery. advancing as the stages advance and a deliverable can pass from ideal, to conceptual, to POC, to MVP, to Staging, to Production ready.... or alpha, beta, rc & etc..... this like the stages are not set in stone and are meant to allow mature delivery with docs defs and code docs and tests and security and logical work and not disconnected unless already planned otherwise need to plan this to continue"
+
+## Goals
+
+- Split task_readiness (0-99, pre-dispatch authorization) from task_progress (0-100, post-dispatch work tracking)
+- task_readiness: PO controls, gates dispatch. 0=not started, 50=investigating, 80=reasoning, 99=ready to work
+- task_progress: Agent drives, tracks work. 0=accepted, 30=implementing, 70=done, 80=challenged, 90=reviewed, 100=complete
+- Make delivery phases (idea→conceptual→poc→mvp→staging→production) configurable and extensible
+- Support custom progressions (release: alpha→beta→rc→release)
+- Requirements can evolve at any stage — not locked once set
+
+## Existing Foundation
+
+- TaskCustomFields: task_readiness (int, 0-99), task_progress (int, 0-100) — ALREADY split in models.py
+- config/methodology.yaml — stages with readiness_range per stage
+- config/phases.yaml — 2 progressions (standard, release) with PO gates
+- fleet/core/phases.py — loads phase config
+- fleet/core/methodology.py — stage from readiness range
 
 ## Phases
 
 ### Phase 0: Document & Research
-- [ ] Research what exists
-- [ ] Document gaps
-- [ ] Identify dependencies
+
+- [ ] Audit how task_readiness and task_progress are used today across all modules
+- [ ] Audit how phases.yaml is consumed (is phase gate enforcement in orchestrator?)
+- [ ] Document the confusion points — where does readiness get confused with progress?
+- [ ] Map what "evolving requirements" means operationally (requirement changes mid-task)
 
 ### Phase 1: Design
-- [ ] Design the solution architecture
-- [ ] Document design decisions
-- [ ] PO review
 
-### Phase 2: Scaffold
-- [ ] Create structure and configuration
-- [ ] Scaffold scripts and tooling
+- [ ] Design clear task_readiness semantics (PO-driven, gates dispatch)
+- [ ] Design clear task_progress semantics (agent-driven, tracks work lifecycle)
+- [ ] Design phase advancement protocol (who requests, who approves, what gates)
+- [ ] Design requirement evolution handling (verbatim changes → what happens to in-progress work?)
 
-### Phase 3: Implement
-- [ ] Build the solution
-- [ ] Wire to existing systems
+### Phase 2: Implement
 
-### Phase 4: Test & Validate
-- [ ] Verify the implementation
-- [ ] PO validation
+- [ ] Enforce task_readiness/task_progress separation across all MCP tools
+- [ ] Wire phase gate enforcement into orchestrator
+- [ ] Wire phase standards injection into agent context
+- [ ] Build requirement evolution tracking (history of verbatim changes)
+
+### Phase 3: Test & Validate
+
+- [ ] Test readiness gates dispatch correctly
+- [ ] Test progress tracks work lifecycle accurately
+- [ ] Test phase advancement with PO gates
+- [ ] Test requirement changes propagate to in-progress agents
+
+## Relationships
+
+- RELATES_TO: E001 (Directive Chain — agents need to understand readiness vs progress)
+- RELATES_TO: E003 (Brain — brain uses readiness for dispatch, progress for evaluation)
+- RELATES_TO: E012 (Autonomous — autonomous mode depends on clear state semantics)

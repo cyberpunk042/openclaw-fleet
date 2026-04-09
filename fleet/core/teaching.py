@@ -248,6 +248,70 @@ _reg(LessonTemplate(
     ),
 ))
 
+_reg(LessonTemplate(
+    disease=DiseaseCategory.CASCADING_FIX,
+    description="Agent layers fixes instead of starting fresh — each fix introduces new issues",
+    lesson_template=(
+        "This is fix iteration {fix_iteration} on the same task.\n"
+        "Your previous fixes introduced new problems.\n\n"
+        "When fixes cascade, the approach is wrong — not the detail. "
+        "Stop layering patches. Re-read the requirement from scratch. "
+        "Start with a fresh understanding."
+    ),
+    exercise_template=(
+        "State what the original requirement asks for (from verbatim). "
+        "State what your first attempt did wrong at a fundamental level. "
+        "Describe a fresh approach that doesn't build on the broken foundation."
+    ),
+    verification_hint_template=(
+        "Response should reference the verbatim requirement and propose "
+        "a fundamentally different approach, not a patch on the existing one."
+    ),
+))
+
+_reg(LessonTemplate(
+    disease=DiseaseCategory.CONTEXT_CONTAMINATION,
+    description="Old context warps new requests — agent carries assumptions from prior work",
+    lesson_template=(
+        "Your context appears contaminated from prior work.\n"
+        "You are applying assumptions from a different task or earlier state "
+        "to the current requirement.\n\n"
+        "The current task's verbatim requirement says:\n"
+        '"{requirement_verbatim}"\n\n'
+        "Read ONLY this. Do not carry forward assumptions from before."
+    ),
+    exercise_template=(
+        "State the current requirement in your own words — referencing "
+        "ONLY the verbatim text above. Do not reference any prior work, "
+        "prior decisions, or prior context. Fresh read only."
+    ),
+    verification_hint_template=(
+        "Response should reference only the current verbatim requirement "
+        "without carrying assumptions from prior context."
+    ),
+))
+
+_reg(LessonTemplate(
+    disease=DiseaseCategory.NOT_LISTENING,
+    description="Agent produces output instead of processing PO input — questions go unanswered",
+    lesson_template=(
+        "The PO asked {po_questions_count} question(s).\n"
+        "You answered {agent_answers_count}.\n\n"
+        "The PO's questions are not optional. They are the highest priority "
+        "input. Before producing any output, process every question the PO "
+        "asked and provide a specific answer to each one."
+    ),
+    exercise_template=(
+        "List every question the PO asked. For each one, provide a direct "
+        "answer. Do not produce any other output until all questions are "
+        "answered."
+    ),
+    verification_hint_template=(
+        "Response should contain a numbered list of PO questions with "
+        "direct answers to each one."
+    ),
+))
+
 
 # ─── Lesson Adaptation ──────────────────────────────────────────────────
 

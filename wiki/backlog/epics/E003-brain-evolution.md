@@ -35,30 +35,33 @@ Evolve the orchestrator brain to avoid giving needless work to AI, manage contex
 
 ## Phases
 
-### Phase 0: Document
+### Phase 0: Document — COMPLETE
 
-- [ ] Audit current orchestrator 13-step cycle — what's intelligent, what's dumb
-- [ ] Document every decision point that currently wastes agent calls
-- [ ] Document the context compaction problem and current handling
-- [ ] Map the effort escalation logic (current vs desired)
-- [ ] Document the heartbeat gate evaluation logic
+- [x] Audit current orchestrator 13-step cycle → [brain-audit.md](../../domains/architecture/brain-audit.md)
+- [x] Document what's intelligent (brain-evaluated heartbeats, storm response, Navigator integration)
+- [x] Document what's missing (contribution wiring, gate processing, cross-task propagation, context strategy)
+- [x] Map effort escalation (model_selection.py has stage-aware effort floors, needs adaptive logic)
+- [x] Document heartbeat gate (heartbeat_gate.py works, brain_writer.py writes decisions)
 
-### Phase 1: Design
+**Key finding:** Brain doesn't need a rewrite — it needs **wiring.** The modules exist (contributions.py, heartbeat_gate.py, phases.py, event_chain.py). The orchestrator cycle needs new steps that CALL them. Layer 1 (poll cycle) is solid. Layers 2 (chain registry) and 3 (logic engine) are spec-only. Layer 2 can wait — polling at 30s is adequate. Layer 3 can wait — hardcoded logic works for MVP. The critical gap is contribution auto-creation from synergy matrix.
 
+### Phase 1-2: Design & Implement — PARTIALLY DONE
+
+**Contribution wiring (DONE — 2026-04-09):**
+- [x] Contribution auto-creation: Step 2.5 in orchestrator creates subtasks from synergy matrix when tasks enter REASONING
+- [x] Contribution completeness gate: dispatch blocks WORK stage until required contributions received
+- [x] Idempotent: skips if contribution children already exist
+- [x] IRC notification when contributions created
+- [x] Full test suite green (2,347 tests)
+
+**Remaining:**
 - [ ] Design deterministic operations that bypass Claude entirely
 - [ ] Design the context strategy module (when compact, when fresh, when continue)
 - [ ] Design unified effort decision logic across dispatch/heartbeat/CRON
-- [ ] Design the automatic contribution subtask creation from synergy matrix
 - [ ] Design heartbeat timing optimization (responsive but economical)
-
-### Phase 2: Scaffold
-
 - [ ] Scaffold context strategy module in fleet/core/
-- [ ] Scaffold unified effort decision module
-- [ ] Scaffold contribution auto-creation module
-- [ ] Define configuration surface for brain tuning
 
-### Phase 3: Implement
+### Phase 3: Continue Implementation
 
 - [ ] Implement deterministic bypass for simple operations
 - [ ] Implement context strategy (compact detection, preparation, self-triggered compaction)

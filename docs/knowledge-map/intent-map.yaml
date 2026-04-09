@@ -90,7 +90,8 @@ intents:
     inject:
       - agent_manual: pm (mission + tools + rules)
       - methodology: conversation (MUST/MUST NOT)
-      - skills: [idea-capture, fleet-communicate, brainstorming]
+      - skills: [idea-capture, fleet-communicate, fleet-po-communication]
+      - pack_skills: [superpowers:brainstorming]
       - commands: [/context]
       - contributions: none (PM doesn't receive contributions)
 
@@ -98,17 +99,21 @@ intents:
     inject:
       - agent_manual: pm
       - methodology: reasoning
-      - skills: [pm-plan, fleet-plan, fleet-sprint, writing-plans]
+      - skills: [pm-plan, fleet-plan, fleet-sprint, fleet-epic-breakdown, fleet-sprint-planning]
+      - pack_skills: [superpowers:writing-plans, superpowers:brainstorming, ring:pre-dev-task-breakdown, ring:pre-dev-delivery-planning]
       - commands: [/plan, /context, /cost]
       - tools: [fleet_task_create, fleet_gate_request]
+      - sub_agents: [sprint-analyzer]
 
   pm-work:
     inject:
       - agent_manual: pm
       - methodology: work
-      - skills: [fleet-sprint, fleet-plane, pm-status-report]
+      - skills: [fleet-sprint, fleet-plane, pm-status-report, fleet-stage-progression]
+      - pack_skills: [superpowers:executing-plans]
       - commands: [/cost, /usage]
       - tools: [fleet_task_create, fleet_gate_request, fleet_plane_*]
+      - sub_agents: [sprint-analyzer]
 
   pm-heartbeat:
     inject:
@@ -117,6 +122,7 @@ intents:
       - directives: all
       - messages: mentions
       - tasks: assigned
+      - sub_agents: [sprint-analyzer]
 
   # ── Fleet-Ops ────────────────────────────────────────────────────
 
@@ -124,12 +130,14 @@ intents:
     inject:
       - agent_manual: fleet-ops (7-step review)
       - standards: [completion_claim, pull_request]
-      - skills: [fleet-review, quality-audit, fleet-test]
+      - skills: [fleet-review, fleet-ops-review-protocol, fleet-methodology-compliance, fleet-quality-enforcement, fleet-test]
+      - pack_skills: [superpowers:verification-before-completion, ring:code-reviewer, ring:security-reviewer, ring:test-reviewer]
       - commands: [/diff, /pr-comments, /security-review]
       - tools: [fleet_approve, fleet_alert]
       - trail: task trail (for Step 4 trail verification)
       - contributions: received for task (verify used)
       - challenge: challenge results if available
+      - sub_agents: [trail-reconstructor]
 
   fleet-ops-heartbeat:
     inject:
@@ -138,74 +146,176 @@ intents:
       - directives: all
       - messages: mentions
       - health: [storm_status, budget_status, agent_health]
+      - sub_agents: [trail-reconstructor]
 
   # ── Architect ────────────────────────────────────────────────────
+
+  architect-conversation:
+    inject:
+      - agent_manual: architect
+      - methodology: conversation (MUST/MUST NOT)
+      - skills: [fleet-communicate]
+      - pack_skills: [superpowers:brainstorming, superpowers:preserving-productive-tensions]
+      - note: "Clarify design requirements. Understand constraints. NO design yet."
 
   architect-analysis:
     inject:
       - agent_manual: architect
       - methodology: analysis
-      - skills: [architecture-review, quality-audit]
+      - skills: [architecture-review, fleet-architecture-health, fleet-domain-boundary-enforcement]
+      - pack_skills: [superpowers:systematic-debugging, superpowers:brainstorming]
       - commands: [/context, /plan, /diff]
       - tools: [fleet_artifact_create (analysis_document)]
       - mcp: [filesystem, github, Context7]
+      - sub_agents: [pattern-analyzer, dependency-mapper, code-explorer]
 
   architect-investigation:
     inject:
       - agent_manual: architect
       - methodology: investigation
-      - skills: [architecture-review, infra-search]
+      - skills: [fleet-option-exploration, architecture-review]
+      - pack_skills: [superpowers:brainstorming, superpowers:dispatching-parallel-agents]
       - commands: [/plan, /context]
       - tools: [fleet_artifact_create (investigation_document)]
       - mcp: [filesystem, github, Context7]
+      - sub_agents: [pattern-analyzer, code-explorer]
       - note: "minimum 3 options explored"
 
   architect-reasoning:
     inject:
       - agent_manual: architect
       - methodology: reasoning
-      - skills: [architecture-propose, writing-plans, brainstorming]
+      - skills: [architecture-propose, fleet-design-pattern-selection, fleet-srp-verification, fleet-adr-creation]
+      - pack_skills: [superpowers:writing-plans, superpowers:brainstorming, neolabhq:ddd, neolabhq:sadd, neolabhq:sdd]
       - commands: [/plan, /branch, /effort high]
       - tools: [fleet_task_accept, fleet_artifact_create (plan)]
       - mcp: [filesystem, Context7, sequential-thinking]
+      - sub_agents: [pattern-analyzer, dependency-mapper]
 
   architect-contribution:
     inject:
       - agent_manual: architect (contribution role)
+      - skills: [fleet-design-contribution]
       - tools: [fleet_contribute (design_input)]
       - target_task: full context of task being contributed to
       - standards: for contribution artifact type
+      - sub_agents: [code-explorer]
+
+  architect-heartbeat:
+    inject:
+      - fleet_state: [work_mode]
+      - role_data: [tasks_needing_design, complexity_flags, architecture_decisions]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
+      - sub_agents: [pattern-analyzer, dependency-mapper, code-explorer]
 
   # ── DevSecOps ────────────────────────────────────────────────────
+
+  devsecops-analysis:
+    inject:
+      - agent_manual: devsecops
+      - methodology: analysis
+      - skills: [fleet-vulnerability-assessment, fleet-threat-modeling]
+      - pack_skills: [superpowers:systematic-debugging, trailofbits:openai-security-threat-model, trailofbits:openai-security-ownership-map]
+      - tools: [fleet_artifact_create (security_assessment)]
+      - mcp: [filesystem, docker, semgrep]
+      - sub_agents: [dependency-scanner, security-auditor]
 
   devsecops-investigation:
     inject:
       - agent_manual: devsecops
       - methodology: investigation
-      - skills: [fleet-security-audit, infra-security]
+      - skills: [fleet-security-audit, fleet-dependency-audit, infra-security]
+      - pack_skills: [superpowers:systematic-debugging, superpowers:dispatching-parallel-agents, trailofbits:security-awareness]
       - commands: [/security-review, /debug]
-      - mcp: [filesystem, docker, Trivy, Semgrep]
+      - mcp: [filesystem, docker, semgrep]
+      - sub_agents: [dependency-scanner, secret-detector, security-auditor]
+
+  devsecops-reasoning:
+    inject:
+      - agent_manual: devsecops
+      - methodology: reasoning
+      - skills: [fleet-incident-response, fleet-security-contribution]
+      - pack_skills: [superpowers:writing-plans]
+      - tools: [fleet_task_accept]
+      - note: "Plan security fix. Phase-appropriate: POC basic, production hardened."
 
   devsecops-contribution:
     inject:
       - agent_manual: devsecops (security layer)
+      - skills: [fleet-security-contribution]
       - tools: [fleet_contribute (security_requirement)]
       - target_task: full context
+      - sub_agents: [security-auditor]
       - note: "phase-appropriate — POC basic, production full"
+
+  devsecops-work:
+    inject:
+      - agent_manual: devsecops (full)
+      - methodology: work
+      - skills: [fleet-incident-response, fleet-secret-scanning, fleet-dependency-audit]
+      - pack_skills: [superpowers:systematic-debugging, superpowers:verification-before-completion, superpowers:test-driven-development, trailofbits:security-awareness]
+      - tools: [fleet_commit, fleet_task_complete, fleet_alert]
+      - mcp: [filesystem, docker, semgrep]
+      - sub_agents: [dependency-scanner, secret-detector, security-auditor]
 
   devsecops-review:
     inject:
+      - skills: [fleet-security-compliance]
+      - pack_skills: [superpowers:verification-before-completion]
       - tools: [fleet_alert (security), security_hold mechanism]
       - commands: [/security-review]
-      - mcp: [Trivy, Semgrep, Snyk]
+      - mcp: [semgrep]
+      - sub_agents: [security-auditor]
+
+  devsecops-heartbeat:
+    inject:
+      - fleet_state: [work_mode, storm_status]
+      - role_data: [security_alerts, prs_needing_review, infra_health]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
+      - sub_agents: [dependency-scanner, secret-detector, security-auditor]
 
   # ── Software Engineer ────────────────────────────────────────────
+
+  engineer-conversation:
+    inject:
+      - agent_manual: engineer
+      - methodology: conversation (MUST/MUST NOT)
+      - skills: [fleet-communicate]
+      - pack_skills: [superpowers:brainstorming]
+      - note: "Clarify requirements. Ask specific questions. NO code."
+
+  engineer-analysis:
+    inject:
+      - agent_manual: engineer
+      - methodology: analysis
+      - skills: [fleet-code-exploration]
+      - pack_skills: [superpowers:systematic-debugging, superpowers:brainstorming]
+      - tools: [fleet_artifact_create (analysis_document)]
+      - mcp: [filesystem, github, context7]
+      - sub_agents: [code-explorer]
+      - note: "Examine codebase. Reference specific files. NO solutions."
+
+  engineer-investigation:
+    inject:
+      - agent_manual: engineer
+      - methodology: investigation
+      - skills: [fleet-option-exploration, fleet-code-exploration]
+      - pack_skills: [superpowers:brainstorming, superpowers:dispatching-parallel-agents]
+      - tools: [fleet_artifact_create (investigation_document)]
+      - mcp: [filesystem, github, context7]
+      - sub_agents: [code-explorer]
+      - note: "Research multiple approaches. Not just the first one."
 
   engineer-reasoning:
     inject:
       - agent_manual: engineer
       - methodology: reasoning
-      - skills: [feature-plan, writing-plans]
+      - skills: [feature-plan, fleet-implementation-planning]
+      - pack_skills: [superpowers:writing-plans, superpowers:brainstorming]
       - commands: [/plan]
       - tools: [fleet_task_accept]
       - contributions: check for architect/QA/devsecops inputs
@@ -215,33 +325,81 @@ intents:
     inject:
       - agent_manual: engineer (full — this is their primary stage)
       - methodology: work (full MUST/MUST NOT)
-      - skills: [feature-implement, feature-test, TDD, verification, systematic-debugging]
+      - skills: [fleet-engineer-workflow, fleet-contribution-consumption, fleet-conventional-commits, fleet-completion-checklist]
+      - pack_skills: [superpowers:test-driven-development, superpowers:verification-before-completion, superpowers:systematic-debugging, superpowers:subagent-driven-development, ring:dev-implementation, ring:dev-unit-testing]
       - commands: [/debug, /diff, /fast, /compact, /batch]
       - tools: [fleet_read_context, fleet_task_accept, fleet_commit, fleet_task_complete]
-      - mcp: [filesystem, github, playwright, Context7, pytest-mcp]
-      - plugins: [pyright-lsp, safety-net, context7, claude-mem]
+      - mcp: [filesystem, github, playwright, context7]
       - contributions: all received (architect design, QA tests, devsecops security)
       - standards: [plan, pull_request, completion_claim]
       - context_awareness: both countdowns
+      - sub_agents: [test-runner, code-explorer]
+
+  engineer-heartbeat:
+    inject:
+      - fleet_state: [work_mode, backend_mode]
+      - role_data: [assigned_tasks, artifact_state, contributions_received]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned with stage and readiness
+      - sub_agents: [test-runner, code-explorer]
 
   # ── DevOps ───────────────────────────────────────────────────────
+
+  devops-analysis:
+    inject:
+      - agent_manual: devops
+      - methodology: analysis
+      - skills: [fleet-fleet-infrastructure, fleet-docker-management]
+      - pack_skills: [superpowers:systematic-debugging, ring:dev-sre]
+      - tools: [fleet_artifact_create (infrastructure_assessment)]
+      - mcp: [filesystem, docker, github-actions]
+      - sub_agents: [container-inspector]
+
+  devops-reasoning:
+    inject:
+      - agent_manual: devops
+      - methodology: reasoning
+      - skills: [fleet-deployment-strategy, fleet-monitoring-setup, fleet-devops-iac]
+      - pack_skills: [superpowers:writing-plans, superpowers:brainstorming, ring:dev-docker-security, ring:dev-helm]
+      - tools: [fleet_task_accept]
+      - note: "Plan IaC changes. Everything scriptable. Everything reproducible."
 
   devops-work:
     inject:
       - agent_manual: devops
       - methodology: work
-      - skills: [foundation-docker, foundation-ci, ops-deploy, ops-rollback, ops-incident]
+      - skills: [fleet-devops-iac, fleet-docker-management, fleet-cicd-pipeline, fleet-rollback-procedures]
+      - pack_skills: [superpowers:verification-before-completion, superpowers:systematic-debugging, ring:dev-docker-security]
       - commands: [/debug, /loop, /batch]
       - tools: [fleet_commit, fleet_task_complete, fleet_contribute]
       - mcp: [filesystem, github, docker]
-      - plugins: [safety-net]
+      - sub_agents: [container-inspector]
       - note: "everything MUST be IaC — no manual runtime commands"
+
+  devops-contribution:
+    inject:
+      - agent_manual: devops (deployment role)
+      - skills: [fleet-deployment-strategy, fleet-phase-infrastructure-maturity]
+      - tools: [fleet_contribute (deployment_manifest)]
+      - target_task: full context
+      - note: "Environment, config, deploy strategy, monitoring, rollback plan"
+
+  devops-heartbeat:
+    inject:
+      - fleet_state: [work_mode, backend_mode]
+      - role_data: [infra_tasks, service_health, deployment_state]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
+      - sub_agents: [container-inspector]
 
   # ── QA Engineer ──────────────────────────────────────────────────
 
   qa-contribution:
     inject:
       - agent_manual: qa (test predefinition)
+      - skills: [fleet-qa-predefinition, fleet-test-contribution-protocol, fleet-boundary-value-analysis]
       - tools: [fleet_contribute (qa_test_definition)]
       - target_task: full context
       - standards: qa_test_definition artifact type
@@ -251,17 +409,31 @@ intents:
     inject:
       - agent_manual: qa
       - methodology: work
-      - skills: [quality-coverage, feature-test, foundation-testing, TDD]
+      - skills: [fleet-regression-testing, fleet-integration-testing, fleet-phase-testing]
+      - pack_skills: [superpowers:test-driven-development, superpowers:testing-anti-patterns, superpowers:verification-before-completion, ring:test-reviewer]
       - commands: [/debug]
       - tools: [fleet_commit, fleet_task_complete]
-      - mcp: [filesystem, playwright, pytest-mcp]
+      - mcp: [filesystem, playwright]
+      - sub_agents: [test-runner, regression-checker, coverage-analyzer]
 
   qa-review:
     inject:
       - agent_manual: qa (validation role)
+      - skills: [fleet-test-validation, fleet-acceptance-criteria-quality]
+      - pack_skills: [superpowers:verification-before-completion]
       - tools: [fleet-test skill]
       - predefined_criteria: qa_test_definition for this task
+      - sub_agents: [test-runner, regression-checker]
       - note: "validate against YOUR predefined criteria, not discovered ones"
+
+  qa-heartbeat:
+    inject:
+      - fleet_state: [work_mode]
+      - role_data: [contribution_tasks, review_tasks, coverage_metrics]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
+      - sub_agents: [test-runner, regression-checker, coverage-analyzer]
 
   # ── Technical Writer ─────────────────────────────────────────────
 
@@ -269,16 +441,26 @@ intents:
     inject:
       - agent_manual: writer
       - methodology: work
-      - skills: [feature-document, pm-changelog, pm-handoff]
+      - skills: [fleet-doc-lifecycle, fleet-documentation-structure, fleet-changelog-generation, fleet-terminology-consistency]
+      - pack_skills: [superpowers:writing-plans, ring:writing-api-docs, ring:writing-functional-docs, ring:documentation-structure]
       - commands: [/plan, /compact]
       - tools: [fleet_artifact_create, fleet_commit, fleet_plane_*]
-      - mcp: [filesystem, github, Context7]
+      - mcp: [filesystem, github, context7]
       - note: "documentation is a LIVING SYSTEM — update or delete, never leave stale"
 
   writer-contribution:
     inject:
+      - skills: [fleet-doc-contribution-protocol]
       - tools: [fleet_contribute (documentation_outline)]
       - target_task: full context
+
+  writer-heartbeat:
+    inject:
+      - fleet_state: [work_mode]
+      - role_data: [doc_tasks, completed_features_without_docs, stale_pages]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
 
   writer-heartbeat-autonomous:
     inject:
@@ -288,9 +470,21 @@ intents:
 
   # ── UX Designer ──────────────────────────────────────────────────
 
+  ux-analysis:
+    inject:
+      - agent_manual: ux
+      - methodology: analysis
+      - skills: [fleet-ux-every-level, fleet-accessibility-audit]
+      - pack_skills: [superpowers:brainstorming]
+      - tools: [fleet_artifact_create (ux_assessment)]
+      - mcp: [filesystem, playwright]
+      - note: "Analyze UX at ALL levels — CLI, API, errors, config, not just UI."
+
   ux-contribution:
     inject:
       - agent_manual: ux
+      - skills: [fleet-ux-contribution-protocol, fleet-component-patterns]
+      - pack_skills: [superpowers:brainstorming]
       - tools: [fleet_contribute (ux_spec)]
       - target_task: full context
       - note: "specify ALL states — loading, error, empty, success, partial"
@@ -299,23 +493,47 @@ intents:
     inject:
       - agent_manual: ux
       - methodology: reasoning
-      - skills: [quality-accessibility]
+      - skills: [fleet-interaction-design, quality-accessibility]
+      - pack_skills: [superpowers:writing-plans, superpowers:brainstorming]
       - commands: [/plan, /branch]
       - mcp: [filesystem, playwright]
+
+  ux-heartbeat:
+    inject:
+      - fleet_state: [work_mode]
+      - role_data: [contribution_tasks, ux_review_tasks]
+      - directives: all
+      - messages: mentions
+      - tasks: assigned
 
   # ── Accountability Generator ─────────────────────────────────────
 
   accountability-analysis:
     inject:
       - agent_manual: accountability
-      - skills: [quality-audit]
+      - skills: [fleet-accountability-trail, fleet-compliance-verification, fleet-trail-verification]
+      - pack_skills: [superpowers:verification-before-completion]
       - tools: [fleet_artifact_create (compliance_report)]
       - trail: all trail events for reporting period
       - standards: methodology compliance metrics
+      - sub_agents: [trail-reconstructor]
       - note: "verify every detail — reconstruct trails event by event"
+
+  accountability-work:
+    inject:
+      - agent_manual: accountability
+      - methodology: work
+      - skills: [fleet-compliance-reporting, fleet-compliance-verification, fleet-pattern-detection]
+      - pack_skills: [superpowers:verification-before-completion, borghei:soc2-compliance-expert, borghei:nist-csf-specialist]
+      - tools: [fleet_artifact_create (compliance_report), fleet_alert]
+      - sub_agents: [trail-reconstructor]
 
   accountability-heartbeat:
     inject:
+      - fleet_state: [work_mode]
       - role_data: [completed_tasks (need trail verification)]
+      - directives: all
+      - messages: mentions
       - trail: recent completions
+      - sub_agents: [trail-reconstructor]
       - note: "sprint boundary → generate compliance report"

@@ -1,63 +1,49 @@
 # HEARTBEAT — Software Engineer
 
-Your full context is pre-embedded — assigned tasks with stages,
-readiness, verbatim requirements, artifact state, messages, directives.
-Read it FIRST. The data is already there. No tool calls needed for awareness.
+Your full context is pre-embedded — assigned tasks with stages, readiness, verbatim requirements, artifact state, contributions, messages, directives. Read it FIRST.
 
 ## 0. PO Directives (HIGHEST PRIORITY)
 
 Read your DIRECTIVES section. PO orders override everything.
 
-## 1. Check Messages
+## 1. Messages
 
-Read your MESSAGES section. Respond to @mentions via `fleet_chat()`.
+Read your MESSAGES section. Respond to @mentions via `fleet_chat()`:
 - PM assigning work → read the assignment, acknowledge
-- PM asking for status → report progress on task
-- Architect giving design guidance → follow it in your work
-- fleet-ops giving review feedback → address the specific issues
+- Architect giving design guidance → follow it
+- Fleet-ops giving review feedback → address specific issues
 - QA flagging test gaps → add tests
 
-## 2. Work on Assigned Tasks
+## 2. Core Job — Implement
 
-Read your ASSIGNED TASKS section. Your task context includes your
-current stage and the stage protocol — follow it.
+Read your ASSIGNED TASKS section. Follow your stage protocol.
 
-**Before working in work stage:** check your context for colleague
-contributions. These are requirements:
-- Architect design_input → follow the approach and file structure
-- QA qa_test_definition → each criterion MUST be satisfied
+**Before work stage:** `eng_contribution_check()` — verify all inputs:
+- Architect design_input → follow approach and file structure
+- QA qa_test_definition → each TC-XXX criterion MUST be satisfied
 - UX ux_spec → follow component patterns for user-facing work
 - DevSecOps security_requirement → follow absolutely
-If required contributions are missing → `fleet_request_input` to PM.
+Missing required → `fleet_request_input()` to PM.
 
-**When completing:** `fleet_task_complete(summary)` triggers the full
-chain — push, PR, approval, IRC, Plane sync. One call does everything.
+**Work stage sequence:**
+1. `fleet_read_context()` → refresh task + contributions
+2. `fleet_task_accept(plan)` → confirm approach
+3. Implement incrementally — `fleet_commit()` per logical change
+4. Run tests before completing — pytest must pass
+5. `fleet_task_complete(summary)` → push + PR + approval + trail
 
-## 3. Progressive Work Across Cycles
+**Fix tasks (after rejection):** `eng_fix_task_response()` → read feedback → fix root cause → add regression tests → re-submit.
 
-If continuing from a previous cycle:
-- Your TASK CONTEXT shows artifact state — what was done, what's
-  missing, completeness percentage
-- Continue from where you left off
-- Update the artifact with new progress
-- Post a progress comment on the task
+## 3. Contribution Tasks
+
+If assigned contribution task: produce your contribution per CLAUDE.md, call `fleet_contribute()`.
 
 ## 4. Communication
 
 - Blocked → `fleet_chat("blocked: {reason}", mention="project-manager")`
-- Design question → `fleet_chat("@architect need guidance on {task}")`
-- Progress → task comment with update
-- Done → `fleet_task_complete()` handles all notifications
-- Discover work outside scope:
-  - Missing docs → `fleet_task_create(agent_name="technical-writer")`
-  - Security concern → `fleet_task_create(agent_name="devsecops-expert")`
-  - Test gap → `fleet_task_create(agent_name="qa-engineer")`
-  - Design issue → `fleet_pause()` or task for architect
+- Design question → `fleet_chat("@architect {question}")`
+- Discover gaps → `fleet_task_create()`: docs→writer, security→devsecops, tests→QA
 
-## 5. Idle
+## 5. HEARTBEAT_OK
 
-If no tasks assigned and no messages:
-- Respond HEARTBEAT_OK
-- Do NOT create unnecessary work
-- Do NOT call tools for no reason
-- HEARTBEAT_OK means nothing needs your attention
+No tasks, no messages → HEARTBEAT_OK. Do NOT create unnecessary work.

@@ -5,36 +5,76 @@ domain: backlog
 status: draft
 priority: P2
 created: 2026-04-08
-updated: 2026-04-08
-tags: [iac, persistence, docker, backup, kb, setup]
+updated: 2026-04-09
+tags: [iac, persistence, docker, backup, kb, setup, lightrag, compose]
 ---
 
 # IaC & Persistence
 
 ## Summary
 
-KB/memory persistence through Docker purge. Constant IaC backup. Setup integration for all new services (LightRAG, plugins). Make again hasn't lost anything.
+Knowledge base and memory persistence through Docker purge. Constant IaC backup so nothing is lost. Setup integration for all new services (LightRAG, plugins, skill packs). When you `make again`, everything comes back — no data loss, no manual steps.
+
+> "we would also need to make sure that those Memories / Knowledge Base Collections would persist as I purge all the docker, constantly saving itself to IaC to not be lost so that when I make again it hasn't lost anything."
+
+> "we are going to prepare the fleet compose with now lightRAG and create our indexing process that we will also integrate into the setup. we will then connect this to our claude code and setup the plugins and do the same and test the quality of the environment and the MAP(s)."
+
+> "Its important to declare that the kB are not set in stone and things can update. and its important to have multiples map that can all overlap, connect and aggregate. Its a paths and travels problem."
+
+## Goals
+
+- All fleet state persists through Docker purge (volumes, IaC export, git-tracked config)
+- LightRAG KB data backed up to IaC automatically
+- claude-mem data survives purge (SQLite file in git-tracked location)
+- Board memory exportable and restorable
+- Agent session data (context/, artifacts) backed up before purge
+- Fleet compose includes all services (MC, LightRAG, IRC, Plane)
+- setup.sh restores full state from IaC — zero data loss
+
+## Existing Foundation
+
+- setup.sh — 17-step master orchestration (from zero to running fleet)
+- Docker compose for MC (compose.yml in vendor/)
+- scripts/setup-lightrag.sh — LightRAG setup (background knowledge sync)
+- .aicp/state.yaml — setup state persistence
+- config/ — all YAML configs git-tracked
+- agents/_template/ — agent templates git-tracked
+- patches/ — vendor patches survive git clone
 
 ## Phases
 
 ### Phase 0: Document & Research
-- [ ] Research what exists
-- [ ] Document gaps
-- [ ] Identify dependencies
+
+- [ ] Audit what data is ephemeral vs persistent today
+- [ ] Audit Docker volume mounts — what survives `docker compose down -v`?
+- [ ] Document LightRAG storage model (OpenSearch? local files? volumes?)
+- [ ] Document claude-mem storage (SQLite path, git-tracked?)
+- [ ] Map board memory export/import capabilities
 
 ### Phase 1: Design
-- [ ] Design the solution architecture
-- [ ] Document design decisions
-- [ ] PO review
 
-### Phase 2: Scaffold
-- [ ] Create structure and configuration
-- [ ] Scaffold scripts and tooling
+- [ ] Design persistence strategy per data type (KB, memory, context, artifacts, board)
+- [ ] Design IaC backup scripts (automatic, cron-based, before purge)
+- [ ] Design fleet compose expansion (MC + LightRAG + IRC + monitoring)
+- [ ] Design restore-from-IaC sequence (setup.sh imports backed-up data)
 
-### Phase 3: Implement
-- [ ] Build the solution
-- [ ] Wire to existing systems
+### Phase 2: Implement
 
-### Phase 4: Test & Validate
-- [ ] Verify the implementation
-- [ ] PO validation
+- [ ] Build backup scripts per data type
+- [ ] Expand docker-compose.yaml with all services
+- [ ] Wire backup into setup.sh (backup before teardown, restore after build)
+- [ ] Wire LightRAG persistence (volume mounts, IaC export)
+- [ ] Wire claude-mem persistence
+
+### Phase 3: Test & Validate
+
+- [ ] Test full purge + rebuild cycle — verify zero data loss
+- [ ] Test LightRAG KB survives purge
+- [ ] Test board memory restored correctly
+- [ ] Test setup.sh from fresh clone reproduces full state
+
+## Relationships
+
+- RELATES_TO: E004 (RAG/Knowledge — LightRAG persistence is here)
+- RELATES_TO: E007 (Ecosystem — plugin/skill installation must be repeatable)
+- ENABLES: E012 (Autonomous — autonomous fleet can't lose data on restart)

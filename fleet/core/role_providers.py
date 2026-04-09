@@ -141,15 +141,45 @@ async def worker_provider(
     mc,
     board_id: str,
 ) -> dict:
-    """Generic worker: assigned tasks, PR feedback."""
+    """Generic worker: assigned tasks, contributions, PR feedback."""
     my_tasks = [
         t for t in tasks
         if t.custom_fields.agent_name == agent_name
     ]
+    in_progress = [t for t in my_tasks if t.status == TaskStatus.IN_PROGRESS]
     in_review = [t for t in my_tasks if t.status == TaskStatus.REVIEW]
+
+    # Contribution tasks assigned to this agent (from synergy matrix)
+    contribution_tasks = [
+        t for t in tasks
+        if t.custom_fields.agent_name == agent_name
+        and t.custom_fields.contribution_type
+        and t.status == TaskStatus.INBOX
+    ]
+
+    # Contributions received for my in-progress tasks
+    contributions_received = {}
+    for t in in_progress:
+        received = [
+            {
+                "type": child.custom_fields.contribution_type,
+                "from": child.custom_fields.agent_name or "unknown",
+                "status": child.status.value,
+            }
+            for child in tasks
+            if child.custom_fields.contribution_target == t.id
+            and child.custom_fields.contribution_type
+        ]
+        if received:
+            contributions_received[t.id[:8]] = received
 
     return {
         "my_tasks_count": len(my_tasks),
+        "contribution_tasks": [
+            {"id": t.id[:8], "title": t.title[:40], "type": t.custom_fields.contribution_type}
+            for t in contribution_tasks[:5]
+        ],
+        "contributions_received": contributions_received,
         "in_review": [
             {"id": t.id[:8], "title": t.title[:40], "pr": t.custom_fields.pr_url or ""}
             for t in in_review[:5]
@@ -164,15 +194,12 @@ ROLE_PROVIDERS: dict[str, callable] = {
     "project-manager": project_manager_provider,
     "architect": architect_provider,
     "devsecops-expert": devsecops_provider,
-    # All other roles use worker provider
+    # Worker roles — generic provider with contribution awareness
     "software-engineer": worker_provider,
-    "devops-expert": worker_provider,
+    "devops": worker_provider,
     "qa-engineer": worker_provider,
-    "frontend-dev": worker_provider,
-    "backend-dev": worker_provider,
     "technical-writer": worker_provider,
     "ux-designer": worker_provider,
-    "data-engineer": worker_provider,
     "accountability-generator": worker_provider,
 }
 

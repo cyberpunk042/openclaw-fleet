@@ -112,15 +112,17 @@ def build_task_complete_chain(
     branch: str = "",
     test_results: str = "",
     project: str = "",
+    parent_task_id: str = "",
 ) -> EventChain:
     """Build the event chain for task completion.
 
     Produces events across all surfaces:
     1. Internal: update task status, create approval, post board memory
-    2. Public: push branch, create PR (if code task)
-    3. Channel: IRC notification
-    4. Notify: ntfy notification (info level)
-    5. Meta: quality check, metrics update
+    2. Internal: propagate completion to parent task (if child)
+    3. Public: push branch, create PR (if code task)
+    4. Channel: IRC notification
+    5. Notify: ntfy notification (info level)
+    6. Meta: quality check, metrics update
     """
     chain = EventChain(operation="task_complete", source_agent=agent_name, task_id=task_id)
 
@@ -134,6 +136,18 @@ def build_task_complete_chain(
     chain.add(EventSurface.INTERNAL, "post_board_memory", {
         "content": f"Completed: {summary[:100]}", "tags": ["completed", f"project:{project}"],
     }, required=False)
+
+    # Cross-task propagation: comment on parent task when child completes
+    # This lets PM track child progress without checking each subtask
+    if parent_task_id:
+        chain.add(EventSurface.INTERNAL, "post_task_comment", {
+            "task_id": parent_task_id,
+            "comment": (
+                f"**Child completed** by {agent_name}: {summary[:80]}\n"
+                f"Task: {task_id[:8]}"
+                + (f" | PR: {pr_url}" if pr_url else "")
+            ),
+        }, required=False)
 
     # Public (code tasks)
     if branch:
@@ -321,10 +335,12 @@ def build_rejection_chain(
     reason: str,
     regressed_readiness: int = 0,
     regressed_stage: str = "",
+    parent_task_id: str = "",
 ) -> EventChain:
     """Build the event chain when fleet-ops rejects a task.
 
     Notifies the agent, records trail, alerts IRC #reviews.
+    Propagates to parent task if this is a child.
     """
     chain = EventChain(
         operation="rejection",
@@ -349,6 +365,17 @@ def build_rejection_chain(
         "channel": "#reviews",
         "message": f"[rejected] {task_title[:40]}: {reason[:60]}",
     }, required=False)
+
+    # Cross-task propagation: notify parent when child is rejected
+    if parent_task_id:
+        chain.add(EventSurface.INTERNAL, "post_task_comment", {
+            "task_id": parent_task_id,
+            "comment": (
+                f"**Child rejected** by {reviewer_name}: {task_title[:60]}\n"
+                f"Reason: {reason[:100]}\n"
+                f"Agent {agent_name} will fix and re-submit."
+            ),
+        }, required=False)
 
     # Trail
     chain.events.append(_trail_event(

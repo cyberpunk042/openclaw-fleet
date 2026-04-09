@@ -69,14 +69,14 @@ class TestEndToEndTaskPipeline:
                         f"{agent} at {stage}: recommended skill '{skill_name}' has no SKILL.md"
 
     @pytest.mark.parametrize("agent", AGENT_ROSTER)
-    def test_tools_md_has_all_sections(self, agent):
-        """TOOLS.md should have Fleet MCP Tools, Skills, and Hooks sections."""
+    def test_tools_md_has_focused_sections(self, agent):
+        """TOOLS.md should have focused sections: Your Tools, Available, Boundaries."""
         tools_md = AGENTS_DIR / agent / "TOOLS.md"
         assert tools_md.exists(), f"{agent}/TOOLS.md not found"
         content = tools_md.read_text()
-        assert "## Fleet MCP Tools" in content, f"{agent}: missing Fleet MCP Tools section"
-        assert "## Skills" in content, f"{agent}: missing Skills section"
-        assert "## Hooks" in content, f"{agent}: missing Hooks section"
+        assert "## Your Tools" in content, f"{agent}: missing Your Tools section"
+        assert "## Available" in content, f"{agent}: missing Available section"
+        assert "## Boundaries" in content, f"{agent}: missing Boundaries section"
 
     @pytest.mark.parametrize("agent", AGENT_ROSTER)
     def test_heartbeat_template_exists(self, agent):
@@ -138,48 +138,53 @@ class TestEndToEndTaskPipeline:
 
 
 class TestToolsMdContentAccuracy:
-    """Verify TOOLS.md actually contains role-specific deep skills."""
+    """Verify TOOLS.md contains role-appropriate tools and group calls."""
 
-    # Each role's key deep skills that MUST appear in their TOOLS.md
-    ROLE_DEEP_SKILLS = {
-        "project-manager": ["fleet-task-triage", "fleet-pm-orchestration", "fleet-blocker-resolution"],
-        "fleet-ops": ["fleet-ops-review-protocol", "fleet-methodology-compliance", "fleet-board-health-assessment"],
-        "architect": ["fleet-design-contribution", "fleet-design-pattern-selection", "fleet-architecture-health"],
-        "devsecops-expert": ["fleet-threat-modeling", "fleet-vulnerability-assessment", "fleet-security-contribution"],
-        "software-engineer": ["fleet-engineer-workflow", "fleet-contribution-consumption", "fleet-conventional-commits"],
-        "devops": ["fleet-devops-iac", "fleet-deployment-strategy", "fleet-fleet-infrastructure"],
-        "qa-engineer": ["fleet-qa-predefinition", "fleet-test-validation", "fleet-boundary-value-analysis"],
-        "technical-writer": ["fleet-doc-lifecycle", "fleet-doc-contribution-protocol", "fleet-documentation-structure"],
-        "ux-designer": ["fleet-ux-every-level", "fleet-interaction-design", "fleet-accessibility-audit"],
-        "accountability-generator": ["fleet-accountability-trail", "fleet-compliance-verification", "fleet-pattern-detection"],
+    # Each role's group call prefixes that MUST appear in their TOOLS.md
+    ROLE_GROUP_CALL_PREFIXES = {
+        "project-manager": ["pm_"],
+        "fleet-ops": ["ops_"],
+        "architect": ["arch_"],
+        "devsecops-expert": ["sec_"],
+        "software-engineer": ["eng_"],
+        "devops": ["devops_"],
+        "qa-engineer": ["qa_"],
+        "technical-writer": ["writer_"],
+        "ux-designer": ["ux_"],
+        "accountability-generator": ["acct_"],
     }
 
     @pytest.mark.parametrize("agent", AGENT_ROSTER)
-    def test_tools_md_contains_deep_skills(self, agent):
-        """TOOLS.md should contain the agent's key deep skills."""
+    def test_tools_md_contains_role_group_calls(self, agent):
+        """TOOLS.md should contain the agent's role-specific group calls."""
         tools_md = AGENTS_DIR / agent / "TOOLS.md"
         assert tools_md.exists()
         content = tools_md.read_text()
-        missing = []
-        for skill in self.ROLE_DEEP_SKILLS.get(agent, []):
-            if skill not in content:
-                missing.append(skill)
-        assert not missing, \
-            f"{agent}/TOOLS.md missing deep skills: {missing}"
+        prefixes = self.ROLE_GROUP_CALL_PREFIXES.get(agent, [])
+        for prefix in prefixes:
+            assert prefix in content, \
+                f"{agent}/TOOLS.md missing group calls with prefix '{prefix}'"
 
     @pytest.mark.parametrize("agent", AGENT_ROSTER)
-    def test_tools_md_contains_role_group_calls(self, agent):
-        """TOOLS.md should contain the agent's role-specific group calls section."""
+    def test_tools_md_has_chain_awareness(self, agent):
+        """TOOLS.md tools should show chain awareness (→ arrow notation)."""
         tools_md = AGENTS_DIR / agent / "TOOLS.md"
+        assert tools_md.exists()
         content = tools_md.read_text()
-        assert "## Role-Specific Tools" in content or "## MCP Servers" in content, \
-            f"{agent}/TOOLS.md missing role-specific or MCP section"
+        # At least some tools should have chain indicators
+        assert "**→**" in content, \
+            f"{agent}/TOOLS.md missing chain awareness (no **→** entries)"
 
     @pytest.mark.parametrize("agent", AGENT_ROSTER)
-    def test_tools_md_contains_hooks_section(self, agent):
-        """TOOLS.md should document the hooks that apply to this agent."""
+    def test_tools_md_no_bloat(self, agent):
+        """TOOLS.md should be focused — no skills catalog, no hooks, no CRONs."""
         tools_md = AGENTS_DIR / agent / "TOOLS.md"
+        assert tools_md.exists()
         content = tools_md.read_text()
-        assert "## Hooks" in content
-        # Every agent gets at least the default hooks
-        assert "fleet_commit" in content, f"{agent}: TOOLS.md hooks should mention fleet_commit"
+        # These sections were intentionally removed in the redesign
+        assert "## Skills" not in content, \
+            f"{agent}/TOOLS.md still has Skills section (should be in Navigator)"
+        assert "## Hooks" not in content, \
+            f"{agent}/TOOLS.md still has Hooks section (removed — hooks self-teach)"
+        assert "## Scheduled Operations" not in content, \
+            f"{agent}/TOOLS.md still has CRONs section (removed — CRONs run in isolated sessions)"

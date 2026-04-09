@@ -556,8 +556,9 @@ class TestTP_F02_TaskPreembed:
     def test_build(self):
         from fleet.core.preembed import build_task_preembed
         text = build_task_preembed(_task(task_stage="work", task_readiness=99))
-        assert "TASK CONTEXT" in text
-        assert "99%" in text
+        assert "YOUR TASK" in text
+        assert "READINESS: 99%" in text
+        assert "WHAT TO DO NOW" in text
 
 
 class TestHP_F01_HeartbeatPreembed:

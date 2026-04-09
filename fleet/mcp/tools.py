@@ -1117,6 +1117,7 @@ def register_tools(server: FastMCP) -> None:
                 branch=branch,
                 test_results=test_summary,
                 project=ctx.project_name or "",
+                parent_task_id=task.custom_fields.parent_task or "",
             )
 
             runner = ChainRunner(

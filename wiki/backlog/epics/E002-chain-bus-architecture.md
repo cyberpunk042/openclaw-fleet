@@ -30,32 +30,33 @@ Validate and evolve the tool chain/bus system so agents naturally call the right
 
 ## Phases
 
-### Phase 0: Document
+### Phase 0: Document — COMPLETE
 
-- [ ] Map every tool → chain → surfaces it propagates to
-- [ ] Identify cross-task tracking gaps (PM↔ops, parent↔child)
-- [ ] Document what the brain currently does vs what it should do for chains
-- [ ] Document the event system's current state and gaps
+- [x] Map every tool → chain → surfaces → [chain-bus-audit.md](../../domains/architecture/chain-bus-audit.md)
+- [x] Identify cross-task tracking gaps — parent↔child comment propagation is the main gap
+- [x] Document chain system state — 16 builders, 11 wired, ChainRunner with partial failure tolerance
+- [x] Identify healthy patterns — one tool = one chain, Plane always optional, clean builder/runner separation
 
-### Phase 1: Design
+**Key finding:** Chain system is healthier than expected. The main gaps are cross-task propagation (parent doesn't see child completions), EventStore consistency, and ins/outs/middles documentation format. Agent-facing simplicity is working as designed — agents call one tool, chains handle everything.
 
-- [ ] Design cross-task comment propagation (comment on child → visible on parent)
-- [ ] Design the chain selection logic for agents (when to use which bus)
-- [ ] Design the "ins/outs/middles" documentation format for tool-chains.yaml
-- [ ] Design the brain's role in chain coordination
+### Phase 1-3: Design & Implement — PARTIALLY DONE
 
-### Phase 2: Scaffold
+**Cross-task propagation (DONE — 2026-04-09):**
+- [x] build_task_complete_chain: parent gets comment when child completes (agent, summary, PR link)
+- [x] build_rejection_chain: parent gets comment when child is rejected (reviewer, reason, agent will fix)
+- [x] fleet_task_complete MCP tool passes parent_task_id to chain builder
+- [x] Full test suite green (2,347 tests)
 
-- [ ] Update tool-chains.yaml with ins/outs/middles documentation
-- [ ] Scaffold any new chain builders needed for cross-task tracking
-- [ ] Scaffold brain integration points
+**Chain selection for agents (RESOLVED — by design):**
+- [x] Agents don't choose buses — they call ONE tool, the chain handles propagation
+- [x] TOOLS.md chain docs (→ notation) tell agents what fires. This IS the bus abstraction.
+- [x] Design decision: this is working as intended per PO "focused desk" principle
 
-### Phase 3: Implement
-
-- [ ] Build cross-task propagation chains
-- [ ] Enhance existing chains with missing operations
-- [ ] Wire brain coordination for chain execution
-- [ ] Update TOOLS.md generation to include chain selection guidance
+**Remaining:**
+- [ ] Update tool-chains.yaml with ins/outs/middles documentation format
+- [ ] Wire EventStore recording into ChainRunner.run() for trail completeness
+- [ ] Wire brain coordination for chain execution (Layer 2 — event-driven reactions)
+- [ ] Update TOOLS.md chain docs if chain behavior changed (regenerate)
 
 ### Phase 4: Test & Validate
 

@@ -114,14 +114,25 @@ check_agent_yaml() {
     local file="$agent_dir/agent.yaml"
     [[ -f "$file" ]] || return
 
-    # Required fields
-    for field in "name" "mission" "capabilities" "mode" "backend"; do
+    # Required fields (14 per standard)
+    for field in "name" "display_name" "fleet_id" "fleet_number" "username" "type" "mode" "backend" "model" "mission" "capabilities"; do
         if grep -q "^${field}:" "$file" 2>/dev/null; then
             pass "agent.yaml: '$field' field present"
         else
             fail "agent.yaml: '$field' field MISSING"
         fi
     done
+    # Nested fields
+    if grep -q "primary:" "$file" 2>/dev/null; then
+        pass "agent.yaml: 'roles.primary' field present"
+    else
+        fail "agent.yaml: 'roles.primary' field MISSING"
+    fi
+    if grep -q "every:" "$file" 2>/dev/null; then
+        pass "agent.yaml: 'heartbeat_config.every' field present"
+    else
+        warn "agent.yaml: 'heartbeat_config.every' field missing (defaults apply)"
+    fi
 
     # Name consistency
     local yaml_name

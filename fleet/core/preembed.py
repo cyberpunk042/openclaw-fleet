@@ -65,102 +65,132 @@ def format_task_full(task: Task) -> str:
 
 
 def build_task_preembed(task: Task, completeness_summary: str = "") -> str:
-    """Build FULL task pre-embed for dispatch injection.
+    """Build task pre-embed in autocomplete chain order.
 
-    Includes everything the agent needs about THIS task.
-    Not compressed. Full data.
+    The 10-section order IS the autocomplete chain — the data arrangement
+    drives correct agent behavior. Identity grounding → task focus →
+    stage awareness → verbatim anchoring → protocol → contributions →
+    phase → action → consequences.
+
+    Standard: docs/milestones/active/standards/context-files-standard.md
     """
     cf = task.custom_fields
-    lines = [
-        "# TASK CONTEXT",
-        "",
-        format_task_full(task),
-    ]
+    agent_name = cf.agent_name or ""
+    stage = cf.task_stage or ""
+    readiness = cf.task_readiness or 0
+    verbatim = cf.requirement_verbatim or ""
+    delivery_phase = cf.delivery_phase or ""
+    lines = []
 
+    # § 1. Identity grounding
+    lines.append(f"# YOU ARE: {agent_name}")
+    lines.append("")
+
+    # § 2. Task focus
+    lines.append(f"# YOUR TASK: {task.title}")
+    lines.append(f"- ID: {task.id[:8]}")
+    lines.append(f"- Priority: {task.priority}")
+    lines.append(f"- Type: {cf.task_type or 'unset'}")
+    if task.description:
+        lines.append(f"- Description: {task.description[:300]}")
+    if task.is_blocked:
+        lines.append(f"- BLOCKED by: {task.blocked_by_task_ids}")
+    if cf.pr_url:
+        lines.append(f"- PR: {cf.pr_url}")
     if completeness_summary:
         lines.append(f"- Artifact: {completeness_summary}")
+    lines.append("")
 
-    # Stage instructions
-    stage = cf.task_stage or ""
+    # § 3. Stage awareness
+    lines.append(f"# YOUR STAGE: {stage or 'unset'}")
+    lines.append("")
+
+    # § 4. Readiness
+    lines.append(f"# READINESS: {readiness}%")
+    lines.append("")
+
+    # § 5. Verbatim requirement (THE ANCHOR)
+    lines.append("## VERBATIM REQUIREMENT")
+    if verbatim:
+        lines.append(f"> {verbatim}")
+    else:
+        lines.append("*(No verbatim requirement set — ask PO for clarification.)*")
+    lines.append("")
+
+    # § 6. Stage protocol (MUST/MUST NOT/CAN)
     if stage:
-        from fleet.core.stage_context import get_stage_instructions
-        instructions = get_stage_instructions(stage)
-        if instructions:
-            lines.append("")
-            lines.append(instructions)
+        try:
+            from fleet.core.stage_context import get_stage_instructions
+            instructions = get_stage_instructions(stage)
+            if instructions:
+                lines.append(instructions)
+                lines.append("")
+        except Exception:
+            pass
 
-    # Phase standards (what quality bars apply at this delivery phase)
-    delivery_phase = cf.delivery_phase or ""
+    # § 7. Inputs from colleagues (contributions received)
+    lines.append("## INPUTS FROM COLLEAGUES")
+    try:
+        from fleet.core.contributions import load_synergy_matrix, get_skip_types
+        task_type = cf.task_type or "task"
+        skip_types = get_skip_types()
+        if agent_name and task_type not in skip_types:
+            matrix = load_synergy_matrix()
+            specs = matrix.get(agent_name, [])
+            required = [s for s in specs if s.priority == "required"]
+            if required:
+                for s in required:
+                    lines.append(f"- **{s.contribution_type}** from {s.role}: check task comments for this input")
+                lines.append("")
+                lines.append("Missing inputs → `fleet_request_input()`. Do NOT proceed without required contributions.")
+            else:
+                lines.append("*(No contributions required for this task type.)*")
+        else:
+            lines.append("*(No contributions required.)*")
+    except Exception:
+        lines.append("*(Contribution check unavailable.)*")
+    lines.append("")
+
+    # § 8. Delivery phase
     if delivery_phase:
+        lines.append(f"## DELIVERY PHASE: {delivery_phase}")
         try:
             from fleet.core.phases import get_phase_standards, get_required_contributions
             progression = cf.phase_progression or "standard"
             standards = get_phase_standards(delivery_phase, progression)
-            required_contribs = get_required_contributions(delivery_phase, progression)
-
-            lines.append("")
-            lines.append(f"## Delivery Phase: {delivery_phase}")
             if standards:
-                lines.append("### Phase Standards")
                 for key, value in standards.items():
                     lines.append(f"- **{key}:** {value}")
-            if required_contribs:
-                lines.append(f"### Required Contributions: {', '.join(required_contribs)}")
         except Exception:
             pass
+        lines.append("")
 
-    # Contribution status (what's received, what's missing)
-    try:
-        from fleet.core.contributions import check_contribution_completeness
-        agent_name = cf.agent_name or ""
-        task_type = cf.task_type or "task"
-        if agent_name:
-            # We can't query comments from preembed (no mc client).
-            # But we can note the contribution requirement.
-            from fleet.core.contributions import load_synergy_matrix, get_skip_types
-            skip_types = get_skip_types()
-            if task_type not in skip_types:
-                matrix = load_synergy_matrix()
-                specs = matrix.get(agent_name, [])
-                required = [s.contribution_type for s in specs if s.priority == "required"]
-                if required:
-                    lines.append("")
-                    lines.append("## Required Contributions")
-                    lines.append(f"Before work stage, these contributions must be received:")
-                    for r in required:
-                        lines.append(f"- **{r}** — check task comments for this input")
-                    lines.append("If any are missing → use fleet_request_input to request them.")
-    except Exception:
-        pass
+    # § 9. What to do now (action directive)
+    lines.append("## WHAT TO DO NOW")
+    if stage == "conversation":
+        lines.append("Read the verbatim requirement above. Ask specific clarifying questions. Do NOT produce code or solutions.")
+    elif stage == "analysis":
+        lines.append("Examine the codebase for areas related to the requirement. Produce an analysis_document with specific file references.")
+    elif stage == "investigation":
+        lines.append("Research multiple approaches (minimum 2). Document options with tradeoffs. Do NOT decide yet.")
+    elif stage == "reasoning":
+        lines.append("Produce a plan that REFERENCES the verbatim requirement above. Specify target files and acceptance criteria mapping.")
+    elif stage == "work":
+        lines.append("Execute the confirmed plan. Check contributions above. Call `fleet_read_context()` first, then `fleet_task_accept()`, then implement.")
+    else:
+        lines.append("Follow the stage protocol above.")
+    lines.append("")
 
-    # Skill recommendations for this stage
-    agent_name = cf.agent_name or ""
-    if stage and agent_name:
-        try:
-            from fleet.core.skill_recommendations import get_skill_recommendations
-            recs = get_skill_recommendations(agent_name, stage)
-
-            if recs["always"] or recs["stage"]:
-                lines.append("")
-                lines.append(f"## Skills for This Stage ({stage})")
-
-                if recs["always"]:
-                    lines.append("Always available:")
-                    for s in recs["always"]:
-                        lines.append(f"  - /{s['skill']} — {s.get('why', '')}")
-
-                if recs["stage"]:
-                    lines.append(f"Recommended at {stage}:")
-                    for s in recs["stage"]:
-                        plugin = f" ({s['plugin']})" if s.get("plugin") else ""
-                        lines.append(f"  - /{s['skill']}{plugin} — {s.get('why', '')}")
-
-                if recs["blocked"]:
-                    lines.append(f"Blocked at {stage}:")
-                    blocked_str = ", ".join(f"/{b}" for b in recs["blocked"][:5])
-                    lines.append(f"  {blocked_str}")
-        except Exception:
-            pass
+    # § 10. What happens when you act (chain awareness)
+    lines.append("## WHAT HAPPENS WHEN YOU ACT")
+    if stage == "work":
+        lines.append("- `fleet_commit()` → git + event + trail (one logical change per commit)")
+        lines.append("- `fleet_task_complete()` → push → PR → approval → IRC → Plane → trail → parent eval")
+    else:
+        lines.append("- `fleet_artifact_create/update()` → Plane HTML + completeness check")
+        lines.append("- `fleet_chat()` → board memory + IRC + agent mentions")
+    lines.append("- Every tool call fires automatic chains — you don't update multiple places manually.")
+    lines.append("")
 
     return "\n".join(lines)
 

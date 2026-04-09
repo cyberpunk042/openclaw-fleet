@@ -41,6 +41,21 @@ tools:
     input: "files (list of paths), message (conventional format)"
     auto: "Trail recording, event emission"
     blocked: "BLOCKED outside work stage — returns error + protocol_violation"
+    ins:
+      - files (list of file paths to stage)
+      - "message (conventional format: type(scope): description [task:XXXXXXXX])"
+    middles:
+      - stage gate check (conversation blocks, all others allow)
+      - git add specified files
+      - git commit with message
+      - post MC comment on task
+      - emit event (fleet.task.committed)
+      - update Plane issue (if mapped)
+      - record trail event (COMMIT_CREATED)
+    outs:
+      - commit on current branch
+      - task comment with commit reference
+      - trail updated
 
   fleet_task_complete:
     what: "Complete task — triggers full review chain"
@@ -49,6 +64,32 @@ tools:
     input: "summary (what you did and why)"
     auto: "Push, PR creation, approval, IRC notification, Plane sync, parent evaluation — ONE call does everything"
     blocked: "BLOCKED outside work stage"
+    # Ins/Outs/Middles — PO directive: "clear chain entries, ins and outs and middles"
+    ins:
+      - summary (your completion description)
+      - task context (task_id, agent, branch, project — from session)
+    middles:
+      - stage gate check (work stage required)
+      - git push branch to remote
+      - create PR (title from task, body from summary + labor stamp)
+      - update MC task status → review
+      - create approval object for fleet-ops
+      - post completion comment on task (with labor stamp table)
+      - "post board memory [completed, project:{name}]"
+      - notify IRC #fleet + #reviews
+      - notify PO via ntfy (info priority)
+      - update Plane issue state → In Review (if mapped)
+      - post Plane comment (if mapped)
+      - propagate to parent task (child completed comment)
+      - record trail event (TASK_COMPLETED)
+    outs:
+      - task in review status (fleet-ops sees in queue)
+      - PR on GitHub (ready for code review)
+      - approval object pending (fleet-ops processes)
+      - IRC notifications sent
+      - Plane synced
+      - trail recorded
+      - parent task notified (if child)
 
   fleet_task_create:
     what: "Create a new task (subtask, contribution task, follow-up)"
@@ -99,6 +140,30 @@ tools:
     chain_reject: "task stays review → readiness regressed → agent notified → trail"
     input: "approval_id, decision (approved/rejected), comment (specifics)"
     auto: "Task status transition, agent notification, trail recording"
+    ins:
+      - approval_id (from pending approvals in role data)
+      - decision (approved or rejected)
+      - comment (SPECIFIC reasoning — what met or what to fix)
+    middles_approve:
+      - update approval status → approved
+      - update task status → done
+      - "post board memory [review, approved]"
+      - notify IRC #reviews
+      - record trail (REVIEW_APPROVED)
+      - evaluate parent (if child — all children done → parent to review)
+    middles_reject:
+      - update approval status → rejected
+      - "post board memory [review, rejection, mention:{agent}]"
+      - notify IRC #reviews
+      - propagate to parent (child rejected comment)
+      - create fix task for original agent (if configured)
+      - record trail (REVIEW_REJECTED)
+    outs_approve:
+      - task done, sprint progress updated
+      - parent evaluated (if applicable)
+    outs_reject:
+      - agent notified via board memory mention
+      - fix task created (agent sees on next heartbeat)
 
   fleet_agent_status:
     what: "Check all agents status"
@@ -113,6 +178,22 @@ tools:
     chain: "comment on target task → own task done → event → trail → notify owner → check completeness → if all received notify PM"
     input: "task_id (TARGET task), contribution_type, content (full, not compressed)"
     auto: "Target agent sees contribution in context, own task marked done, completeness checked"
+    ins:
+      - task_id (the TARGET task you're contributing TO, not your own)
+      - contribution_type (design_input, qa_test_definition, security_requirement, ux_spec, documentation_outline)
+      - content (FULL contribution — not compressed, not summarized)
+    middles:
+      - post contribution as comment on target task
+      - append contribution to target agent's task-context.md
+      - mark own contribution task as done
+      - emit event (fleet.contribution.posted)
+      - check contribution completeness for target task
+      - if all required received → notify PM, target task can advance to work
+      - record trail (CONTRIBUTION_POSTED)
+    outs:
+      - target agent sees contribution in pre-embedded context
+      - own task done (no further work needed)
+      - if all contributions received → dispatch gate opens for target task
 
   fleet_request_input:
     what: "Request input from a colleague"
