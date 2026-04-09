@@ -249,31 +249,40 @@ def build_heartbeat_preembed(
         "",
     ]
 
-    # Directives (highest priority)
-    if directives:
-        lines.append("## PO DIRECTIVES")
-        for d in directives:
-            urgent = "URGENT " if d.get("urgent") else ""
-            lines.append(f"- {urgent}{d.get('content', '')} (from {d.get('from', '?')})")
-        lines.append("")
+    # HEARTBEAT.md references these sections by name.
+    # ALL sections MUST be present even when empty — the agent follows
+    # the priority protocol by reading each section in order.
+    # Empty section = skip to next priority. Missing section = broken chain.
 
-    # Messages
+    # Priority 0: PO Directives
+    lines.append("## PO DIRECTIVES")
+    if directives:
+        for d in directives:
+            urgent = "🚨 URGENT " if d.get("urgent") else ""
+            lines.append(f"- {urgent}{d.get('content', '')} (from {d.get('from', '?')})")
+    else:
+        lines.append("None.")
+    lines.append("")
+
+    # Priority 1: Messages
+    lines.append("## MESSAGES")
     if messages:
-        lines.append("## MESSAGES")
         for m in messages:
             lines.append(f"- From {m.get('from', '?')}: {m.get('content', '')}")
-        lines.append("")
+    else:
+        lines.append("None.")
+    lines.append("")
 
-    # Assigned tasks (FULL detail)
+    # Priority 2: Assigned tasks
+    lines.append("## ASSIGNED TASKS")
     if assigned_tasks:
-        lines.append(f"## ASSIGNED TASKS ({len(assigned_tasks)})")
+        lines.append(f"{len(assigned_tasks)} task(s):")
         for t in assigned_tasks:
             lines.append("")
             lines.append(format_task_full(t))
-        lines.append("")
     else:
-        lines.append("## ASSIGNED TASKS: None")
-        lines.append("")
+        lines.append("None.")
+    lines.append("")
 
     # Role-specific data (FULL)
     if role_data:

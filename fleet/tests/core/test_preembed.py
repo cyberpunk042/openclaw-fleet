@@ -148,7 +148,8 @@ class TestHeartbeatPreembed:
             role="architect",
             assigned_tasks=tasks,
         )
-        assert "ASSIGNED TASKS (2)" in text
+        assert "ASSIGNED TASKS" in text
+        assert "2 task(s)" in text
         assert "Task A" in text
         assert "Task B" in text
         assert "analysis" in text

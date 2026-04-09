@@ -207,7 +207,7 @@ stages:
       - Execute the plan that was confirmed in reasoning stage
       - Follow existing conventions: conventional commits, proper testing
       - Stay within scope — work from the verbatim requirement and confirmed plan
-      - Your task data is pre-embedded above (verbatim, stage, contributions)
+      - Your task data is pre-embedded in your context (verbatim, stage, contributions)
       - Call fleet_task_accept with your plan
       - Call fleet_commit for each logical change
       - Call fleet_task_complete when done
