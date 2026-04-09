@@ -450,6 +450,7 @@ async def _refresh_agent_contexts(
         from fleet.core.role_providers import get_role_provider
         from fleet.core.directives import parse_directives
         from fleet.core.navigator import Navigator
+        from fleet.core.tier_renderer import TierRenderer
 
         # Get messages and directives
         try:
@@ -472,6 +473,20 @@ async def _refresh_agent_contexts(
             "backend_mode": fleet_state.backend_mode if fleet_state else "",
             "budget_mode": fleet_state.budget_mode if fleet_state else "standard",
         }
+
+        # Determine default tier from backend_mode
+        backend_mode = fleet_state_dict.get("backend_mode", "claude")
+        if "claude" in backend_mode:
+            default_tier = "expert"
+        elif "localai" in backend_mode and "claude" not in backend_mode:
+            if "openrouter" in backend_mode:
+                default_tier = "capable"
+            else:
+                default_tier = "lightweight"
+        elif "openrouter" in backend_mode:
+            default_tier = "capable"
+        else:
+            default_tier = "expert"
 
         online_count = sum(1 for a in agents if a.status == "online" and "Gateway" not in a.name)
         total_count = sum(1 for a in agents if "Gateway" not in a.name)
@@ -519,6 +534,8 @@ async def _refresh_agent_contexts(
             except Exception:
                 pass
 
+            renderer = TierRenderer(default_tier)
+
             # Build FULL heartbeat pre-embed
             heartbeat_text = build_heartbeat_preembed(
                 agent_name=agent_name,
@@ -532,6 +549,7 @@ async def _refresh_agent_contexts(
                 fleet_backend=fleet_state_dict.get("backend_mode", ""),
                 agents_online=online_count,
                 agents_total=total_count,
+                renderer=renderer,
             )
 
             # Context strategy — evaluate pressure and append awareness
@@ -559,7 +577,35 @@ async def _refresh_agent_contexts(
             in_progress = [t for t in my_tasks if t.status == TaskStatus.IN_PROGRESS]
             if in_progress:
                 current_task = in_progress[0]
-                task_text = build_task_preembed(current_task)
+
+                # Load rejection feedback for rework tasks
+                rejection_feedback = ""
+                iteration = current_task.custom_fields.labor_iteration or 1
+                if iteration >= 2:
+                    try:
+                        comments = await mc.list_comments(board_id, current_task.id)
+                        for c in reversed(comments or []):
+                            content = c.get("content", "") if isinstance(c, dict) else getattr(c, "content", "")
+                            if "REJECTED" in content or "rejected" in content.lower():
+                                rejection_feedback = content[:500]
+                                break
+                    except Exception:
+                        pass  # Rejection feedback loading must not break context refresh
+
+                # Load target task for contribution tasks
+                target_task_obj = None
+                if current_task.custom_fields.contribution_target:
+                    target_task_obj = next(
+                        (t for t in tasks if t.id == current_task.custom_fields.contribution_target),
+                        None,
+                    )
+
+                task_text = build_task_preembed(
+                    current_task,
+                    renderer=renderer,
+                    rejection_feedback=rejection_feedback,
+                    target_task=target_task_obj,
+                )
 
                 # Preserve existing contribution sections in task-context.md
                 # Contributions are appended by fleet_contribute() MCP tool.
