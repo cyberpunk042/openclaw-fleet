@@ -253,3 +253,76 @@ class TestHeartbeatWithRenderer:
             assigned_tasks=[],
         )
         assert "HEARTBEAT CONTEXT" in text
+
+
+class TestTaskWithRenderer:
+    def test_rejection_rework_visible(self):
+        """H11/H12: Rejection rework shows iteration and feedback."""
+        from fleet.core.tier_renderer import TierRenderer
+        renderer = TierRenderer("expert")
+        task = _make_task(custom_fields=TaskCustomFields(
+            task_stage="work", task_readiness=99,
+            requirement_verbatim="Add health dashboard",
+            agent_name="software-engineer",
+            labor_iteration=2,
+        ))
+        text = build_task_preembed(task, renderer=renderer, rejection_feedback="Missing TC-003 test")
+        assert "iteration 2" in text.lower()
+        assert "Missing TC-003" in text
+        assert "eng_fix_task_response" in text
+
+    def test_progress_adapted_action(self):
+        """J1: Action directive adapts to progress %."""
+        from fleet.core.tier_renderer import TierRenderer
+        renderer = TierRenderer("expert")
+        task = _make_task(custom_fields=TaskCustomFields(
+            task_stage="work", task_readiness=99, task_progress=70,
+            requirement_verbatim="Add dashboard",
+            agent_name="software-engineer",
+        ))
+        text = build_task_preembed(task, renderer=renderer)
+        assert "test" in text.lower()  # 70% = run tests
+
+    def test_contribution_task_shows_target(self):
+        """I1: Contribution task shows target task context."""
+        from fleet.core.tier_renderer import TierRenderer
+        renderer = TierRenderer("expert")
+        target = _make_task(title="Target Task", custom_fields=TaskCustomFields(
+            requirement_verbatim="Build the thing",
+            delivery_phase="mvp",
+        ))
+        task = Task(
+            id="task-contrib99", board_id="b1",
+            title="Contribute design_input",
+            status=TaskStatus.IN_PROGRESS,
+            custom_fields=TaskCustomFields(
+                task_stage="reasoning", task_readiness=80,
+                agent_name="architect",
+                contribution_type="design_input",
+                contribution_target="task-12345678",
+            ),
+        )
+        text = build_task_preembed(task, renderer=renderer, target_task=target)
+        assert "CONTRIBUTION TASK" in text
+        assert "design_input" in text
+        assert "Build the thing" in text
+        assert "fleet_contribute" in text
+
+    def test_role_specific_reasoning(self):
+        """I5: Architect sees 'design_input' in reasoning protocol."""
+        from fleet.core.tier_renderer import TierRenderer
+        renderer = TierRenderer("expert")
+        task = _make_task(custom_fields=TaskCustomFields(
+            task_stage="reasoning", task_readiness=85,
+            requirement_verbatim="Design the header",
+            agent_name="architect",
+        ))
+        text = build_task_preembed(task, renderer=renderer)
+        assert "design_input" in text
+
+    def test_backward_compat_no_renderer(self):
+        """Existing code without renderer still works."""
+        task = _make_task()
+        text = build_task_preembed(task)
+        assert "YOUR TASK:" in text
+        assert "VERBATIM REQUIREMENT" in text

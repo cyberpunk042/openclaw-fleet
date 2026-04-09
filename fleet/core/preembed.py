@@ -71,6 +71,9 @@ def build_task_preembed(
     task: Task,
     completeness_summary: str = "",
     injection_level: str = "full",
+    renderer: Optional["TierRenderer"] = None,
+    rejection_feedback: str = "",
+    target_task: Optional[Task] = None,
 ) -> str:
     """Build task pre-embed in autocomplete chain order.
 
@@ -84,6 +87,9 @@ def build_task_preembed(
         completeness_summary: Artifact completeness state.
         injection_level: "full" (default — data pre-embedded, fleet_read_context optional)
                          or "none" (no pre-embed — fleet_read_context required).
+        renderer: Optional TierRenderer for tier-aware rendering.
+        rejection_feedback: Rejection feedback text (used with renderer for H11/H12).
+        target_task: Optional target Task for contribution context (I1/I2/I3).
     """
     cf = task.custom_fields
     agent_name = cf.agent_name or ""
@@ -100,6 +106,11 @@ def build_task_preembed(
     else:
         lines.append("# NO pre-embedded data. Call fleet_read_context() FIRST to load your task.")
     lines.append("")
+
+    iteration = cf.labor_iteration or 1
+    if renderer and iteration >= 2:
+        lines.append(f"# ITERATION: {iteration} (rework after rejection)")
+        lines.append("")
 
     # § 1. Identity grounding
     lines.append(f"# YOU ARE: {agent_name}")
@@ -139,16 +150,38 @@ def build_task_preembed(
         lines.append("*(No verbatim requirement set — ask PO for clarification.)*")
     lines.append("")
 
+    if renderer and cf.contribution_type:
+        contrib_ctx = renderer.format_contribution_task_context(
+            cf.contribution_type,
+            cf.contribution_target or "",
+            target_task,
+        )
+        if contrib_ctx:
+            lines.append(contrib_ctx)
+            lines.append("")
+
     # § 6. Stage protocol (MUST/MUST NOT/CAN)
     if stage:
-        try:
-            from fleet.core.stage_context import get_stage_instructions
-            instructions = get_stage_instructions(stage)
-            if instructions:
-                lines.append(instructions)
+        if renderer:
+            protocol = renderer.format_stage_protocol(stage, agent_name)
+            if protocol:
+                lines.append(protocol)
                 lines.append("")
-        except Exception:
-            pass
+        else:
+            try:
+                from fleet.core.stage_context import get_stage_instructions
+                instructions = get_stage_instructions(stage)
+                if instructions:
+                    lines.append(instructions)
+                    lines.append("")
+            except Exception:
+                pass
+
+    if renderer:
+        rejection_ctx = renderer.format_rejection_context(iteration, rejection_feedback)
+        if rejection_ctx:
+            lines.append(rejection_ctx)
+            lines.append("")
 
     # § 7. Inputs from colleagues (contributions)
     # The base template shows what's REQUIRED. The orchestrator's context refresh
@@ -193,18 +226,21 @@ def build_task_preembed(
 
     # § 9. What to do now (action directive)
     lines.append("## WHAT TO DO NOW")
-    if stage == "conversation":
-        lines.append("Read the verbatim requirement above. Ask specific clarifying questions. Do NOT produce code or solutions.")
-    elif stage == "analysis":
-        lines.append("Examine the codebase for areas related to the requirement. Produce an analysis_document with specific file references.")
-    elif stage == "investigation":
-        lines.append("Research multiple approaches (minimum 2). Document options with tradeoffs. Do NOT decide yet.")
-    elif stage == "reasoning":
-        lines.append("Produce a plan that REFERENCES the verbatim requirement above. Specify target files and acceptance criteria mapping.")
-    elif stage == "work":
-        lines.append("Execute the confirmed plan. Your task data and contributions are pre-embedded above. `fleet_task_accept()` then implement. fleet_read_context() only to load a different task.")
+    if renderer:
+        lines.append(renderer.format_action_directive(stage, progress, iteration))
     else:
-        lines.append("Follow the stage protocol above.")
+        if stage == "conversation":
+            lines.append("Read the verbatim requirement above. Ask specific clarifying questions. Do NOT produce code or solutions.")
+        elif stage == "analysis":
+            lines.append("Examine the codebase for areas related to the requirement. Produce an analysis_document with specific file references.")
+        elif stage == "investigation":
+            lines.append("Research multiple approaches (minimum 2). Document options with tradeoffs. Do NOT decide yet.")
+        elif stage == "reasoning":
+            lines.append("Produce a plan that REFERENCES the verbatim requirement above. Specify target files and acceptance criteria mapping.")
+        elif stage == "work":
+            lines.append("Execute the confirmed plan. Your task data and contributions are pre-embedded above. `fleet_task_accept()` then implement. fleet_read_context() only to load a different task.")
+        else:
+            lines.append("Follow the stage protocol above.")
     lines.append("")
 
     # § 10. What happens when you act (chain awareness)
