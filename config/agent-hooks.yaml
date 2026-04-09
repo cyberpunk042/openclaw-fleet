@@ -203,6 +203,71 @@ roles:
           "
         description: "Warn if QA test definition lacks structured TC-XXX criteria"
 
+  devops:
+    PreToolUse:
+      # IaC principle — warn if committing infrastructure changes without script reference
+      - matcher: "fleet_commit"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          files = data.get('files', [])
+          infra_files = [f for f in files if any(p in f for p in ['Dockerfile', 'docker-compose', '.github/workflows', 'scripts/'])]
+          msg = data.get('message', '')
+          if infra_files and not any(t in msg for t in ['ci', 'chore', 'docs']):
+              if 'feat' in msg or 'fix' in msg:
+                  print('Infrastructure files modified with feat/fix commit.')
+                  print(f'Files: {infra_files[:3]}')
+                  print('If this changes deployment behavior, verify with: make status')
+                  sys.exit(1)  # warn
+          "
+        description: "Warn when committing infrastructure files to verify deployment behavior"
+
+  ux-designer:
+    PreToolUse:
+      # UX specs should address states and accessibility — the two things engineers skip
+      - matcher: "fleet_contribute"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          ctype = data.get('contribution_type', '')
+          content = data.get('content', '').lower()
+          if ctype == 'ux_spec':
+              issues = []
+              if 'state' not in content and 'loading' not in content and 'empty' not in content and 'error' not in content:
+                  issues.append('No states defined (loading, empty, error, success)')
+              if 'accessib' not in content and 'keyboard' not in content and 'screen reader' not in content and 'wcag' not in content:
+                  issues.append('No accessibility requirements')
+              if issues:
+                  print('UX spec missing critical elements:')
+                  for i in issues:
+                      print(f'  - {i}')
+                  print('Engineers will skip what you do not specify.')
+                  sys.exit(1)  # warn
+          "
+        description: "Warn if ux_spec contribution lacks states or accessibility requirements"
+
+  accountability-generator:
+    PreToolUse:
+      # Compliance alerts should include evidence — not vague claims
+      - matcher: "fleet_alert"
+        type: command
+        command: |
+          echo "$TOOL_INPUT" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          category = data.get('category', '')
+          details = data.get('details', '')
+          if category == 'compliance' and len(details) < 50:
+              print('Compliance alert has insufficient detail.')
+              print('Include: what was checked, what was found, evidence (task IDs, counts).')
+              sys.exit(1)  # warn
+          "
+        description: "Warn if compliance alerts lack sufficient evidence detail"
+
 # ─── Monitoring Hooks (Future — PO Observation Stream) ────────────────
 # When a monitoring service is available, enable these to stream
 # agent activity to a dashboard.

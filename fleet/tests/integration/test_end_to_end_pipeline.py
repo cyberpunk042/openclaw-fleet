@@ -135,3 +135,51 @@ class TestEndToEndTaskPipeline:
         """The number of fleet-* skill directories should match what we expect."""
         skill_dirs = list(SKILLS_DIR.glob("fleet-*/SKILL.md"))
         assert len(skill_dirs) >= 78, f"Expected >= 78 skills, found {len(skill_dirs)}"
+
+
+class TestToolsMdContentAccuracy:
+    """Verify TOOLS.md actually contains role-specific deep skills."""
+
+    # Each role's key deep skills that MUST appear in their TOOLS.md
+    ROLE_DEEP_SKILLS = {
+        "project-manager": ["fleet-task-triage", "fleet-pm-orchestration", "fleet-blocker-resolution"],
+        "fleet-ops": ["fleet-ops-review-protocol", "fleet-methodology-compliance", "fleet-board-health-assessment"],
+        "architect": ["fleet-design-contribution", "fleet-design-pattern-selection", "fleet-architecture-health"],
+        "devsecops-expert": ["fleet-threat-modeling", "fleet-vulnerability-assessment", "fleet-security-contribution"],
+        "software-engineer": ["fleet-engineer-workflow", "fleet-contribution-consumption", "fleet-conventional-commits"],
+        "devops": ["fleet-devops-iac", "fleet-deployment-strategy", "fleet-fleet-infrastructure"],
+        "qa-engineer": ["fleet-qa-predefinition", "fleet-test-validation", "fleet-boundary-value-analysis"],
+        "technical-writer": ["fleet-doc-lifecycle", "fleet-doc-contribution-protocol", "fleet-documentation-structure"],
+        "ux-designer": ["fleet-ux-every-level", "fleet-interaction-design", "fleet-accessibility-audit"],
+        "accountability-generator": ["fleet-accountability-trail", "fleet-compliance-verification", "fleet-pattern-detection"],
+    }
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_tools_md_contains_deep_skills(self, agent):
+        """TOOLS.md should contain the agent's key deep skills."""
+        tools_md = AGENTS_DIR / agent / "TOOLS.md"
+        assert tools_md.exists()
+        content = tools_md.read_text()
+        missing = []
+        for skill in self.ROLE_DEEP_SKILLS.get(agent, []):
+            if skill not in content:
+                missing.append(skill)
+        assert not missing, \
+            f"{agent}/TOOLS.md missing deep skills: {missing}"
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_tools_md_contains_role_group_calls(self, agent):
+        """TOOLS.md should contain the agent's role-specific group calls section."""
+        tools_md = AGENTS_DIR / agent / "TOOLS.md"
+        content = tools_md.read_text()
+        assert "## Role-Specific Tools" in content or "## MCP Servers" in content, \
+            f"{agent}/TOOLS.md missing role-specific or MCP section"
+
+    @pytest.mark.parametrize("agent", AGENT_ROSTER)
+    def test_tools_md_contains_hooks_section(self, agent):
+        """TOOLS.md should document the hooks that apply to this agent."""
+        tools_md = AGENTS_DIR / agent / "TOOLS.md"
+        content = tools_md.read_text()
+        assert "## Hooks" in content
+        # Every agent gets at least the default hooks
+        assert "fleet_commit" in content, f"{agent}: TOOLS.md hooks should mention fleet_commit"
