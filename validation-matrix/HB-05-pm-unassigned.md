@@ -5,7 +5,7 @@
 ## fleet-context.md
 
 ```
-# MODE: heartbeat | injection: full
+# MODE: heartbeat | injection: full | generated: 00:24:37
 # Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.
 
 # HEARTBEAT CONTEXT
@@ -25,9 +25,10 @@ None.
 
 ## ROLE DATA
 **Unassigned tasks:** 3
-- task-un1: Investigate memory leak in orchestrator (high)
-- task-un2: Add changelog generation to writer CRON (medium)
-- task-un3: Update fleet-identity config for beta (low)
+- task-un1: Investigate memory leak in orchestrator (high) [bug/unset r:0%]
+  Orchestrator leaks memory after 48h continuous operation
+- task-un2: Add changelog generation to writer CRON (medium) [?/? r:0%]
+- task-un3: Update fleet-identity config for beta (low) [?/? r:0%]
 **Blocked tasks:** 1
 **Progress:** 12/25 done (48%)
 **Inbox:** 5

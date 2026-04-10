@@ -236,7 +236,6 @@ class TestPreembedIntegration:
         assert "READINESS: 99%" in text
         assert "VERBATIM REQUIREMENT" in text
         assert "WHAT TO DO NOW" in text
-        assert "WHAT HAPPENS WHEN YOU ACT" in text
         assert "Execute the confirmed plan" in text
 
     def test_heartbeat_preembed_format(self):

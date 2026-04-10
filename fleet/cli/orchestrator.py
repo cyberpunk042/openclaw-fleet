@@ -33,6 +33,7 @@ from fleet.infra.mc_client import MCClient
 _fleet_lifecycle = FleetLifecycle()
 _notification_router = NotificationRouter(cooldown_seconds=300)
 _change_detector = ChangeDetector()
+_last_context_refresh: dict[str, str] = {}  # agent_name → ISO timestamp of last context write
 
 from fleet.core.budget_monitor import BudgetMonitor
 from fleet.core.doctor import DoctorReport, AgentHealth, ResponseAction, run_doctor_cycle
@@ -451,6 +452,7 @@ async def _refresh_agent_contexts(
         from fleet.core.directives import parse_directives
         from fleet.core.navigator import Navigator
         from fleet.core.tier_renderer import TierRenderer
+        from fleet.core.events import EventStore
 
         # Get messages and directives
         try:
@@ -571,6 +573,28 @@ async def _refresh_agent_contexts(
             except Exception:
                 pass
 
+            # WHAT CHANGED for heartbeat — unseen events for this agent
+            try:
+                event_store = EventStore()
+                unseen = event_store.query(
+                    agent_name=agent_name,
+                    unseen_only=True,
+                    limit=5,
+                )
+                if unseen:
+                    change_lines = ["## WHAT CHANGED (since last heartbeat)"]
+                    for ev in unseen:
+                        etype = ev.type.split(".")[-1] if ev.type else "event"
+                        summary = ev.data.get("summary", "") or ev.data.get("content", "")[:80]
+                        src = ev.data.get("agent", ev.source.split("/")[-1] if ev.source else "")
+                        change_lines.append(f"- **[NEW]** [{etype}] {src}: {summary}" if src else f"- **[NEW]** [{etype}] {summary}")
+                    change_lines.append("")
+                    heartbeat_text = "\n".join(change_lines) + "\n" + heartbeat_text
+                    # Mark these events as seen
+                    event_store.mark_seen(agent_name, [ev.id for ev in unseen])
+            except Exception:
+                pass  # Event query must not break context refresh
+
             write_heartbeat_context(agent_name, heartbeat_text)
 
             # Also write task context for in-progress tasks
@@ -615,13 +639,58 @@ async def _refresh_agent_contexts(
                         None,
                     )
 
+                # Resolve received contribution types
+                received_contribs = [
+                    t.custom_fields.contribution_type
+                    for t in tasks
+                    if t.custom_fields.contribution_target == current_task.id
+                    and t.custom_fields.contribution_type
+                    and t.status == TaskStatus.DONE
+                ]
+
+                # Resolve parent task title
+                parent_title = ""
+                if current_task.custom_fields.parent_task:
+                    parent = next(
+                        (t for t in tasks if t.id == current_task.custom_fields.parent_task),
+                        None,
+                    )
+                    if parent:
+                        parent_title = parent.title
+
                 task_text = build_task_preembed(
                     current_task,
                     renderer=renderer,
                     rejection_feedback=rejection_feedback,
                     target_task=target_task_obj,
                     confirmed_plan=confirmed_plan,
+                    parent_task_title=parent_title,
+                    received_contribution_types=received_contribs,
                 )
+
+                # WHAT CHANGED — query events since last refresh for this agent's task
+                try:
+                    event_store = EventStore()
+                    last_refresh = _last_context_refresh.get(agent_name, "")
+                    task_events = event_store.query(
+                        subject=current_task.id,
+                        since=last_refresh,
+                        limit=10,
+                    )
+                    if task_events:
+                        change_lines = ["## WHAT CHANGED"]
+                        for ev in task_events:
+                            etype = ev.type.split(".")[-1] if ev.type else "event"
+                            summary = ev.data.get("summary", "") or ev.data.get("content", "")[:80]
+                            agent = ev.data.get("agent", "")
+                            change_lines.append(f"- [{etype}] {agent}: {summary}" if agent else f"- [{etype}] {summary}")
+                        change_lines.append("")
+                        task_text = "\n".join(change_lines) + "\n" + task_text
+                except Exception:
+                    pass  # Event query must not break context refresh
+
+                # Update last refresh timestamp for this agent
+                _last_context_refresh[agent_name] = datetime.now().isoformat()
 
                 # Preserve existing contribution sections in task-context.md
                 # Contributions are appended by fleet_contribute() MCP tool.

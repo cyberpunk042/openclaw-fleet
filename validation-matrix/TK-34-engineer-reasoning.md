@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -19,7 +19,7 @@
 
 # YOUR STAGE: reasoning
 
-# READINESS: 85% (PO-set — gates dispatch)
+# READINESS: 85%
 
 ## VERBATIM REQUIREMENT
 > Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
@@ -63,11 +63,6 @@ Your job is to PLAN, not to execute.
 
 ## WHAT TO DO NOW
 Produce a plan in docs/superpowers/plans/ or as a task comment. Reference the verbatim requirement explicitly. Use `fleet_task_accept()` to submit for PO confirmation.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```
 

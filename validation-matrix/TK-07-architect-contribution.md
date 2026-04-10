@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: architect
@@ -17,7 +17,7 @@
 
 # YOUR STAGE: analysis
 
-# READINESS: 50% (PO-set — gates dispatch)
+# READINESS: 50%
 
 ## VERBATIM REQUIREMENT
 > Provide design_input: approach, target files, patterns for the fleet health dashboard
@@ -40,7 +40,7 @@ You are in the analysis protocol. Examine what exists.
 - Read and examine the codebase, existing implementation, architecture
 - Produce an analysis document in wiki/domains/ (knowledge layer)
 - Reference SPECIFIC files and line numbers — not vague descriptions
-- Present findings to the PO via task comments
+- Produce findings relevant to the TARGET TASK shown above
 - Identify implications for the task
 
 ### What you MUST NOT do:
@@ -58,7 +58,7 @@ You are in the analysis protocol. Examine what exists.
 
 ### How to advance:
 - Analysis document exists and covers the relevant codebase areas
-- PO reviewed the findings
+- Contribution is complete and ready to deliver
 - Implications for the task are clear
 
 Your job is to UNDERSTAND WHAT EXISTS, not to solve the problem.
@@ -68,10 +68,5 @@ Your job is to UNDERSTAND WHAT EXISTS, not to solve the problem.
 
 ## WHAT TO DO NOW
 Examine the codebase. Produce an analysis document in wiki/domains/ with file and line references. Do NOT produce solutions yet.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```

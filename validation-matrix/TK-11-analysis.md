@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -19,7 +19,7 @@
 
 # YOUR STAGE: analysis
 
-# READINESS: 30% (PO-set — gates dispatch)
+# READINESS: 30%
 
 ## VERBATIM REQUIREMENT
 > Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
@@ -56,16 +56,9 @@ You are in the analysis protocol. Examine what exists.
 Your job is to UNDERSTAND WHAT EXISTS, not to solve the problem.
 
 ## INPUTS FROM COLLEAGUES
-### Required Contributions
-- **design_input** from architect — *awaiting delivery*
-- **qa_test_definition** from qa-engineer — *awaiting delivery*
+*(No contributions required.)*
 
 ## WHAT TO DO NOW
 Examine the codebase. Produce an analysis document in wiki/domains/ with file and line references. Do NOT produce solutions yet.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```

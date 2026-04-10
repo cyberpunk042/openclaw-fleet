@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -20,8 +20,8 @@
 
 # YOUR STAGE: work
 
-# READINESS: 99% (PO-set — gates dispatch)
-# PROGRESS: 60% (your work — 0=started, 50=halfway, 70=implementation done, 80=challenged, 90=reviewed)
+# READINESS: 99%
+# PROGRESS: 60%
 
 ## VERBATIM REQUIREMENT
 > Add health dashboard with agent grid
@@ -57,11 +57,6 @@ If any contribution above shows *awaiting delivery* → `fleet_request_input()`.
 
 ## WHAT TO DO NOW
 Halfway. Continue implementation. Post progress update via `fleet_task_progress()`.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_commit()` → git + event + trail (one logical change per commit)
-- `fleet_task_complete()` → push → PR → approval → IRC → Plane → trail → parent eval
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```
 

@@ -5,7 +5,7 @@
 ## fleet-context.md
 
 ```
-# MODE: heartbeat | injection: full
+# MODE: heartbeat | injection: full | generated: 00:24:37
 # Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.
 
 # HEARTBEAT CONTEXT
@@ -28,8 +28,10 @@ None.
 - appr-001: task task-abc1 (pending)
 - appr-002: task task-def2 (pending)
 **Review queue:** 2
-- task-abc1: Add fleet health dashboard (software-engineer)
-- task-def2: Fix orchestrator stage bug (devops)
+- task-abc1: Add fleet health dashboard (software-engineer) | PR: https://github.com/org/openfleet/pull/42
+  Verbatim: Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
+- task-def2: Fix orchestrator stage bug (devops) | PR: https://github.com/org/openfleet/pull/43
+  Verbatim: Fix stage transition when readiness changes mid-cycle
 **Offline agents:** ux-designer
 
 ## STANDING ORDERS (authority: standard)

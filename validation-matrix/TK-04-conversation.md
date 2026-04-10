@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -18,7 +18,7 @@
 
 # YOUR STAGE: conversation
 
-# READINESS: 10% (PO-set — gates dispatch)
+# READINESS: 10%
 
 ## VERBATIM REQUIREMENT
 > We need a dashboard but details unclear
@@ -55,17 +55,10 @@ You are in the conversation protocol. Your task is NOT ready for work.
 Your job is to UNDERSTAND, not to BUILD.
 
 ## INPUTS FROM COLLEAGUES
-### Required Contributions
-- **design_input** from architect — *awaiting delivery*
-- **qa_test_definition** from qa-engineer — *awaiting delivery*
+*(No contributions required.)*
 
 ## WHAT TO DO NOW
 Ask clarifying questions. Post them to the task comments. Do NOT write code. Your job is to understand, not to build.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```
 

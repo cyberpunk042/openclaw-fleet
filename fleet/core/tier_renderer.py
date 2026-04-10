@@ -136,8 +136,10 @@ class TierRenderer:
             lines.append(f"**Review queue:** {len(queue)}")
             if item_limit > 0:
                 for item in queue[:item_limit]:
+                    pr_part = f" | PR: {item['pr']}" if item.get("pr") else ""
+                    verbatim_part = f"\n  Verbatim: {item['verbatim']}" if item.get("verbatim") else ""
                     lines.append(
-                        f"- {item.get('id', '?')}: {item.get('title', '?')} ({item.get('agent', '?')})"
+                        f"- {item.get('id', '?')}: {item.get('title', '?')} ({item.get('agent', '')}){pr_part}{verbatim_part}"
                     )
         if "offline_agents" in data:
             agents = data["offline_agents"]
@@ -154,11 +156,19 @@ class TierRenderer:
             if item_limit > 0 and "unassigned_details" in data:
                 details = data["unassigned_details"][:item_limit]
                 for d in details:
+                    type_stage = f"{d.get('type', '?')}/{d.get('stage', '?')}"
+                    readiness = d.get('readiness', 0)
+                    desc = d.get('description', '')
+                    desc_part = f"\n  {desc}" if desc else ""
                     lines.append(
-                        f"- {d.get('id', '?')}: {d.get('title', '?')} ({d.get('priority', '?')})"
+                        f"- {d.get('id', '?')}: {d.get('title', '?')} ({d.get('priority', '?')}) [{type_stage} r:{readiness}%]{desc_part}"
                     )
         if "blocked_tasks" in data:
             lines.append(f"**Blocked tasks:** {data['blocked_tasks']}")
+            if item_limit > 0 and "blocked_details" in data:
+                for b in data["blocked_details"][:item_limit]:
+                    blocked_by = ", ".join(str(x)[:8] for x in b.get("blocked_by", []))
+                    lines.append(f"- {b.get('id', '?')}: {b.get('title', '?')} (blocked by: {blocked_by})")
         if "progress" in data:
             lines.append(f"**Progress:** {data['progress']}")
         if "inbox_count" in data:
@@ -252,7 +262,10 @@ class TierRenderer:
 
     # ── Rejection context ────────────────────────────────────────────────────
 
-    def format_rejection_context(self, iteration: int, feedback: str) -> str:
+    def format_rejection_context(
+        self, iteration: int, feedback: str,
+        previous_pr: str = "", previous_branch: str = "",
+    ) -> str:
         """Format rejection/rework context block.
 
         Fixes H11/H12.  Returns "" if iteration <= 1.
@@ -260,6 +273,8 @@ class TierRenderer:
         Args:
             iteration: Current attempt number (labor_iteration).
             feedback:  Feedback text from the reviewer.
+            previous_pr: PR URL from the rejected submission.
+            previous_branch: Branch from the rejected submission.
 
         Returns:
             Formatted markdown section, or "".
@@ -273,6 +288,17 @@ class TierRenderer:
             "Your previous submission was rejected. Fix the ROOT CAUSE — do not paper over it.",
             "Use `eng_fix_task_response()` to structure your fix.",
             "",
+        ]
+
+        if previous_pr or previous_branch:
+            lines.append("**Previous submission:**")
+            if previous_pr:
+                lines.append(f"- PR: {previous_pr}")
+            if previous_branch:
+                lines.append(f"- Branch: {previous_branch}")
+            lines.append("")
+
+        lines += [
             "**Feedback:**",
             f"> {feedback}",
         ]
@@ -289,25 +315,35 @@ class TierRenderer:
     # ── Action directive ─────────────────────────────────────────────────────
 
     def format_action_directive(
-        self, stage: str, progress: int, iteration: int
+        self, stage: str, progress: int, iteration: int,
+        contributions_missing: list[str] | None = None,
     ) -> str:
         """Format the action directive for the current task state.
 
-        Fixes J1.  Adapts directive to stage/progress/iteration.
-
-        Respects action_directive rule:
-            full     — full directive text
-            one_line — first sentence only
+        Fixes J1.  Adapts directive to stage/progress/iteration/contribution state.
 
         Args:
             stage:     Current methodology stage (work, reasoning, etc.)
             progress:  task_progress value (0-100).
             iteration: labor_iteration (>=2 triggers rework directive).
+            contributions_missing: list of missing required contribution types (if any).
 
         Returns:
             Formatted directive string.
         """
         depth = self.rules.get("action_directive", "full")
+
+        # Missing contributions override everything in work stage
+        if stage == "work" and contributions_missing:
+            missing_str = ", ".join(contributions_missing)
+            directive = (
+                f"BLOCKED — required contributions missing: {missing_str}. "
+                "Call `fleet_request_input()` for each missing contribution. "
+                "Do NOT start implementation without required inputs."
+            )
+            if depth == "one_line":
+                return f"BLOCKED — missing contributions: {missing_str}."
+            return directive
 
         directive = self._compute_action_directive(stage, progress, iteration)
 
@@ -475,22 +511,43 @@ class TierRenderer:
 
     # ── Stage protocol ───────────────────────────────────────────────────────
 
-    def format_stage_protocol(self, stage: str, role: str, iteration: int = 1) -> str:
-        """Format the stage protocol with role-specific and iteration-aware language.
-
-        Fixes I5 (role-specific reasoning) and BUG-03 (rework protocol confusion).
+    def format_stage_protocol(
+        self, stage: str, role: str, iteration: int = 1,
+        is_contribution: bool = False,
+    ) -> str:
+        """Format the stage protocol with role-specific, iteration-aware, and contribution-aware language.
 
         Args:
             stage: Methodology stage name.
             role:  Agent role name.
             iteration: labor_iteration (>=2 adapts work protocol for rework).
+            is_contribution: True if this is a contribution task (different lifecycle).
 
         Returns:
-            Protocol text (possibly role-adapted and iteration-adapted).
+            Protocol text (possibly adapted).
         """
         from fleet.core.stage_context import get_stage_instructions
 
         protocol = get_stage_instructions(stage)
+
+        # Contribution tasks: adapt protocol for contribution lifecycle
+        if is_contribution and protocol:
+            protocol = protocol.replace(
+                "Present findings to the PO via task comments",
+                "Produce findings relevant to the TARGET TASK shown above",
+            )
+            protocol = protocol.replace(
+                "Present the plan to the PO for confirmation",
+                "Produce your contribution. Call `fleet_contribute()` when ready",
+            )
+            protocol = protocol.replace(
+                "PO reviewed the findings",
+                "Contribution is complete and ready to deliver",
+            )
+            protocol = protocol.replace(
+                "PO confirmed the plan",
+                "Contribution is ready to deliver via fleet_contribute()",
+            )
 
         # Work stage + rework: replace "Execute the confirmed plan" with fix-oriented language
         if stage == "work" and iteration >= 2:

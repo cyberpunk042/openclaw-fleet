@@ -37,7 +37,14 @@ async def fleet_ops_provider(
         "pending_approvals": len(pending_approvals),
         "approval_details": pending_approvals[:5],
         "review_queue": [
-            {"id": t.id[:8], "title": t.title[:40], "agent": t.custom_fields.agent_name or ""}
+            {
+                "id": t.id[:8],
+                "title": t.title[:60],
+                "agent": t.custom_fields.agent_name or "",
+                "verbatim": (t.custom_fields.requirement_verbatim or "")[:100],
+                "pr": t.custom_fields.pr_url or "",
+                "type": t.custom_fields.task_type or "",
+            }
             for t in review_tasks[:10]
         ],
         "offline_agents": [
@@ -64,10 +71,26 @@ async def project_manager_provider(
     return {
         "unassigned_tasks": len(unassigned),
         "unassigned_details": [
-            {"id": t.id[:8], "title": t.title[:40], "priority": t.priority}
+            {
+                "id": t.id[:8],
+                "title": t.title[:60],
+                "priority": t.priority,
+                "type": t.custom_fields.task_type or "unset",
+                "stage": t.custom_fields.task_stage or "unset",
+                "readiness": t.custom_fields.task_readiness or 0,
+                "description": (t.description or "")[:80],
+            }
             for t in unassigned[:10]
         ],
         "blocked_tasks": len(blocked),
+        "blocked_details": [
+            {
+                "id": t.id[:8],
+                "title": t.title[:60],
+                "blocked_by": t.blocked_by_task_ids[:3] if t.blocked_by_task_ids else [],
+            }
+            for t in blocked[:5]
+        ],
         "progress": f"{len(done)}/{total} done ({len(done)*100//total if total else 0}%)",
         "inbox_count": len(inbox),
     }

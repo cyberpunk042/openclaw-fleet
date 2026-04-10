@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # ITERATION: 2 (rework after rejection)
@@ -21,7 +21,7 @@
 
 # YOUR STAGE: work
 
-# READINESS: 99% (PO-set — gates dispatch)
+# READINESS: 99%
 
 ## VERBATIM REQUIREMENT
 > Add health dashboard with agent grid
@@ -65,11 +65,6 @@ If any contribution above shows *awaiting delivery* → `fleet_request_input()`.
 
 ## WHAT TO DO NOW
 REWORK required. Fix the root cause identified in the rejection feedback. Use `eng_fix_task_response()` to structure your approach, then implement the fix.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_commit()` → git + event + trail (one logical change per commit)
-- `fleet_task_complete()` → push → PR → approval → IRC → Plane → trail → parent eval
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```
 

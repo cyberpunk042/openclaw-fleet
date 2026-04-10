@@ -26,7 +26,7 @@ def _make_task(**kwargs) -> Task:
 
 class TestTaskPreembed:
     def test_basic(self):
-        """Task preembed follows 10-section autocomplete chain."""
+        """Task preembed follows autocomplete chain (§10 chain awareness moved to TOOLS.md)."""
         task = _make_task()
         text = build_task_preembed(task)
         assert "YOUR TASK: Add FleetControlBar" in text
@@ -34,7 +34,6 @@ class TestTaskPreembed:
         assert "READINESS: 80%" in text
         assert "VERBATIM REQUIREMENT" in text
         assert "WHAT TO DO NOW" in text
-        assert "WHAT HAPPENS WHEN YOU ACT" in text
 
     def test_includes_verbatim(self):
         task = _make_task()
@@ -80,7 +79,6 @@ class TestTaskPreembed:
             "READINESS:",
             "VERBATIM REQUIREMENT",
             "WHAT TO DO NOW",
-            "WHAT HAPPENS WHEN YOU ACT",
         ]
         positions = []
         for section in sections:

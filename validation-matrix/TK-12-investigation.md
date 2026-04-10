@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -19,7 +19,7 @@
 
 # YOUR STAGE: investigation
 
-# READINESS: 60% (PO-set — gates dispatch)
+# READINESS: 60%
 
 ## VERBATIM REQUIREMENT
 > Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
@@ -55,16 +55,9 @@ You are in the investigation protocol. Research what's possible.
 Your job is to EXPLORE OPTIONS, not to decide.
 
 ## INPUTS FROM COLLEAGUES
-### Required Contributions
-- **design_input** from architect — *awaiting delivery*
-- **qa_test_definition** from qa-engineer — *awaiting delivery*
+*(No contributions required.)*
 
 ## WHAT TO DO NOW
 Research options. Explore multiple approaches. Produce an investigation document in wiki/domains/ with findings and tradeoffs.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```

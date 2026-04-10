@@ -75,6 +75,8 @@ def build_task_preembed(
     rejection_feedback: str = "",
     target_task: Optional[Task] = None,
     confirmed_plan: str = "",
+    parent_task_title: str = "",
+    received_contribution_types: list[str] | None = None,
 ) -> str:
     """Build task pre-embed in autocomplete chain order.
 
@@ -100,12 +102,27 @@ def build_task_preembed(
     delivery_phase = cf.delivery_phase or ""
     lines = []
 
-    # § 0. Operational mode indicator
-    lines.append(f"# MODE: task | injection: {injection_level}")
-    if injection_level == "full":
-        lines.append("# Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.")
-    else:
-        lines.append("# NO pre-embedded data. Call fleet_read_context() FIRST to load your task.")
+    # injection:none — minimal context, agent must call fleet_read_context
+    if injection_level == "none":
+        lines = [
+            "# MODE: task | injection: none",
+            f"# YOU ARE: {agent_name}",
+            f"# YOUR TASK: {task.title} ({task.id[:8]})",
+            f"# YOUR STAGE: {stage or 'unset'}",
+        ]
+        if verbatim:
+            lines.append("")
+            lines.append("## VERBATIM REQUIREMENT")
+            lines.append(f"> {verbatim}")
+        lines.append("")
+        lines.append("Call `fleet_read_context()` to load your full task context before proceeding.")
+        lines.append("")
+        return "\n".join(lines)
+
+    # § 0. Operational mode indicator (full injection)
+    from datetime import datetime as _dt
+    lines.append(f"# MODE: task | injection: full | generated: {_dt.now().strftime('%H:%M:%S')}")
+    lines.append("# Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.")
     lines.append("")
 
     iteration = cf.labor_iteration or 1
@@ -125,7 +142,8 @@ def build_task_preembed(
     if cf.story_points:
         lines.append(f"- Story Points: {cf.story_points}")
     if cf.parent_task:
-        lines.append(f"- Parent: {cf.parent_task[:8]}")
+        parent_display = parent_task_title or cf.parent_task[:8]
+        lines.append(f"- Parent: {parent_display}")
     if task.description:
         lines.append(f"- Description: {task.description[:300]}")
     if task.is_blocked:
@@ -144,9 +162,9 @@ def build_task_preembed(
 
     # § 4. Readiness (PO-set, gates dispatch) + Progress (agent-driven, tracks work)
     progress = cf.task_progress or 0
-    lines.append(f"# READINESS: {readiness}% (PO-set — gates dispatch)")
+    lines.append(f"# READINESS: {readiness}%")
     if progress > 0:
-        lines.append(f"# PROGRESS: {progress}% (your work — 0=started, 50=halfway, 70=implementation done, 80=challenged, 90=reviewed)")
+        lines.append(f"# PROGRESS: {progress}%")
     lines.append("")
 
     # § 5. Verbatim requirement (THE ANCHOR)
@@ -170,7 +188,10 @@ def build_task_preembed(
     # § 6. Stage protocol (MUST/MUST NOT/CAN)
     if stage:
         if renderer:
-            protocol = renderer.format_stage_protocol(stage, agent_name, iteration)
+            protocol = renderer.format_stage_protocol(
+                stage, agent_name, iteration,
+                is_contribution=bool(cf.contribution_type),
+            )
             if protocol:
                 lines.append(protocol)
                 lines.append("")
@@ -191,28 +212,34 @@ def build_task_preembed(
         lines.append("")
 
     if renderer:
-        rejection_ctx = renderer.format_rejection_context(iteration, rejection_feedback)
+        rejection_ctx = renderer.format_rejection_context(
+            iteration, rejection_feedback,
+            previous_pr=cf.pr_url or "",
+            previous_branch=cf.branch or "",
+        )
         if rejection_ctx:
             lines.append(rejection_ctx)
             lines.append("")
 
     # § 7. Inputs from colleagues (contributions)
-    # The orchestrator's context refresh preserves ACTUAL contribution content
-    # (## CONTRIBUTION: sections) that fleet_contribute() appends.
-    # This section renders AFTER any contribution content.
-    # The marker <!-- CONTRIBUTIONS_ABOVE --> tells the orchestrator where
-    # to insert contribution content when refreshing.
+    # Track required types for §9 action directive contribution awareness
+    contributions_missing: list[str] = []
     lines.append("## INPUTS FROM COLLEAGUES")
     lines.append("<!-- CONTRIBUTIONS_ABOVE -->")
     try:
         from fleet.core.contributions import load_synergy_matrix, get_skip_types
         task_type = cf.task_type or "task"
         skip_types = get_skip_types()
-        if agent_name and task_type not in skip_types:
+        if agent_name and task_type not in skip_types and stage in ("reasoning", "work"):
             matrix = load_synergy_matrix()
             specs = matrix.get(agent_name, [])
             required = [s for s in specs if s.priority == "required"]
+            received_set = set(received_contribution_types or [])
             if required:
+                contributions_missing = [
+                    s.contribution_type for s in required
+                    if s.contribution_type not in received_set
+                ]
                 lines.append("### Required Contributions")
                 for s in required:
                     lines.append(f"- **{s.contribution_type}** from {s.role} — *awaiting delivery*")
@@ -244,7 +271,10 @@ def build_task_preembed(
     # § 9. What to do now (action directive)
     lines.append("## WHAT TO DO NOW")
     if renderer:
-        lines.append(renderer.format_action_directive(stage, progress, iteration))
+        lines.append(renderer.format_action_directive(
+            stage, progress, iteration,
+            contributions_missing=contributions_missing if contributions_missing else None,
+        ))
     else:
         if stage == "conversation":
             lines.append("Read the verbatim requirement above. Ask specific clarifying questions. Do NOT produce code or solutions.")
@@ -260,16 +290,8 @@ def build_task_preembed(
             lines.append("Follow the stage protocol above.")
     lines.append("")
 
-    # § 10. What happens when you act (chain awareness)
-    lines.append("## WHAT HAPPENS WHEN YOU ACT")
-    if stage == "work":
-        lines.append("- `fleet_commit()` → git + event + trail (one logical change per commit)")
-        lines.append("- `fleet_task_complete()` → push → PR → approval → IRC → Plane → trail → parent eval")
-    else:
-        lines.append("- `fleet_artifact_create/update()` → Plane HTML + completeness check")
-        lines.append("- `fleet_chat()` → board memory + IRC + agent mentions")
-    lines.append("- Every tool call fires automatic chains — you don't update multiple places manually.")
-    lines.append("")
+    # § 10 removed — chain awareness is in TOOLS.md (static, read once)
+    # Tool chains don't change per task or per cycle.
 
     result = "\n".join(lines)
     # Strip contribution marker if no contributions were inserted
@@ -298,8 +320,9 @@ def build_heartbeat_preembed(
     Includes everything the agent needs to do their job.
     Not compressed. Full data per role.
     """
+    from datetime import datetime as _dt
     lines = [
-        "# MODE: heartbeat | injection: full",
+        f"# MODE: heartbeat | injection: full | generated: {_dt.now().strftime('%H:%M:%S')}",
         "# Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.",
         "",
         "# HEARTBEAT CONTEXT",

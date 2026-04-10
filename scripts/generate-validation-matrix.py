@@ -215,8 +215,12 @@ hb4 = build_heartbeat_preembed(
             {"id": "appr-002", "task_id": "task-def2", "status": "pending"},
         ],
         "review_queue": [
-            {"id": "task-abc1", "title": "Add fleet health dashboard", "agent": "software-engineer"},
-            {"id": "task-def2", "title": "Fix orchestrator stage bug", "agent": "devops"},
+            {"id": "task-abc1", "title": "Add fleet health dashboard", "agent": "software-engineer",
+             "verbatim": "Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
+             "pr": "https://github.com/org/openfleet/pull/42", "type": "story"},
+            {"id": "task-def2", "title": "Fix orchestrator stage bug", "agent": "devops",
+             "verbatim": "Fix stage transition when readiness changes mid-cycle",
+             "pr": "https://github.com/org/openfleet/pull/43", "type": "bug"},
         ],
         "offline_agents": ["ux-designer"],
     },
@@ -237,7 +241,8 @@ hb5 = build_heartbeat_preembed(
     role_data={
         "unassigned_tasks": 3,
         "unassigned_details": [
-            {"id": "task-un1", "title": "Investigate memory leak in orchestrator", "priority": "high"},
+            {"id": "task-un1", "title": "Investigate memory leak in orchestrator", "priority": "high",
+             "type": "bug", "stage": "unset", "readiness": 0, "description": "Orchestrator leaks memory after 48h continuous operation"},
             {"id": "task-un2", "title": "Add changelog generation to writer CRON", "priority": "medium"},
             {"id": "task-un3", "title": "Update fleet-identity config for beta", "priority": "low"},
         ],
@@ -265,11 +270,12 @@ print("TASK MODE:")
 def render_task_scenario(filename, title, task, injection="full",
                          contribs="", nav="", notes="",
                          renderer=None, rejection_feedback="", target_task=None,
-                         confirmed_plan=""):
+                         confirmed_plan="", received_contribution_types=None):
     r = renderer or EXPERT_RENDERER
     base = build_task_preembed(task, injection_level=injection,
                                 renderer=r, rejection_feedback=rejection_feedback,
-                                target_task=target_task, confirmed_plan=confirmed_plan)
+                                target_task=target_task, confirmed_plan=confirmed_plan,
+                                received_contribution_types=received_contribution_types)
     if contribs:
         # Insert contribution content at the marker and update checklist
         insert_marker = "<!-- CONTRIBUTIONS_ABOVE -->"
@@ -307,6 +313,7 @@ render_task_scenario("TK-01-work-full-contrib.md",
         delivery_phase="mvp", parent_task="epic-fleet-ui-001",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    received_contribution_types=["design_input", "qa_test_definition"],
     nav=NAV_WORK,
     notes="Engineer has everything. Follow plan, commit, complete. fleet_read_context NOT needed.",
     confirmed_plan="1. Create DashboardHealth.tsx component\n2. Implement AgentGrid (10 cards, color-coded)\n3. Implement TaskPipeline (horizontal bar chart)\n4. Implement StormIndicator (circular gauge)\n5. Implement BudgetGauge (arc gauge)\n6. Wire useFleetStatus.ts hook\n7. Tests for TC-001 through TC-007",
@@ -371,6 +378,7 @@ render_task_scenario("TK-06-rejection-rework.md",
         delivery_phase="mvp", labor_iteration=2,
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    received_contribution_types=["design_input", "qa_test_definition"],
     nav=NAV_WORK,
     notes="Second attempt after rejection. Should show iteration 2, rejection feedback, eng_fix_task_response().",
     rejection_feedback="REJECTED by fleet-ops: Missing test for TC-003 (TaskPipeline segments). Add integration test verifying segment sum equals total count.",
@@ -428,6 +436,7 @@ render_task_scenario("TK-09-with-plane-mvp.md",
         plane_issue_id="issue-abc123", plane_project_id="proj-fleet",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    received_contribution_types=["design_input", "qa_test_definition"],
     nav=NAV_WORK,
     notes="Plane connected — issue linked. MVP phase standards visible. fleet_task_complete will sync to Plane.",
 )
@@ -442,6 +451,7 @@ render_task_scenario("TK-10-nearly-complete.md",
         delivery_phase="mvp",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    received_contribution_types=["design_input", "qa_test_definition"],
     nav=NAV_WORK,
     notes="Progress 70% = implementation done. Should run tests, then fleet_task_complete.",
 )

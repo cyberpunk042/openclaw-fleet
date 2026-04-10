@@ -279,6 +279,10 @@ Follows the shared Methodology Framework from `devops-solutions-research-wiki/wi
 - **PM**: Plane integration, sprint planning, backlog hierarchy (epic → story → task)
 - **Knowledge**: wiki/ pages, Navigator knowledge context, research wiki feed
 
+**Readiness** (PO-set, gates dispatch) vs **Progress** (agent-driven, tracks work):
+- Readiness: 0-99 determines which stage. PO advances readiness. 99 = ready for work.
+- Progress: 0=started, 50=halfway, 70=implementation done, 80=challenged, 90=reviewed, 100=complete.
+
 **Quality dimension** — explicit, not accidental:
 - Skyscraper: full process, all stages, all gates (Expert tier)
 - Pyramid: deliberate compression, lighter artifacts (Capable/Lightweight tier)
@@ -333,13 +337,18 @@ Brainstorming specs, implementation plans. Serve the BUILD PROCESS, not the know
 
 Foundation chain: **E001 → E002 → E003 → E007**. No bifurcations.
 
-Active work: Context injection tree — mapping every scenario of what agents see when they open their eyes. 91 scenarios across heartbeat, task, and fleet-level axes. 5 capability tiers (expert → capable → flagship-local → lightweight → direct) mapped to AICP profiles. TierRenderer module built (fleet/core/tier_renderer.py), wired into preembed and orchestrator.
+Active: Context injection system — tier-aware rendering pipeline, 18 validated scenarios, shared models (LLM Wiki + Methodology + Second Brain) integrated. TierRenderer wired into preembed + orchestrator with Expert tier formatting, change awareness via EventStore, five documentation layers threaded through all static and dynamic files.
+
+Next: named methodology models in methodology.yaml (contribution, rework, research as separate models), expand validation to 91 scenarios, Capable + Lightweight tier rendering, wiki/ structure evolution toward full LLM Wiki model.
 
 Key documents:
 - Decision tree: `wiki/domains/architecture/context-injection-tree.md`
-- Session log: `wiki/log/2026-04-09-tier-renderer-session.md`
+- Shared models integration: `wiki/domains/architecture/shared-models-integration.md`
+- Session logs: `wiki/log/2026-04-09-tier-renderer-session.md`, `wiki/log/2026-04-10-context-injection-session.md`
+- Directives: `wiki/log/2026-04-09-directive-shared-models-integration.md`, `wiki/log/2026-04-09-directive-five-documentation-layers.md`
 - PO vision: `wiki/log/2026-04-08-fleet-evolution-vision.md`
 - Validation issues: `wiki/domains/architecture/validation-issues-catalog.md`
+- Shared models (research wiki): `../devops-solutions-research-wiki/wiki/spine/model-llm-wiki.md`, `model-methodology.md`, `model-second-brain.md`
 
 ## Related
 

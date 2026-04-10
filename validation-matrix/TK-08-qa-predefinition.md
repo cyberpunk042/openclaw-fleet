@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full
+# MODE: task | injection: full | generated: 00:24:37
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: qa-engineer
@@ -17,7 +17,7 @@
 
 # YOUR STAGE: reasoning
 
-# READINESS: 80% (PO-set — gates dispatch)
+# READINESS: 80%
 
 ## VERBATIM REQUIREMENT
 > Define structured TC-XXX test criteria for the fleet health dashboard story
@@ -38,7 +38,7 @@ You are in the reasoning protocol. Plan your approach.
 - The plan MUST reference the verbatim requirement explicitly
 - Specify target files and components
 - Map acceptance criteria to specific implementation steps
-- Present the plan to the PO for confirmation
+- Produce your contribution. Call `fleet_contribute()` when ready
 
 ### What you MUST NOT do:
 - Do NOT start implementing yet
@@ -55,7 +55,7 @@ You are in the reasoning protocol. Plan your approach.
 ### How to advance:
 - Plan exists and references the verbatim requirement
 - Plan specifies target files
-- PO confirmed the plan
+- Contribution is ready to deliver via fleet_contribute()
 - Readiness reaches 99-100%
 
 Your job is to PLAN, not to execute.
@@ -65,10 +65,5 @@ Your job is to PLAN, not to execute.
 
 ## WHAT TO DO NOW
 Produce a plan in docs/superpowers/plans/ or as a task comment. Reference the verbatim requirement explicitly. Use `fleet_task_accept()` to submit for PO confirmation.
-
-## WHAT HAPPENS WHEN YOU ACT
-- `fleet_artifact_create/update()` → Plane HTML + completeness check
-- `fleet_chat()` → board memory + IRC + agent mentions
-- Every tool call fires automatic chains — you don't update multiple places manually.
 
 ```
