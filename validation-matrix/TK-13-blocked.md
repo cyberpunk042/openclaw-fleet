@@ -1,6 +1,6 @@
-# Task: Work stage, full injection, contributions MISSING
+# Task: Work stage, BLOCKED by dependency
 
-**Expected:** Contributions required but NOT received. Should see 'fleet_request_input()' directive. Should NOT proceed.
+**Expected:** Blocked task. Should show BLOCKED in task detail and action directive should tell agent to report via fleet_pause().
 
 ## task-context.md
 
@@ -16,6 +16,7 @@
 - Type: story
 - Story Points: 5
 - Description: Dashboard with agent grid, task pipeline, storm, budget
+- BLOCKED by: task-blo
 
 # YOUR STAGE: work
 
@@ -48,32 +49,7 @@ Execute the confirmed plan. Stay in scope.
 
 If any contribution above shows *awaiting delivery* → `fleet_request_input()`. Do NOT proceed without required contributions in work stage.
 
-## DELIVERY PHASE: mvp
-- **tests:** main flows and critical edges
-- **docs:** setup, usage, API for public
-- **security:** auth, validation, dep audit
-
 ## WHAT TO DO NOW
 BLOCKED — required contributions missing: design_input, qa_test_definition. Call `fleet_request_input()` for each missing contribution. Do NOT start implementation without required inputs.
-
-```
-
-## knowledge-context.md
-
-```
-## Stage: WORK — Resources Available
-
-### Skills:
-- /fleet-engineer-workflow — contribution consumption, TDD, conventional commits
-- /fleet-completion-checklist — 8-point pre-completion check
-- /test-driven-development (superpowers) — RED-GREEN-REFACTOR cycle
-- /verification-before-completion (superpowers) — run tests before claiming done
-
-### Sub-agents:
-- **test-runner** (sonnet) — run pytest in isolated context
-- **code-explorer** (sonnet) — trace execution paths
-
-### MCP: fleet · filesystem · github · playwright
-### Plugins: claude-mem · safety-net · context7 · superpowers · pyright-lsp
 
 ```

@@ -1,6 +1,6 @@
-# Heartbeat: Engineer has message from PM (new assignment)
+# Heartbeat: Urgent PO directive — overrides everything
 
-**Expected behavior:** Read message, acknowledge assignment.
+**Expected behavior:** PO directive is HIGHEST PRIORITY. Stop current work, execute directive.
 
 ## fleet-context.md
 
@@ -15,10 +15,10 @@ Role: software-engineer
 Fleet: 9/10 online | Mode: full-autonomous | Phase: execution | Backend: claude
 
 ## PO DIRECTIVES
-None.
+- 🚨 URGENT STOP all dashboard work. Priority shift to auth fix. Start immediately. (from human)
 
 ## MESSAGES
-- From project-manager: Assigned you task-xyz: Implement fleet controls sidebar. Story points: 3. Stage: reasoning.
+None.
 
 ## ASSIGNED TASKS
 None.

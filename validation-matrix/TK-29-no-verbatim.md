@@ -1,6 +1,6 @@
-# Task: Conversation stage — clarify requirements, NO code
+# Task: Conversation stage, NO verbatim requirement
 
-**Expected:** CLARIFY only. NO code, NO solutions, NO designs. Ask questions.
+**Expected:** No verbatim. Should show 'ask PO for clarification'. Must not proceed without verbatim.
 
 ## task-context.md
 
@@ -18,10 +18,10 @@
 
 # YOUR STAGE: conversation
 
-# READINESS: 10%
+# READINESS: 5%
 
 ## VERBATIM REQUIREMENT
-> We need a dashboard but details unclear
+*(No verbatim requirement set — ask PO for clarification.)*
 
 ## Current Stage: CONVERSATION
 
@@ -59,21 +59,5 @@ Your job is to UNDERSTAND, not to BUILD.
 
 ## WHAT TO DO NOW
 Ask clarifying questions. Post them to the task comments. Do NOT write code. Your job is to understand, not to build.
-
-```
-
-## knowledge-context.md
-
-```
-## Stage: CONVERSATION — Resources Available
-
-### Skills:
-- /fleet-communicate — which channel for what
-- /brainstorming (superpowers) — explore problem space
-
-### Sub-agents:
-- **code-explorer** (sonnet) — reference codebase in questions
-
-### MCP: fleet · filesystem
 
 ```

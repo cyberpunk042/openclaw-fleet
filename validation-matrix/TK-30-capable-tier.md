@@ -1,6 +1,6 @@
-# Task: Work stage, full injection, contributions received
+# Task: Work stage, CAPABLE tier (condensed context)
 
-**Expected:** Engineer has everything. Follow plan, commit, complete. fleet_read_context NOT needed.
+**Expected:** CAPABLE tier (qwen3-8b, 16K). Condensed context. Core fields only. Contributions as status, not full content.
 
 ## task-context.md
 
@@ -14,9 +14,6 @@
 - ID: task-a1b
 - Priority: high
 - Type: story
-- Story Points: 5
-- Parent: epic-fle
-- Description: Dashboard with agent grid, task pipeline, storm, budget
 
 # YOUR STAGE: work
 
@@ -44,13 +41,12 @@ Execute the confirmed plan. Stay in scope.
 - Do NOT skip tests
 
 ## CONFIRMED PLAN
-1. Create DashboardHealth.tsx component
-2. Implement AgentGrid (10 cards, color-coded)
-3. Implement TaskPipeline (horizontal bar chart)
-4. Implement StormIndicator (circular gauge)
-5. Implement BudgetGauge (arc gauge)
-6. Wire useFleetStatus.ts hook
-7. Tests for TC-001 through TC-007
+1. Create DashboardHealth.tsx
+2. AgentGrid
+3. TaskPipeline
+4. StormIndicator
+5. BudgetGauge
+6. Tests
 
 ## INPUTS FROM COLLEAGUES
 ### Required Contributions

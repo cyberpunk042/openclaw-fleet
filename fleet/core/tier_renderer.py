@@ -76,6 +76,53 @@ class TierRenderer:
         self.tier = tier
         self.rules = load_tier_rules(tier)
 
+    # ── Task detail ──────────────────────────────────────────────────────────
+
+    def format_task_detail(self, task: Task, parent_title: str = "") -> list[str]:
+        """Format §2 task detail at tier-appropriate depth.
+
+        Depth rules (task_detail):
+            full           — all fields
+            core_fields    — title + ID + stage + readiness + verbatim (no description, no SP)
+            title_stage_only — title + stage only
+        """
+        cf = task.custom_fields
+        depth = self.rules.get("task_detail", "full")
+
+        lines = [f"# YOUR TASK: {task.title}"]
+
+        if depth == "title_stage_only":
+            lines.append(f"- ID: {task.id[:8]}")
+            # Minimal — just enough to identify. Verbatim shown separately.
+            return lines
+
+        # core_fields and full
+        lines.append(f"- ID: {task.id[:8]}")
+        lines.append(f"- Priority: {task.priority}")
+        lines.append(f"- Type: {cf.task_type or 'unset'}")
+
+        if depth == "full":
+            if cf.story_points:
+                lines.append(f"- Story Points: {cf.story_points}")
+            if cf.parent_task:
+                parent_display = parent_title or cf.parent_task[:8]
+                lines.append(f"- Parent: {parent_display}")
+            if task.description:
+                lines.append(f"- Description: {task.description[:300]}")
+            if cf.pr_url:
+                lines.append(f"- PR: {cf.pr_url}")
+            if cf.plane_issue_id:
+                lines.append(f"- Plane: {cf.plane_issue_id[:8]}")
+
+        if task.is_blocked:
+            blocker_ids = ", ".join(str(b)[:8] for b in (task.blocked_by_task_ids or []))
+            lines.append(f"- BLOCKED by: {blocker_ids}")
+
+        if depth == "full":
+            pass  # completeness_summary handled externally
+
+        return lines
+
     # ── Role data ────────────────────────────────────────────────────────────
 
     def format_role_data(self, role: str, data: dict) -> str:
@@ -601,10 +648,11 @@ class TierRenderer:
                 "Consume all contributions before implementing",
                 "Re-read contributions and rejection feedback before fixing",
             )
-            return protocol
+            # Fall through to tier trimming below
 
         if stage != "reasoning":
-            return protocol
+            # Non-reasoning stages: skip role-specific adaptation, go to tier trimming
+            return self._trim_protocol_for_tier(protocol)
 
         # Role-specific reasoning outputs
         role_outputs: dict[str, str] = {
@@ -686,5 +734,61 @@ class TierRenderer:
             "Implementation plans with specific file/component references",
             plan_text,
         )
+
+        return self._trim_protocol_for_tier(protocol)
+
+    def _trim_protocol_for_tier(self, protocol: str) -> str:
+        """Apply tier-based depth trimming to a stage protocol.
+
+        full         — return as-is
+        must_must_not — strip CAN and How to advance sections
+        short_rules  — condense to 2-3 lines of MUST/MUST NOT rules
+        """
+        protocol_depth = self.rules.get("protocol", "full")
+
+        if protocol_depth == "short_rules" and protocol:
+            must_items = []
+            must_not_items = []
+            in_must = False
+            in_must_not = False
+            for line in protocol.split("\n"):
+                stripped = line.strip()
+                if "MUST do" in stripped or "MUST:" in stripped:
+                    in_must = True
+                    in_must_not = False
+                    continue
+                if "MUST NOT" in stripped:
+                    in_must_not = True
+                    in_must = False
+                    continue
+                if stripped.startswith("###") or stripped.startswith("Your job"):
+                    in_must = False
+                    in_must_not = False
+                    continue
+                if in_must and stripped.startswith("- "):
+                    must_items.append(stripped[2:])
+                if in_must_not and stripped.startswith("- "):
+                    must_not_items.append(stripped[2:].replace("Do NOT ", ""))
+            must_str = ". ".join(must_items[:3]) if must_items else "Follow stage protocol"
+            must_not_str = ". ".join(must_not_items[:2]) if must_not_items else ""
+            protocol = f"MUST: {must_str}."
+            if must_not_str:
+                protocol += f"\nMUST NOT: {must_not_str}."
+
+        elif protocol_depth == "must_must_not" and protocol:
+            trimmed_lines = []
+            skip = False
+            for line in protocol.split("\n"):
+                stripped = line.strip()
+                if "What you CAN" in stripped or "How to advance" in stripped:
+                    skip = True
+                    continue
+                if skip and stripped.startswith("###"):
+                    skip = False
+                if skip and stripped.startswith("Your job"):
+                    skip = False
+                if not skip:
+                    trimmed_lines.append(line)
+            protocol = "\n".join(trimmed_lines).rstrip()
 
         return protocol

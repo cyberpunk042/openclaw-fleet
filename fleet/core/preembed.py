@@ -58,7 +58,8 @@ def format_task_full(task: Task) -> str:
     if task.description:
         lines.append(f"- Description: {task.description[:500]}")
     if task.is_blocked:
-        lines.append(f"- BLOCKED by: {task.blocked_by_task_ids}")
+        blocker_ids = ", ".join(str(b)[:8] for b in (task.blocked_by_task_ids or []))
+        lines.append(f"- BLOCKED by: {blocker_ids}")
     if cf.pr_url:
         lines.append(f"- PR: {cf.pr_url}")
     if cf.plane_issue_id:
@@ -150,24 +151,28 @@ def build_task_preembed(
     lines.append(f"# YOU ARE: {agent_name}")
     lines.append("")
 
-    # § 2. Task focus
-    lines.append(f"# YOUR TASK: {task.title}")
-    lines.append(f"- ID: {task.id[:8]}")
-    lines.append(f"- Priority: {task.priority}")
-    lines.append(f"- Type: {cf.task_type or 'unset'}")
-    if cf.story_points:
-        lines.append(f"- Story Points: {cf.story_points}")
-    if cf.parent_task:
-        parent_display = parent_task_title or cf.parent_task[:8]
-        lines.append(f"- Parent: {parent_display}")
-    if task.description:
-        lines.append(f"- Description: {task.description[:300]}")
-    if task.is_blocked:
-        lines.append(f"- BLOCKED by: {task.blocked_by_task_ids}")
-    if cf.pr_url:
-        lines.append(f"- PR: {cf.pr_url}")
-    if cf.plane_issue_id:
-        lines.append(f"- Plane: {cf.plane_issue_id[:8]}")
+    # § 2. Task focus (renderer controls depth)
+    if renderer:
+        lines.extend(renderer.format_task_detail(task, parent_task_title))
+    else:
+        lines.append(f"# YOUR TASK: {task.title}")
+        lines.append(f"- ID: {task.id[:8]}")
+        lines.append(f"- Priority: {task.priority}")
+        lines.append(f"- Type: {cf.task_type or 'unset'}")
+        if cf.story_points:
+            lines.append(f"- Story Points: {cf.story_points}")
+        if cf.parent_task:
+            parent_display = parent_task_title or cf.parent_task[:8]
+            lines.append(f"- Parent: {parent_display}")
+        if task.description:
+            lines.append(f"- Description: {task.description[:300]}")
+        if task.is_blocked:
+            blocker_ids = ", ".join(str(b)[:8] for b in (task.blocked_by_task_ids or []))
+            lines.append(f"- BLOCKED by: {blocker_ids}")
+        if cf.pr_url:
+            lines.append(f"- PR: {cf.pr_url}")
+        if cf.plane_issue_id:
+            lines.append(f"- Plane: {cf.plane_issue_id[:8]}")
     if completeness_summary:
         lines.append(f"- Artifact: {completeness_summary}")
     lines.append("")

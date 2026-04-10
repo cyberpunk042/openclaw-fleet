@@ -6,7 +6,7 @@
 ## fleet-context.md
 
 ```
-# MODE: heartbeat | injection: full | generated: 00:47:05
+# MODE: heartbeat | injection: full | generated: 01:06:45
 # Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.
 
 # HEARTBEAT CONTEXT

@@ -491,6 +491,92 @@ render_task_scenario("TK-34-engineer-reasoning.md",
 )
 
 
+# TK-13: Blocked task
+render_task_scenario("TK-13-blocked.md",
+    "Task: Work stage, BLOCKED by dependency",
+    make_task(
+        is_blocked=True, blocked_by_task_ids=["task-blocker1"],
+        custom_fields=TaskCustomFields(
+            task_stage="work", task_readiness=99,
+            requirement_verbatim="Add health dashboard with agent grid",
+            agent_name="software-engineer", task_type="story", story_points=5,
+        )),
+    notes="Blocked task. Should show BLOCKED in task detail and action directive should tell agent to report via fleet_pause().",
+)
+
+# TK-25: Subtask (skip contributions)
+render_task_scenario("TK-25-subtask.md",
+    "Task: Subtask — skip contributions, reasoning+work only",
+    Task(id="task-sub001", board_id="b1",
+        title="Implement AgentGrid component",
+        status=TaskStatus.IN_PROGRESS, priority="medium",
+        custom_fields=TaskCustomFields(
+            task_stage="work", task_readiness=99, task_progress=0,
+            requirement_verbatim="Create AgentGrid showing 10 agent cards color-coded by status",
+            agent_name="software-engineer", task_type="subtask",
+            parent_task="task-a1b2c3d4",
+        )),
+    notes="Subtask. No contributions required (skip_contributions type). Parent task shown.",
+)
+
+# TK-29: No verbatim requirement
+render_task_scenario("TK-29-no-verbatim.md",
+    "Task: Conversation stage, NO verbatim requirement",
+    make_task(custom_fields=TaskCustomFields(
+        task_stage="conversation", task_readiness=5,
+        requirement_verbatim="",
+        agent_name="software-engineer", task_type="story",
+    )),
+    notes="No verbatim. Should show 'ask PO for clarification'. Must not proceed without verbatim.",
+)
+
+# TK-30: Capable tier (condensed) — golden path at qwen3-8b level
+render_task_scenario("TK-30-capable-tier.md",
+    "Task: Work stage, CAPABLE tier (condensed context)",
+    make_task(custom_fields=TaskCustomFields(
+        task_stage="work", task_readiness=99, task_progress=40,
+        requirement_verbatim="Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
+        agent_name="software-engineer", task_type="story", story_points=5,
+        delivery_phase="mvp", parent_task="epic-fleet-ui-001",
+    )),
+    contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    received_contribution_types=["design_input", "qa_test_definition"],
+    renderer=TierRenderer("capable"),
+    nav=NAV_WORK,
+    notes="CAPABLE tier (qwen3-8b, 16K). Condensed context. Core fields only. Contributions as status, not full content.",
+    confirmed_plan="1. Create DashboardHealth.tsx\n2. AgentGrid\n3. TaskPipeline\n4. StormIndicator\n5. BudgetGauge\n6. Tests",
+)
+
+# TK-31: Lightweight tier (minimal) — golden path at gemma4-e2b level
+render_task_scenario("TK-31-lightweight-tier.md",
+    "Task: Work stage, LIGHTWEIGHT tier (minimal context)",
+    make_task(custom_fields=TaskCustomFields(
+        task_stage="work", task_readiness=99, task_progress=40,
+        requirement_verbatim="Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
+        agent_name="software-engineer", task_type="story", story_points=5,
+        delivery_phase="mvp",
+    )),
+    renderer=TierRenderer("lightweight"),
+    notes="LIGHTWEIGHT tier (gemma4-e2b, 8-16K). Minimal context. Don't overwhelm the trainee.",
+)
+
+# HB-06: Urgent PO directive
+hb6 = build_heartbeat_preembed(
+    agent_name="software-engineer", role="software-engineer",
+    assigned_tasks=[], agents_online=9, agents_total=10,
+    fleet_mode="full-autonomous", fleet_phase="execution", fleet_backend="claude",
+    directives=[
+        {"content": "STOP all dashboard work. Priority shift to auth fix. Start immediately.", "from": "human", "urgent": True},
+    ],
+    renderer=EXPERT_RENDERER,
+)
+write_scenario("HB-06-urgent-directive.md",
+    "Heartbeat: Urgent PO directive — overrides everything",
+    f"**Expected behavior:** PO directive is HIGHEST PRIORITY. Stop current work, execute directive.\n\n"
+    f"## fleet-context.md\n\n```\n{hb6}\n```\n"
+)
+
+
 print()
 print("=" * 60)
 total = len(list(OUT_DIR.glob("*.md")))
