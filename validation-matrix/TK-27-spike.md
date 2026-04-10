@@ -1,28 +1,27 @@
-# Task: Investigation stage — research approaches
+# Task: Spike — research model, investigation stage
 
-**Expected:** Investigation stage. Output should go to wiki/domains/. Multiple options required. NO decisions.
+**Expected:** Spike task. Research model selected. NO work stage. Must NOT produce code. Investigation → reasoning → done.
 
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:24:04
+# MODE: task | injection: full | model: research | generated: 01:24:04
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
-# YOU ARE: software-engineer
+# YOU ARE: architect
 
-# YOUR TASK: Add fleet health dashboard
-- ID: task-a1b
-- Priority: high
-- Type: story
-- Story Points: 5
-- Description: Dashboard with agent grid, task pipeline, storm, budget
+# YOUR TASK: Research caching strategies for fleet context
+- ID: task-spi
+- Priority: medium
+- Type: spike
+- Story Points: 3
 
 # YOUR STAGE: investigation
 
 # READINESS: 60%
 
 ## VERBATIM REQUIREMENT
-> Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
+> Evaluate Redis vs SQLite vs file-based caching for 30-second context refresh cycle
 
 ## Current Stage: INVESTIGATION
 

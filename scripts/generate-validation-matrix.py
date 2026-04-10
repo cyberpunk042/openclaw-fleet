@@ -576,6 +576,85 @@ write_scenario("HB-06-urgent-directive.md",
     f"## fleet-context.md\n\n```\n{hb6}\n```\n"
 )
 
+# HB-20: Lightweight heartbeat
+hb_light = build_heartbeat_preembed(
+    agent_name="software-engineer", role="software-engineer",
+    assigned_tasks=[make_task(custom_fields=TaskCustomFields(
+        task_stage="work", task_readiness=99, task_progress=40,
+        requirement_verbatim="Add health dashboard with agent grid",
+        agent_name="software-engineer", task_type="story", story_points=5,
+    ))],
+    agents_online=9, agents_total=10,
+    fleet_mode="full-autonomous", fleet_phase="execution", fleet_backend="localai",
+    role_data={"my_tasks_count": 1, "contribution_tasks": [], "contributions_received": {}, "in_review": []},
+    renderer=TierRenderer("lightweight"),
+)
+write_scenario("HB-20-lightweight.md",
+    "Heartbeat: Lightweight tier — minimal heartbeat context",
+    f"**Expected:** Lightweight (gemma4-e2b). Minimal task detail, no standing orders, no events detail.\n\n"
+    f"## fleet-context.md\n\n```\n{hb_light}\n```\n"
+)
+
+
+# TK-27: Spike task — research model, no work stage
+render_task_scenario("TK-27-spike.md",
+    "Task: Spike — research model, investigation stage",
+    Task(id="task-spike01", board_id="b1",
+        title="Research caching strategies for fleet context",
+        status=TaskStatus.IN_PROGRESS, priority="medium",
+        custom_fields=TaskCustomFields(
+            task_stage="investigation", task_readiness=60,
+            requirement_verbatim="Evaluate Redis vs SQLite vs file-based caching for 30-second context refresh cycle",
+            agent_name="architect", task_type="spike", story_points=3,
+        )),
+    notes="Spike task. Research model selected. NO work stage. Must NOT produce code. Investigation → reasoning → done.",
+)
+
+# TK-42: Concern task — research model, no work stage
+render_task_scenario("TK-42-concern.md",
+    "Task: Concern — investigation only, no implementation",
+    Task(id="task-concern01", board_id="b1",
+        title="Investigate orchestrator memory growth over 48h",
+        status=TaskStatus.IN_PROGRESS, priority="high",
+        custom_fields=TaskCustomFields(
+            task_stage="analysis", task_readiness=30,
+            requirement_verbatim="The orchestrator process grows from 200MB to 1.2GB over 48 hours. Find the root cause.",
+            agent_name="software-engineer", task_type="concern",
+        )),
+    notes="Concern task. Research model. Analysis + investigation only. NO work stage, NO code output.",
+)
+
+# FL-01: Planning cycle_phase — only PM + architect active
+hb_planning = build_heartbeat_preembed(
+    agent_name="software-engineer", role="software-engineer",
+    assigned_tasks=[], agents_online=2, agents_total=10,
+    fleet_mode="full-autonomous", fleet_phase="planning", fleet_backend="claude",
+    renderer=EXPERT_RENDERER,
+)
+write_scenario("FL-01-planning-phase-inactive.md",
+    "Fleet: Planning phase — engineer NOT ACTIVE",
+    f"**Expected:** Engineer sees 'planning' phase. Should recognize it's not their turn. HEARTBEAT_OK.\n\n"
+    f"## fleet-context.md\n\n```\n{hb_planning}\n```\n"
+)
+
+# FL-03: Crisis cycle_phase — only fleet-ops + devsecops active
+hb_crisis_ops = build_heartbeat_preembed(
+    agent_name="fleet-ops", role="fleet-ops",
+    assigned_tasks=[], agents_online=2, agents_total=10,
+    fleet_mode="full-autonomous", fleet_phase="crisis-management", fleet_backend="claude",
+    role_data={
+        "pending_approvals": 0,
+        "approval_details": [],
+        "review_queue": [],
+        "offline_agents": ["software-engineer", "architect", "qa-engineer", "devops", "technical-writer", "ux-designer", "accountability-generator", "project-manager"],
+    },
+    renderer=EXPERT_RENDERER,
+)
+write_scenario("FL-03-crisis-fleet-ops.md",
+    "Fleet: Crisis management — fleet-ops ACTIVE, 8 agents offline",
+    f"**Expected:** Crisis mode. Fleet-ops is active. 8 of 10 agents offline. Focus on the crisis.\n\n"
+    f"## fleet-context.md\n\n```\n{hb_crisis_ops}\n```\n"
+)
 
 print()
 print("=" * 60)

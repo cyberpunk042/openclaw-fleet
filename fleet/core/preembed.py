@@ -262,12 +262,20 @@ def build_task_preembed(
                     s.contribution_type for s in required
                     if s.contribution_type not in received_set
                 ]
-                lines.append("### Required Contributions")
-                for s in required:
-                    lines.append(f"- **{s.contribution_type}** from {s.role} — *awaiting delivery*")
-                if stage == "work":
-                    lines.append("")
-                    lines.append("If any contribution above shows *awaiting delivery* → `fleet_request_input()`. Do NOT proceed without required contributions in work stage.")
+                # Tier-aware contribution display
+                contrib_depth = renderer.rules.get("contributions", "full_inline") if renderer else "full_inline"
+                if contrib_depth == "names_only":
+                    names = ", ".join(f"{s.contribution_type} ({s.role})" for s in required)
+                    lines.append(f"Inputs: {names}")
+                else:
+                    lines.append("### Required Contributions")
+                    for s in required:
+                        status = "*received*" if s.contribution_type in received_set else "*awaiting delivery*"
+                        check = "✓ " if s.contribution_type in received_set else ""
+                        lines.append(f"- **{s.contribution_type}** {check}from {s.role} — {status}")
+                    if stage == "work" and contributions_missing:
+                        lines.append("")
+                        lines.append("If any contribution above shows *awaiting delivery* → `fleet_request_input()`. Do NOT proceed without required contributions in work stage.")
             else:
                 lines.append("*(No contributions required for this task type.)*")
         else:
@@ -276,18 +284,26 @@ def build_task_preembed(
         lines.append("*(Contribution check unavailable.)*")
     lines.append("")
 
-    # § 8. Delivery phase
+    # § 8. Delivery phase (tier-aware depth)
     if delivery_phase:
-        lines.append(f"## DELIVERY PHASE: {delivery_phase}")
-        try:
-            from fleet.core.phases import get_phase_standards, get_required_contributions
-            progression = cf.phase_progression or "standard"
-            standards = get_phase_standards(delivery_phase, progression)
-            if standards:
-                for key, value in standards.items():
-                    lines.append(f"- **{key}:** {value}")
-        except Exception:
-            pass
+        phase_depth = renderer.rules.get("phase_standards", "full") if renderer else "full"
+        if phase_depth == "name_only":
+            lines.append(f"## DELIVERY PHASE: {delivery_phase}")
+        else:
+            lines.append(f"## DELIVERY PHASE: {delivery_phase}")
+            try:
+                from fleet.core.phases import get_phase_standards, get_required_contributions
+                progression = cf.phase_progression or "standard"
+                standards = get_phase_standards(delivery_phase, progression)
+                if standards:
+                    if phase_depth == "one_liner":
+                        summary = ", ".join(f"{k}: {v}" for k, v in standards.items())
+                        lines.append(f"Standards: {summary}")
+                    else:
+                        for key, value in standards.items():
+                            lines.append(f"- **{key}:** {value}")
+            except Exception:
+                pass
         lines.append("")
 
     # § 9. What to do now (action directive)
@@ -379,22 +395,36 @@ def build_heartbeat_preembed(
         lines.append("None.")
     lines.append("")
 
-    # Priority 1: Messages
+    # Priority 1: Messages (tier-aware)
     lines.append("## MESSAGES")
+    msg_depth = renderer.rules.get("messages", "full") if renderer else "full"
     if messages:
         for m in messages:
-            lines.append(f"- From {m.get('from', '?')}: {m.get('content', '')}")
+            content = m.get('content', '')
+            if msg_depth == "truncated" and len(content) > 100:
+                content = content[:100] + "... (fleet_read_context for full)"
+            lines.append(f"- From {m.get('from', '?')}: {content}")
     else:
         lines.append("None.")
     lines.append("")
 
-    # Priority 2: Assigned tasks
+    # Priority 2: Assigned tasks (tier-aware)
     lines.append("## ASSIGNED TASKS")
+    task_depth = renderer.rules.get("task_detail", "full") if renderer else "full"
     if assigned_tasks:
         lines.append(f"{len(assigned_tasks)} task(s):")
         for t in assigned_tasks:
             lines.append("")
-            lines.append(format_task_full(t))
+            if task_depth == "title_stage_only":
+                lines.append(f"### {t.title}")
+                lines.append(f"- Stage: {t.custom_fields.task_stage or 'unset'}")
+            elif task_depth == "core_fields":
+                lines.append(f"### {t.title}")
+                lines.append(f"- ID: {t.id[:8]} | Stage: {t.custom_fields.task_stage or 'unset'} | Readiness: {t.custom_fields.task_readiness}%")
+                if t.custom_fields.requirement_verbatim:
+                    lines.append(f"- Verbatim: {t.custom_fields.requirement_verbatim[:100]}")
+            else:
+                lines.append(format_task_full(t))
     else:
         lines.append("None.")
     lines.append("")
@@ -416,8 +446,9 @@ def build_heartbeat_preembed(
                     lines.append(f"- {key}: {value}")
         lines.append("")
 
-    # Standing orders (autonomous authority)
-    if agent_name:
+    # Standing orders (autonomous authority) — tier-aware
+    so_depth = renderer.rules.get("standing_orders", "full") if renderer else "full"
+    if agent_name and so_depth != "omit":
         try:
             from fleet.core.standing_orders import get_standing_orders
             so = get_standing_orders(agent_name)
@@ -426,11 +457,14 @@ def build_heartbeat_preembed(
                 lines.append(f"Escalation threshold: {so['escalation_threshold']} autonomous actions without feedback.")
                 lines.append("")
                 for order in so["orders"]:
-                    lines.append(f"- **{order['name']}**: {order['description']}")
-                    if order["when"]:
-                        lines.append(f"  When: {order['when']}")
-                    if order["boundary"]:
-                        lines.append(f"  Boundary: {order['boundary']}")
+                    if so_depth == "name_desc_only":
+                        lines.append(f"- **{order['name']}**: {order['description']}")
+                    else:
+                        lines.append(f"- **{order['name']}**: {order['description']}")
+                        if order["when"]:
+                            lines.append(f"  When: {order['when']}")
+                        if order["boundary"]:
+                            lines.append(f"  Boundary: {order['boundary']}")
                 lines.append("")
         except Exception:
             pass

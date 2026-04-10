@@ -1,6 +1,6 @@
-# Heartbeat: Engineer has message from PM (new assignment)
+# Fleet: Planning phase — engineer NOT ACTIVE
 
-**Expected behavior:** Read message, acknowledge assignment.
+**Expected:** Engineer sees 'planning' phase. Should recognize it's not their turn. HEARTBEAT_OK.
 
 ## fleet-context.md
 
@@ -12,13 +12,13 @@
 
 Agent: software-engineer
 Role: software-engineer
-Fleet: 9/10 online | Mode: full-autonomous | Phase: execution | Backend: claude
+Fleet: 2/10 online | Mode: full-autonomous | Phase: planning | Backend: claude
 
 ## PO DIRECTIVES
 None.
 
 ## MESSAGES
-- From project-manager: Assigned you task-xyz: Implement fleet controls sidebar. Story points: 3. Stage: reasoning.
+None.
 
 ## ASSIGNED TASKS
 None.

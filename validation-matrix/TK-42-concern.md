@@ -1,28 +1,26 @@
-# Task: Analysis stage — examine codebase, produce analysis document
+# Task: Concern — investigation only, no implementation
 
-**Expected:** Analysis stage. Output should go to wiki/domains/. NO solutions, NO code. Reference specific files and lines.
+**Expected:** Concern task. Research model. Analysis + investigation only. NO work stage, NO code output.
 
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:24:04
+# MODE: task | injection: full | model: research | generated: 01:24:04
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
 
-# YOUR TASK: Add fleet health dashboard
-- ID: task-a1b
+# YOUR TASK: Investigate orchestrator memory growth over 48h
+- ID: task-con
 - Priority: high
-- Type: story
-- Story Points: 5
-- Description: Dashboard with agent grid, task pipeline, storm, budget
+- Type: concern
 
 # YOUR STAGE: analysis
 
 # READINESS: 30%
 
 ## VERBATIM REQUIREMENT
-> Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge
+> The orchestrator process grows from 200MB to 1.2GB over 48 hours. Find the root cause.
 
 ## Current Stage: ANALYSIS
 

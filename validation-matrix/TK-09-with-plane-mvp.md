@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:06:45
+# MODE: task | injection: full | model: feature-development | generated: 01:24:04
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: software-engineer
@@ -47,8 +47,6 @@ Execute the confirmed plan. Stay in scope.
 ### Required Contributions
 - **design_input** ✓ from architect — *received*
 - **qa_test_definition** ✓ from qa-engineer — *received*
-
-If any contribution above shows *awaiting delivery* → `fleet_request_input()`. Do NOT proceed without required contributions in work stage.
 
 ## DELIVERY PHASE: mvp
 - **tests:** main flows and critical edges
