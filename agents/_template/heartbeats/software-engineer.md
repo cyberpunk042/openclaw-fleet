@@ -25,12 +25,12 @@ Read your ASSIGNED TASKS section. Follow your stage protocol.
 - DevSecOps security_requirement → follow absolutely
 Missing required → `fleet_request_input()` to PM.
 
-**Work stage sequence:**
-1. `fleet_read_context()` → refresh task + contributions
-2. `fleet_task_accept(plan)` → confirm approach
-3. Implement incrementally — `fleet_commit()` per logical change
-4. Run tests before completing — pytest must pass
-5. `fleet_task_complete(summary)` → push + PR + approval + trail
+**Work stage:** Your task data and contributions are pre-embedded in your context.
+1. `fleet_task_accept(plan)` → confirm approach (if not already accepted)
+2. Implement incrementally — `fleet_commit()` per logical change
+3. Run tests before completing — pytest must pass
+4. `fleet_task_complete(summary)` → push + PR + approval + trail
+`fleet_read_context()` only to load a different task's data or refresh stale context.
 
 **Fix tasks (after rejection):** `eng_fix_task_response()` → read feedback → fix root cause → add regression tests → re-submit.
 

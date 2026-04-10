@@ -33,10 +33,10 @@ class TestStageInstructions:
         text = get_stage_instructions("reasoning")
         assert "verbatim requirement" in text
 
-    def test_work_has_tool_sequence(self):
+    def test_work_has_core_tools(self):
+        """Work protocol mentions commit and complete. fleet_read_context and
+        fleet_task_accept are role-level instructions in CLAUDE.md, not stage protocol."""
         text = get_stage_instructions("work")
-        assert "fleet_read_context" in text
-        assert "fleet_task_accept" in text
         assert "fleet_commit" in text
         assert "fleet_task_complete" in text
 

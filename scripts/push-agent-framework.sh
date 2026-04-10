@@ -2,9 +2,13 @@
 set -euo pipefail
 
 # Push fleet framework files to all agent workspaces.
-# Ensures every agent has the latest STANDARDS.md, MC_WORKFLOW.md, HEARTBEAT.md.
+# Ensures every agent has the latest STANDARDS.md, HEARTBEAT.md, CLAUDE.md, etc.
 # Called by setup.sh or manually when framework files change.
 # Idempotent — safe to run multiple times.
+#
+# Removed files (no longer pushed):
+#   MC_WORKFLOW.md — fully duplicated by TOOLS.md + HEARTBEAT.md + CLAUDE.md
+#   MC_API_REFERENCE.md — edge case, moved to knowledge-map KB
 
 FLEET_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TEMPLATE_DIR="$FLEET_DIR/agents/_template"
@@ -27,12 +31,19 @@ for mcp_file in "$FLEET_DIR"/workspace-mc-*/.mcp.json; do
   agent_dir="$FLEET_DIR/agents/$agent_name"
 
   # Copy shared framework files from template
-  for file in MC_WORKFLOW.md STANDARDS.md; do
+  for file in STANDARDS.md; do
     src="$TEMPLATE_DIR/$file"
     dst="$workspace_dir/$file"
     if [[ -f "$src" ]]; then
       cp "$src" "$dst"
       pushed=$((pushed + 1))
+    fi
+  done
+
+  # Clean up legacy files that should no longer be in workspaces
+  for legacy in MC_WORKFLOW.md MC_API_REFERENCE.md; do
+    if [[ -f "$workspace_dir/$legacy" ]]; then
+      rm "$workspace_dir/$legacy"
     fi
   done
 

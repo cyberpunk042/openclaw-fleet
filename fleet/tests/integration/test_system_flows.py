@@ -247,7 +247,7 @@ class TestContextDispatchFlow:
         text = build_task_preembed(task)
         assert "work" in text
         assert "99%" in text
-        assert "EXECUTE" in text
+        assert "Execute" in text
         assert "header bar" in text  # verbatim requirement included
 
     @pytest.mark.asyncio

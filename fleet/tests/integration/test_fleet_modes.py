@@ -145,7 +145,7 @@ class TestExecutionPhase:
     def test_stage_instructions_exist(self):
         # During execution, agents follow work protocol
         text = get_stage_instructions("work")
-        assert "EXECUTE" in text
+        assert "Execute" in text
         assert "fleet_commit" in text
 
 
