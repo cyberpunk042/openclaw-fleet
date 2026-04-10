@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | generated: 00:24:37
+# MODE: task | injection: full | model: contribution | generated: 00:47:05
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: architect
@@ -37,6 +37,7 @@ Call `fleet_contribute()` when your contribution is ready.
 You are in the analysis protocol. Examine what exists.
 
 ### What you MUST do:
+- Examine the codebase with the TARGET TASK's requirements in mind. Your output feeds into another agent's work.
 - Read and examine the codebase, existing implementation, architecture
 - Produce an analysis document in wiki/domains/ (knowledge layer)
 - Reference SPECIFIC files and line numbers — not vague descriptions

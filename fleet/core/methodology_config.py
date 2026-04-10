@@ -48,6 +48,27 @@ class VerbatimSkipRule:
     target_stage: str
 
 
+@dataclass(frozen=True)
+class MethodologyModel:
+    """A named methodology model — a distinct work process."""
+
+    name: str
+    description: str = ""
+    stages: tuple[str, ...] = ()
+    completion_tool: str = "fleet_task_complete"
+    gates: str = "po"  # po, none
+    protocol_adaptations: dict[str, str] = field(default_factory=dict)
+    readiness_cap: int = 100
+
+
+@dataclass(frozen=True)
+class ModelSelectionRule:
+    """A rule for selecting which methodology model to use."""
+
+    condition: str
+    model: str
+
+
 @dataclass
 class MethodologyConfig:
     """Parsed methodology configuration."""
@@ -59,6 +80,8 @@ class MethodologyConfig:
     sprint_ready_threshold: int = 80
     verbatim_skip: list[VerbatimSkipRule] = field(default_factory=list)
     valid_readiness: list[int] = field(default_factory=lambda: [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100])
+    models: dict[str, MethodologyModel] = field(default_factory=dict)
+    model_selection: list[ModelSelectionRule] = field(default_factory=list)
 
     # ── Lookup helpers ─────────────────────────────────────────
 
@@ -101,6 +124,56 @@ class MethodologyConfig:
         if not stage:
             return False  # unknown stage → allow (backward compatible)
         return tool_name in stage.tools_blocked
+
+    def get_model(self, name: str) -> Optional[MethodologyModel]:
+        """Get a named methodology model."""
+        return self.models.get(name)
+
+    def select_model_for_task(
+        self,
+        contribution_type: str = "",
+        labor_iteration: int = 1,
+        task_type: str = "",
+        agent_name: str = "",
+        task_status: str = "",
+    ) -> MethodologyModel:
+        """Select the methodology model for a task based on conditions.
+
+        Evaluates model_selection rules in order. First match wins.
+        Returns feature-development as default if no rules match.
+        """
+        for rule in self.model_selection:
+            cond = rule.condition
+            if cond == "contribution_type is set" and contribution_type:
+                return self.models.get(rule.model, self._default_model())
+            if cond == "labor_iteration >= 2" and labor_iteration >= 2:
+                return self.models.get(rule.model, self._default_model())
+            if "task_type in" in cond and task_type:
+                # Parse "task_type in [spike, concern]"
+                types_str = cond.split("[")[1].rstrip("]") if "[" in cond else ""
+                types = [t.strip() for t in types_str.split(",")]
+                if task_type in types:
+                    return self.models.get(rule.model, self._default_model())
+            if "task_type =" in cond and "in" not in cond and task_type:
+                target = cond.split("=")[1].strip().split(" ")[0]
+                if task_type == target:
+                    return self.models.get(rule.model, self._default_model())
+            if "agent =" in cond and agent_name:
+                target_agent = cond.split("agent =")[1].strip().split(" ")[0]
+                if agent_name == target_agent and "review" in cond and task_status == "review":
+                    return self.models.get(rule.model, self._default_model())
+            if cond == "default":
+                return self.models.get(rule.model, self._default_model())
+        return self._default_model()
+
+    def _default_model(self) -> MethodologyModel:
+        """Return the feature-development model as fallback."""
+        return self.models.get("feature-development", MethodologyModel(
+            name="feature-development",
+            stages=tuple(s.name for s in self.stages),
+            completion_tool="fleet_task_complete",
+            gates="po",
+        ))
 
 
 # ─── Loading ───────────────────────────────────────────────────────────
@@ -183,6 +256,28 @@ def load_methodology_config(path: Optional[Path] = None) -> MethodologyConfig:
 
     # Valid readiness values
     config.valid_readiness = raw.get("valid_readiness", config.valid_readiness)
+
+    # Parse named models
+    for model_name, model_data in raw.get("models", {}).items():
+        if not isinstance(model_data, dict):
+            continue
+        config.models[model_name] = MethodologyModel(
+            name=model_name,
+            description=model_data.get("description", ""),
+            stages=tuple(model_data.get("stages", [])),
+            completion_tool=model_data.get("completion_tool", "fleet_task_complete"),
+            gates=model_data.get("gates", "po"),
+            protocol_adaptations=model_data.get("protocol_adaptations", {}),
+            readiness_cap=model_data.get("readiness_cap", 100),
+        )
+
+    # Parse model selection rules
+    for rule in raw.get("model_selection", []):
+        if isinstance(rule, dict):
+            config.model_selection.append(ModelSelectionRule(
+                condition=rule.get("condition", ""),
+                model=rule.get("model", "feature-development"),
+            ))
 
     return config
 

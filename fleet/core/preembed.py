@@ -102,6 +102,22 @@ def build_task_preembed(
     delivery_phase = cf.delivery_phase or ""
     lines = []
 
+    # Select methodology model for this task
+    active_model_name = "feature-development"
+    try:
+        from fleet.core.methodology_config import get_methodology_config
+        cfg = get_methodology_config()
+        model = cfg.select_model_for_task(
+            contribution_type=cf.contribution_type or "",
+            labor_iteration=cf.labor_iteration or 1,
+            task_type=cf.task_type or "",
+            agent_name=agent_name,
+            task_status=task.status.value if task.status else "",
+        )
+        active_model_name = model.name
+    except Exception:
+        pass
+
     # injection:none — minimal context, agent must call fleet_read_context
     if injection_level == "none":
         lines = [
@@ -121,7 +137,7 @@ def build_task_preembed(
 
     # § 0. Operational mode indicator (full injection)
     from datetime import datetime as _dt
-    lines.append(f"# MODE: task | injection: full | generated: {_dt.now().strftime('%H:%M:%S')}")
+    lines.append(f"# MODE: task | injection: full | model: {active_model_name} | generated: {_dt.now().strftime('%H:%M:%S')}")
     lines.append("# Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.")
     lines.append("")
 
@@ -191,6 +207,7 @@ def build_task_preembed(
             protocol = renderer.format_stage_protocol(
                 stage, agent_name, iteration,
                 is_contribution=bool(cf.contribution_type),
+                model_name=active_model_name,
             )
             if protocol:
                 lines.append(protocol)
@@ -271,9 +288,18 @@ def build_task_preembed(
     # § 9. What to do now (action directive)
     lines.append("## WHAT TO DO NOW")
     if renderer:
+        # Get model's completion tool
+        _completion_tool = "fleet_task_complete"
+        try:
+            _model = cfg.get_model(active_model_name) if cfg else None
+            if _model:
+                _completion_tool = _model.completion_tool
+        except Exception:
+            pass
         lines.append(renderer.format_action_directive(
             stage, progress, iteration,
             contributions_missing=contributions_missing if contributions_missing else None,
+            completion_tool=_completion_tool,
         ))
     else:
         if stage == "conversation":

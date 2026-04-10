@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | generated: 00:24:37
+# MODE: task | injection: full | model: rework | generated: 00:47:05
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # ITERATION: 2 (rework after rejection)
@@ -31,6 +31,7 @@
 Fix the rejected work. Address the ROOT CAUSE identified in rejection feedback.
 
 ### MUST:
+- Fix the ROOT CAUSE from rejection feedback. eng_fix_task_response() to structure your fix.
 - Fix the specific issues from the rejection feedback
 - Stay within scope — verbatim requirement and confirmed plan only
 - Re-read contributions and rejection feedback before fixing

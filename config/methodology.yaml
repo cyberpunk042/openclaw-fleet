@@ -287,3 +287,101 @@ defaults:
 # Plane labels are generated as "readiness:N" for each value.
 
 valid_readiness: [0, 5, 10, 20, 30, 50, 70, 80, 90, 95, 99, 100]
+
+# ─── Named Methodology Models ─────────────────────────────────────────
+#
+# Multiple models, not one pipeline. Each model is a named entity with
+# its own stages, protocols, completion tool, and gate mechanism.
+#
+# The `stages` section above IS the "feature-development" model (the default).
+# These named models define ALTERNATIVES for different task natures.
+#
+# Model selection: orchestrator evaluates conditions (contribution_type,
+# labor_iteration, task_type) and selects the appropriate model.
+# The context injection system renders the SELECTED model's protocol.
+#
+# Source: devops-solutions-research-wiki/wiki/spine/model-methodology.md
+
+models:
+  feature-development:
+    description: "Standard task through PO gates. The default model."
+    stages: [conversation, analysis, investigation, reasoning, work]
+    completion_tool: fleet_task_complete
+    gates: po
+    # Uses the main `stages` section above for protocols.
+    # task_types section maps types to stage subsets of this model.
+
+  contribution:
+    description: "Producing input for another agent's task. No PO gates."
+    stages: [analysis, reasoning]
+    completion_tool: fleet_contribute
+    gates: none
+    protocol_adaptations:
+      analysis: "Examine the codebase with the TARGET TASK's requirements in mind. Your output feeds into another agent's work."
+      reasoning: "Produce your contribution artifact. Call fleet_contribute() when ready."
+    # Selected when: task.custom_fields.contribution_type is set
+
+  rework:
+    description: "Fixing rejected work. ROOT CAUSE focus."
+    stages: [work]
+    completion_tool: fleet_task_complete
+    gates: po
+    protocol_adaptations:
+      work: "Fix the ROOT CAUSE from rejection feedback. eng_fix_task_response() to structure your fix."
+    # Selected when: task.custom_fields.labor_iteration >= 2
+
+  research:
+    description: "Investigation without implementation. Produces understanding, never code."
+    stages: [conversation, investigation, reasoning]
+    completion_tool: fleet_task_complete
+    gates: po
+    readiness_cap: 99
+    # Selected when: task_type in [spike, concern]
+
+  documentation:
+    description: "Pure documentation task. Analysis + work."
+    stages: [analysis, work]
+    completion_tool: fleet_task_complete
+    gates: po
+    protocol_adaptations:
+      analysis: "Examine what needs documenting. Map gaps. Reference existing docs."
+      work: "Write the documentation. Save to wiki/domains/ (knowledge) or docs/ (reference)."
+    # Selected when: task_type = docs OR agent = technical-writer with doc contribution
+
+  review:
+    description: "Fleet-ops review protocol. Its own model."
+    stages: [review]
+    completion_tool: fleet_approve
+    gates: none
+    protocol_adaptations:
+      review: "Read verbatim requirement. Read acceptance criteria. Read PR. Check methodology compliance. Approve or reject with specific feedback."
+    # Selected when: agent = fleet-ops AND task status = review
+
+  hotfix:
+    description: "Emergency fix. Skip all stages, go straight to work."
+    stages: [work]
+    completion_tool: fleet_task_complete
+    gates: po
+    protocol_adaptations:
+      work: "The problem and solution are already understood. Fix it. Test it. Complete it."
+    # Selected when: task_type = blocker AND urgency = critical
+
+# ─── Model Selection Rules ────────────────────────────────────────────
+#
+# Evaluated in order. First match wins.
+# The orchestrator evaluates these conditions when determining
+# which model to render in the agent's context.
+
+model_selection:
+  - condition: "contribution_type is set"
+    model: contribution
+  - condition: "labor_iteration >= 2"
+    model: rework
+  - condition: "task_type in [spike, concern]"
+    model: research
+  - condition: "task_type = blocker AND urgency = critical"
+    model: hotfix
+  - condition: "agent = fleet-ops AND task.status = review"
+    model: review
+  - condition: "default"
+    model: feature-development

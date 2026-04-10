@@ -5,7 +5,7 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | generated: 00:24:37
+# MODE: task | injection: full | model: contribution | generated: 00:47:05
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
 
 # YOU ARE: qa-engineer
@@ -33,6 +33,7 @@ Call `fleet_contribute()` when your contribution is ready.
 You are in the reasoning protocol. Plan your approach.
 
 ### What you MUST do:
+- Produce your contribution artifact. Call fleet_contribute() when ready.
 - Decide on an approach based on requirements + analysis + investigation
 - Produce a qa_test_definition: TC-XXX structured test criteria with priority and type
 - The plan MUST reference the verbatim requirement explicitly

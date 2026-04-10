@@ -317,16 +317,18 @@ class TierRenderer:
     def format_action_directive(
         self, stage: str, progress: int, iteration: int,
         contributions_missing: list[str] | None = None,
+        completion_tool: str = "fleet_task_complete",
     ) -> str:
         """Format the action directive for the current task state.
 
-        Fixes J1.  Adapts directive to stage/progress/iteration/contribution state.
+        Fixes J1.  Adapts directive to stage/progress/iteration/contribution/model.
 
         Args:
             stage:     Current methodology stage (work, reasoning, etc.)
             progress:  task_progress value (0-100).
             iteration: labor_iteration (>=2 triggers rework directive).
             contributions_missing: list of missing required contribution types (if any).
+            completion_tool: model's completion tool (fleet_task_complete, fleet_contribute, fleet_approve).
 
         Returns:
             Formatted directive string.
@@ -345,7 +347,7 @@ class TierRenderer:
                 return f"BLOCKED — missing contributions: {missing_str}."
             return directive
 
-        directive = self._compute_action_directive(stage, progress, iteration)
+        directive = self._compute_action_directive(stage, progress, iteration, completion_tool)
 
         if depth == "one_line":
             # Return just the first sentence
@@ -355,7 +357,8 @@ class TierRenderer:
         return directive
 
     def _compute_action_directive(
-        self, stage: str, progress: int, iteration: int
+        self, stage: str, progress: int, iteration: int,
+        completion_tool: str = "fleet_task_complete",
     ) -> str:
         # Rework overrides everything in work stage
         if stage == "work" and iteration >= 2:
@@ -379,7 +382,7 @@ class TierRenderer:
                 )
             elif progress < 80:
                 return (
-                    "Implementation done. Run tests. Prepare for `fleet_task_complete()`."
+                    f"Implementation done. Run tests. Prepare for `{completion_tool}()`."
                 )
             elif progress < 90:
                 return (
@@ -387,7 +390,7 @@ class TierRenderer:
                 )
             else:
                 return (
-                    "Reviewed. Final polish, then `fleet_task_complete()`."
+                    f"Reviewed. Final polish, then `{completion_tool}()`."
                 )
 
         # Non-work stages — each directive includes WHERE the artifact goes
@@ -514,14 +517,21 @@ class TierRenderer:
     def format_stage_protocol(
         self, stage: str, role: str, iteration: int = 1,
         is_contribution: bool = False,
+        model_name: str = "feature-development",
     ) -> str:
-        """Format the stage protocol with role-specific, iteration-aware, and contribution-aware language.
+        """Format the stage protocol — config-driven model adaptations first, then code-driven fallbacks.
+
+        Priority:
+        1. Model protocol_adaptations from methodology.yaml (config-driven)
+        2. Contribution/rework/role adaptations (code-driven fallback)
+        3. Raw stage protocol from methodology.yaml (default)
 
         Args:
             stage: Methodology stage name.
             role:  Agent role name.
             iteration: labor_iteration (>=2 adapts work protocol for rework).
             is_contribution: True if this is a contribution task (different lifecycle).
+            model_name: The active methodology model name.
 
         Returns:
             Protocol text (possibly adapted).
@@ -529,6 +539,34 @@ class TierRenderer:
         from fleet.core.stage_context import get_stage_instructions
 
         protocol = get_stage_instructions(stage)
+
+        # Priority 1: Config-driven model adaptations from methodology.yaml
+        # If the active model has a protocol_adaptation for this stage, USE IT
+        # instead of the code-driven fallbacks below.
+        try:
+            from fleet.core.methodology_config import get_methodology_config
+            cfg = get_methodology_config()
+            model = cfg.get_model(model_name)
+            if model and model.protocol_adaptations.get(stage):
+                # Replace the protocol's main instruction with the model's adaptation
+                adapted = model.protocol_adaptations[stage]
+                if protocol:
+                    # Keep the stage header and MUST NOT section, replace the main instruction
+                    lines = protocol.split("\n")
+                    # Find "### What you MUST do:" and replace its first item
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith("- ") and i > 0:
+                            # Insert model adaptation as the first MUST item
+                            lines.insert(i, f"- {adapted}")
+                            break
+                    protocol = "\n".join(lines)
+                else:
+                    protocol = f"## {stage.upper()}\n\n{adapted}"
+        except Exception:
+            pass  # Config-driven adaptation must not break protocol rendering
+
+        # Priority 2: Code-driven fallbacks for contribution/rework/role
+        # These fire when the model doesn't have a protocol_adaptation for this stage
 
         # Contribution tasks: adapt protocol for contribution lifecycle
         if is_contribution and protocol:
