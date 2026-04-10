@@ -200,7 +200,7 @@ class TierRenderer:
             lines.append(f"**PRs needing security review:** {len(prs)}")
             if item_limit > 0:
                 for pr in prs[:item_limit]:
-                    url = pr.get("url") or pr.get("pr_url", "?")
+                    url = pr.get("pr") or pr.get("pr_url") or pr.get("url", "?")
                     lines.append(
                         f"- {pr.get('id', '?')}: {pr.get('title', '?')} — {url}"
                     )
@@ -220,13 +220,24 @@ class TierRenderer:
                     )
         if "contributions_received" in data:
             received = data["contributions_received"]
-            lines.append(f"**Contributions received:** {len(received)}")
-            if item_limit > 0:
-                for cr in received[:item_limit]:
-                    ctype = cr.get("type", "?")
-                    cfrom = cr.get("from", "?")
-                    cstatus = cr.get("status", "?")
-                    lines.append(f"- {ctype} ({cfrom}, {cstatus})")
+            # role_providers returns dict keyed by task short ID:
+            #   {'task-a1b': [{'type': 'design_input', 'from': 'architect', 'status': 'done'}]}
+            # OR a flat list (from test fixtures). Handle both.
+            if isinstance(received, dict):
+                total = sum(len(v) for v in received.values())
+                lines.append(f"**Contributions received:** {total}")
+                if item_limit > 0:
+                    for task_id, contribs in list(received.items())[:item_limit]:
+                        parts = [f"{c.get('type', '?')} ({c.get('from', '?')}, {c.get('status', '?')})" for c in contribs]
+                        lines.append(f"- {task_id}: {', '.join(parts)}")
+            else:
+                lines.append(f"**Contributions received:** {len(received)}")
+                if item_limit > 0:
+                    for cr in received[:item_limit]:
+                        ctype = cr.get("type", "?")
+                        cfrom = cr.get("from", "?")
+                        cstatus = cr.get("status", "?")
+                        lines.append(f"- {ctype} ({cfrom}, {cstatus})")
         if "in_review" in data:
             in_review = data["in_review"]
             lines.append(f"**In review:** {len(in_review)}")

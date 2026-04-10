@@ -214,6 +214,34 @@ fleet plane list-projects  # List Plane projects
 - All config changes in scripts — zero manual steps after checkout
 - Vendor patches in `patches/` — applied by `scripts/apply-patches.sh`
 
+## Work Mode — How You Operate in This Repo
+
+**This is a platform project, not an AI assistant.** OpenFleet produces the platform that manages AI assistants (via OpenArms runtime). The AI assistants have their own templates and dynamic content in `agents/_template/`. You are not a probably not a fleet agent but most likely a solo coding AI helping the PO develop the platform. (Solo VS Agent session)
+
+**Default mode: solo coding session on main.**
+- Work on `main` branch. Always. No feature branches unless the PO explicitly asks.
+- Commit directly to main. The PO decides when and what to commit.
+- No worktrees. Worktree mode is for AI assistants (OpenArms), not platform development.
+- No git stash. Old fleet agent stashes are landmines in this repo.
+- No subagent dispatch without pausing for PO review between each task.
+- No skill ceremonies (brainstorming → writing-plans → subagent-driven-development chains) unless the PO explicitly asks for that workflow.
+
+**Before any git operation:** Can you recover without destructive commands (git restore, git checkout --, git reset --hard, git stash drop)? These are ALL blocked. If you can't recover, don't do it.
+
+**When you produce work:** Show the output. Wait for PO review. Do not chain multiple tasks without the PO seeing each result.
+
+**When called out:** Stop. Re-read what the PO said. Identify what you're actually missing. Do not say "you're right" and then repeat the same mistake.
+
+**When told to investigate:** Investigate. Do not propose fixes. Read code. Compare data shapes. Trace execution. Present findings. The PO decides what to fix and when.
+
+**When producing or reviewing code:** Every function that reads data from another module MUST be verified against the REAL data shape that module returns. Read the actual provider/consumer. Do not write code or tests against assumed data shapes. Test data in tests must match real provider output — if the test uses a different shape than the provider returns, the test is lying.
+
+**Understanding before action.** When asked to understand the project, keep reading until told to stop. Do not present summaries prematurely. Synthesis ≠ restating documents.
+
+**Grounded in reality.** Before proposing any work, state the current reality. Do not propose work that requires infrastructure or capabilities that don't exist yet.
+
+**Do what is asked.** When given a task, do exactly that task. Do not optimize, narrow, or skip ahead. Do not ask "which subset?" when told to do the whole thing.
+
 ## Key Principles
 
 1. **User is the leader** — agents execute, user decides direction
@@ -255,10 +283,22 @@ fleet plane list-projects  # List Plane projects
 - **Hooks**: `config/agent-hooks.yaml` — structural enforcement per role
 - **Synergy matrix**: `config/synergy-matrix.yaml` — contribution requirements
 
+## Current Focus
+
+Foundation chain: **E001 → E002 → E003 → E007**. No bifurcations.
+
+Active work: Context injection tree — mapping every scenario of what agents see when they open their eyes. 91 scenarios across heartbeat, task, and fleet-level axes. 5 capability tiers (expert → capable → flagship-local → lightweight → direct) mapped to AICP profiles. TierRenderer module built (fleet/core/tier_renderer.py), wired into preembed and orchestrator.
+
+Key documents:
+- Decision tree: `wiki/domains/architecture/context-injection-tree.md`
+- Session log: `wiki/log/2026-04-09-tier-renderer-session.md`
+- PO vision: `wiki/log/2026-04-08-fleet-evolution-vision.md`
+- Validation issues: `wiki/domains/architecture/validation-issues-catalog.md`
+
 ## Related
 
 - **Research Wiki**: `../devops-solutions-research-wiki` — LLM wiki second brain (cross-project)
-- **OpenArms**: `../openarms` — gateway fork with wiki/backlog pattern
+- **OpenArms**: `../openarms` — gateway fork with wiki/backlog pattern, dual-mode runtime (solo + fleet)
 - **DSPD mission**: `../devops-solution-product-development/config/mission.yaml`
 - **AICP LocalAI**: `../devops-expert-local-ai/CLAUDE.md`
 - **Strategic vision**: `docs/milestones/active/strategic-vision-localai-independence.md`

@@ -140,6 +140,26 @@ class TestFormatRoleData:
         assert "qa_test_definition (qa-engineer, ready)" in result
         assert "design_input (architect, pending)" in result
 
+    def test_worker_contributions_received_dict_shape(self):
+        """Worker contributions_received as dict keyed by task ID (real provider shape)."""
+        renderer = TierRenderer("expert")
+        data = {
+            "my_tasks_count": 1,
+            "contributions_received": {
+                "task-a1b": [
+                    {"type": "design_input", "from": "architect", "status": "done"},
+                    {"type": "qa_test_definition", "from": "qa-engineer", "status": "done"},
+                ]
+            },
+        }
+        result = renderer.format_role_data("software-engineer", data)
+        assert "{'type'" not in result
+        assert "task-a1b" in result
+        assert "design_input" in result
+        assert "architect" in result
+        assert "qa_test_definition" in result
+        assert "qa-engineer" in result
+
     def test_lightweight_counts_only(self):
         """Lightweight tier: counts shown, no item detail lines."""
         renderer = TierRenderer("lightweight")
