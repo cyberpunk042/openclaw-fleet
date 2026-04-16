@@ -5,8 +5,9 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: research | generated: 01:24:04
+# MODE: task | injection: full | model: research | generated: 20:24:15
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
+# FLEET: full-autonomous | execution | claude
 
 # YOU ARE: software-engineer
 

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 def format_accept(plan: str, agent_name: str) -> str:
     """Format task acceptance comment."""
     return (
+        f"[CONFIRMED_PLAN]\n"
         f"## \u25b6\ufe0f Accepted\n\n"
         f"**Plan:** {plan}\n\n"
         f"---\n<sub>{agent_name}</sub>"

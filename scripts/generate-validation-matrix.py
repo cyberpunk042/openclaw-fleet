@@ -92,7 +92,20 @@ TC-007: Keyboard navigation works | e2e | required
 
 ---"""
 
-NAV_WORK = """## Stage: WORK — Resources Available
+def get_navigator_context(role, stage, task_context=None):
+    """Get real Navigator output for knowledge-context.md."""
+    try:
+        from fleet.core.navigator import Navigator
+        nav = Navigator()
+        ctx = nav.assemble(role=role, stage=stage, model="opus-4-6", task_context=task_context)
+        result = ctx.render()
+        if result and len(result) > 50:
+            return result
+    except Exception as e:
+        print(f"  [navigator fallback: {e}]")
+    return None
+
+NAV_WORK_FALLBACK = """## Stage: WORK — Resources Available
 
 ### Skills:
 - /fleet-engineer-workflow — contribution consumption, TDD, conventional commits
@@ -108,7 +121,7 @@ NAV_WORK = """## Stage: WORK — Resources Available
 ### Plugins: claude-mem · safety-net · context7 · superpowers · pyright-lsp
 """
 
-NAV_REASONING = """## Stage: REASONING — Resources Available
+NAV_REASONING_FALLBACK = """## Stage: REASONING — Resources Available
 
 ### Skills:
 - /fleet-implementation-planning — map plan to files and changes
@@ -121,7 +134,7 @@ NAV_REASONING = """## Stage: REASONING — Resources Available
 ### MCP: fleet · filesystem · github · context7
 """
 
-NAV_CONVERSATION = """## Stage: CONVERSATION — Resources Available
+NAV_CONVERSATION_FALLBACK = """## Stage: CONVERSATION — Resources Available
 
 ### Skills:
 - /fleet-communicate — which channel for what
@@ -131,6 +144,43 @@ NAV_CONVERSATION = """## Stage: CONVERSATION — Resources Available
 - **code-explorer** (sonnet) — reference codebase in questions
 
 ### MCP: fleet · filesystem
+"""
+
+# Simulated events for WHAT CHANGED section
+EVENTS_WORK_40PCT = """## WHAT CHANGED
+- [dispatched] orchestrator: Task dispatched to software-engineer
+- [contribution.posted] architect: design_input delivered for task-a1b2
+- [contribution.posted] qa-engineer: qa_test_definition delivered for task-a1b2
+- [accepted] software-engineer: Plan accepted — DashboardHealth component hierarchy
+- [commit] software-engineer: feat(dashboard): scaffold DashboardHealth shell [task:task-a1b]
+- [commit] software-engineer: feat(dashboard): implement AgentGrid with StatusCard [task:task-a1b]
+"""
+
+# Design plan fixture (not a TODO list)
+DESIGN_PLAN = """**Architecture:** React component hierarchy under DashboardShell.
+DashboardHealth is the container component. Four child components receive typed props:
+- AgentGrid: agent[] → renders StatusCard per agent (color-coded by lifecycle state)
+- TaskPipeline: taskCounts{inbox,progress,review,done} → horizontal segmented bar
+- StormIndicator: stormState{severity,active,since} → circular gauge with severity colors
+- BudgetGauge: budgetState{pct5h,pct7d} → arc gauge with threshold markers
+
+**Data flow:** useFleetStatus hook polls MC status API every 10s.
+Hook returns typed FleetStatus object. DashboardHealth destructures and passes to children.
+No prop drilling beyond one level — each child gets exactly the slice it renders.
+
+**Target files:**
+- fleet/ui/components/DashboardHealth.tsx (container + 4 children)
+- fleet/ui/hooks/useFleetStatus.ts (MC status API poller)
+- fleet/ui/types/fleet-status.ts (typed interfaces)
+
+**Patterns:** Observer (useFleetStatus real-time polling), Adapter (MC API → FleetStatus typed interface)
+**Constraints:** Existing MC build pipeline. No new dependencies. Must work within DashboardShell layout grid.
+
+**Acceptance criteria mapping:**
+- TC-001 → AgentGrid renders 10 StatusCards (verified: agent[].length === 10)
+- TC-003 → TaskPipeline segments sum to total (verified: Object.values(counts).reduce === total)
+- TC-005 → BudgetGauge shows API % (verified: pct5h from /api/budget)
+- TC-007 → Keyboard navigation (verified: tabIndex on all interactive elements)
 """
 
 
@@ -173,10 +223,12 @@ hb2 = build_heartbeat_preembed(
     assigned_tasks=[task_work], agents_online=9, agents_total=10,
     fleet_mode="full-autonomous", fleet_phase="execution", fleet_backend="claude",
     role_data={"my_tasks_count": 1, "contribution_tasks": [],
-        "contributions_received": [
-            {"type": "design_input", "from": "architect", "status": "done"},
-            {"type": "qa_test_definition", "from": "qa-engineer", "status": "done"},
-        ], "in_review": []},
+        "contributions_received": {
+            "task-a1b": [
+                {"type": "design_input", "from": "architect", "status": "done"},
+                {"type": "qa_test_definition", "from": "qa-engineer", "status": "done"},
+            ]
+        }, "in_review": []},
     renderer=EXPERT_RENDERER,
 )
 write_scenario("HB-02-has-work-task.md",
@@ -211,14 +263,14 @@ hb4 = build_heartbeat_preembed(
     role_data={
         "pending_approvals": 2,
         "approval_details": [
-            {"id": "appr-001", "task_id": "task-abc1", "status": "pending"},
-            {"id": "appr-002", "task_id": "task-def2", "status": "pending"},
+            {"id": "appr-001", "task_id": "task-abc", "status": "pending"},
+            {"id": "appr-002", "task_id": "task-def", "status": "pending"},
         ],
         "review_queue": [
-            {"id": "task-abc1", "title": "Add fleet health dashboard", "agent": "software-engineer",
+            {"id": "task-abc", "title": "Add fleet health dashboard", "agent": "software-engineer",
              "verbatim": "Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
              "pr": "https://github.com/org/openfleet/pull/42", "type": "story"},
-            {"id": "task-def2", "title": "Fix orchestrator stage bug", "agent": "devops",
+            {"id": "task-def", "title": "Fix orchestrator stage bug", "agent": "devops",
              "verbatim": "Fix stage transition when readiness changes mid-cycle",
              "pr": "https://github.com/org/openfleet/pull/43", "type": "bug"},
         ],
@@ -247,6 +299,9 @@ hb5 = build_heartbeat_preembed(
             {"id": "task-un3", "title": "Update fleet-identity config for beta", "priority": "low"},
         ],
         "blocked_tasks": 1,
+        "blocked_details": [
+            {"id": "task-blk1", "title": "Blocked by infra migration", "blocked_by": ["task-inf1"]},
+        ],
         "progress": "12/25 done (48%)",
         "inbox_count": 5,
     },
@@ -267,15 +322,26 @@ print("TASK MODE:")
 # TASK MODE SCENARIOS
 # ═══════════════════════════════════════════════════════════
 
+FLEET_STATE_DEFAULT = {
+    "work_mode": "full-autonomous",
+    "cycle_phase": "execution",
+    "backend_mode": "claude",
+}
+
 def render_task_scenario(filename, title, task, injection="full",
                          contribs="", nav="", notes="",
                          renderer=None, rejection_feedback="", target_task=None,
-                         confirmed_plan="", received_contribution_types=None):
+                         confirmed_plan="", received_contribution_types=None,
+                         parent_task_title="", events_text="",
+                         fleet_state=None):
     r = renderer or EXPERT_RENDERER
+    fs = fleet_state or FLEET_STATE_DEFAULT
     base = build_task_preembed(task, injection_level=injection,
                                 renderer=r, rejection_feedback=rejection_feedback,
                                 target_task=target_task, confirmed_plan=confirmed_plan,
-                                received_contribution_types=received_contribution_types)
+                                received_contribution_types=received_contribution_types,
+                                parent_task_title=parent_task_title,
+                                fleet_state=fs)
     if contribs:
         # Insert contribution content at the marker and update checklist
         insert_marker = "<!-- CONTRIBUTIONS_ABOVE -->"
@@ -294,6 +360,18 @@ def render_task_scenario(filename, title, task, injection="full",
                 if f"**{ctype_match}**" in line and "awaiting delivery" in line:
                     lines_list[i] = line.replace("— *awaiting delivery*", "— *received*")
             base = "\n".join(lines_list)
+    # Prepend WHAT CHANGED events (same as orchestrator does)
+    if events_text:
+        base = events_text.rstrip() + "\n\n" + base
+    # Strip leftover marker if no contributions were inserted
+    base = base.replace("<!-- CONTRIBUTIONS_ABOVE -->\n", "")
+    base = base.replace("<!-- CONTRIBUTIONS_ABOVE -->", "")
+    # Resolve knowledge context via Navigator or fallback
+    if nav is None:
+        # Caller wants Navigator to provide it
+        agent_name = task.custom_fields.agent_name or "software-engineer"
+        stage = task.custom_fields.task_stage or "work"
+        nav = get_navigator_context(agent_name, stage, task.title)
     parts = [
         f"**Expected:** {notes}\n",
         f"## task-context.md\n\n```\n{base}\n```\n",
@@ -314,9 +392,11 @@ render_task_scenario("TK-01-work-full-contrib.md",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
     received_contribution_types=["design_input", "qa_test_definition"],
-    nav=NAV_WORK,
+    nav=None,  # Navigator resolves dynamically
+    parent_task_title="Epic: Fleet UI Components",
     notes="Engineer has everything. Follow plan, commit, complete. fleet_read_context NOT needed.",
-    confirmed_plan="1. Create DashboardHealth.tsx component\n2. Implement AgentGrid (10 cards, color-coded)\n3. Implement TaskPipeline (horizontal bar chart)\n4. Implement StormIndicator (circular gauge)\n5. Implement BudgetGauge (arc gauge)\n6. Wire useFleetStatus.ts hook\n7. Tests for TC-001 through TC-007",
+    confirmed_plan=DESIGN_PLAN,
+    events_text=EVENTS_WORK_40PCT,
 )
 
 # TK-02: Work stage, full injection, NO contributions (missing)
@@ -328,7 +408,7 @@ render_task_scenario("TK-02-work-no-contrib.md",
         agent_name="software-engineer", task_type="story", story_points=5,
         delivery_phase="mvp",
     )),
-    nav=NAV_WORK,
+    nav=NAV_WORK_FALLBACK,
     notes="Contributions required but NOT received. Should see 'fleet_request_input()' directive. Should NOT proceed.",
 )
 
@@ -340,7 +420,7 @@ render_task_scenario("TK-03-reasoning.md",
         requirement_verbatim="Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
         agent_name="software-engineer", task_type="story", story_points=5,
     )),
-    nav=NAV_REASONING,
+    nav=NAV_REASONING_FALLBACK,
     notes="PLAN only. NO code. NO commits. Reference verbatim. fleet_commit should NOT appear in recommended actions.",
 )
 
@@ -352,7 +432,7 @@ render_task_scenario("TK-04-conversation.md",
         requirement_verbatim="We need a dashboard but details unclear",
         agent_name="software-engineer", task_type="story",
     )),
-    nav=NAV_CONVERSATION,
+    nav=NAV_CONVERSATION_FALLBACK,
     notes="CLARIFY only. NO code, NO solutions, NO designs. Ask questions.",
 )
 
@@ -379,7 +459,8 @@ render_task_scenario("TK-06-rejection-rework.md",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
     received_contribution_types=["design_input", "qa_test_definition"],
-    nav=NAV_WORK,
+    nav=NAV_WORK_FALLBACK,
+    confirmed_plan=DESIGN_PLAN,
     notes="Second attempt after rejection. Should show iteration 2, rejection feedback, eng_fix_task_response().",
     rejection_feedback="REJECTED by fleet-ops: Missing test for TC-003 (TaskPipeline segments). Add integration test verifying segment sum equals total count.",
 )
@@ -437,7 +518,8 @@ render_task_scenario("TK-09-with-plane-mvp.md",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
     received_contribution_types=["design_input", "qa_test_definition"],
-    nav=NAV_WORK,
+    nav=NAV_WORK_FALLBACK,
+    confirmed_plan=DESIGN_PLAN,
     notes="Plane connected — issue linked. MVP phase standards visible. fleet_task_complete will sync to Plane.",
 )
 
@@ -452,7 +534,8 @@ render_task_scenario("TK-10-nearly-complete.md",
     )),
     contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
     received_contribution_types=["design_input", "qa_test_definition"],
-    nav=NAV_WORK,
+    nav=NAV_WORK_FALLBACK,
+    confirmed_plan=DESIGN_PLAN,
     notes="Progress 70% = implementation done. Should run tests, then fleet_task_complete.",
 )
 
@@ -486,7 +569,7 @@ render_task_scenario("TK-34-engineer-reasoning.md",
         requirement_verbatim="Add health dashboard with agent grid, task pipeline, storm indicator, budget gauge",
         agent_name="software-engineer", task_type="story", story_points=5,
     )),
-    nav=NAV_REASONING,
+    nav=NAV_REASONING_FALLBACK,
     notes="Engineer reasoning should say 'implementation plan'. Compare: architect would say 'design_input'.",
 )
 
@@ -516,6 +599,7 @@ render_task_scenario("TK-25-subtask.md",
             agent_name="software-engineer", task_type="subtask",
             parent_task="task-a1b2c3d4",
         )),
+    parent_task_title="Add fleet health dashboard",
     notes="Subtask. No contributions required (skip_contributions type). Parent task shown.",
 )
 
@@ -539,12 +623,12 @@ render_task_scenario("TK-30-capable-tier.md",
         agent_name="software-engineer", task_type="story", story_points=5,
         delivery_phase="mvp", parent_task="epic-fleet-ui-001",
     )),
-    contribs=ARCH_CONTRIB + "\n" + QA_CONTRIB,
+    # No contribs — capable tier = status_only (no inline content)
     received_contribution_types=["design_input", "qa_test_definition"],
     renderer=TierRenderer("capable"),
-    nav=NAV_WORK,
+    nav=NAV_WORK_FALLBACK,
     notes="CAPABLE tier (qwen3-8b, 16K). Condensed context. Core fields only. Contributions as status, not full content.",
-    confirmed_plan="1. Create DashboardHealth.tsx\n2. AgentGrid\n3. TaskPipeline\n4. StormIndicator\n5. BudgetGauge\n6. Tests",
+    confirmed_plan="**Architecture:** DashboardHealth container with 4 typed children (AgentGrid, TaskPipeline, StormIndicator, BudgetGauge). useFleetStatus hook → MC status API.\n**Target files:** fleet/ui/components/DashboardHealth.tsx, fleet/ui/hooks/useFleetStatus.ts\n**Patterns:** Observer, Adapter. **Constraints:** Existing MC build pipeline.",
 )
 
 # TK-31: Lightweight tier (minimal) — golden path at gemma4-e2b level
@@ -556,6 +640,7 @@ render_task_scenario("TK-31-lightweight-tier.md",
         agent_name="software-engineer", task_type="story", story_points=5,
         delivery_phase="mvp",
     )),
+    received_contribution_types=["design_input", "qa_test_definition"],
     renderer=TierRenderer("lightweight"),
     notes="LIGHTWEIGHT tier (gemma4-e2b, 8-16K). Minimal context. Don't overwhelm the trainee.",
 )

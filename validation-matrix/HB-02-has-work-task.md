@@ -6,7 +6,7 @@
 ## fleet-context.md
 
 ```
-# MODE: heartbeat | injection: full | generated: 01:24:04
+# MODE: heartbeat | injection: full | generated: 20:24:15
 # Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.
 
 # HEARTBEAT CONTEXT
@@ -41,8 +41,7 @@ None.
 **My tasks:** 1
 **Contribution tasks:** 0
 **Contributions received:** 2
-- design_input (architect, done)
-- qa_test_definition (qa-engineer, done)
+- task-a1b: design_input (architect, done), qa_test_definition (qa-engineer, done)
 **In review:** 0
 
 ## STANDING ORDERS (authority: conservative)

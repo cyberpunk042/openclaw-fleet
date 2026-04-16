@@ -24,9 +24,9 @@ opus-1m:
       selection: by task type + agent role (from cross-references.yaml)
 
     agent_manual:
-      level: full
+      level: condensed
       source: knowledge-map/agent-manuals.md
-      section: current agent's full entry (~35 lines)
+      section: mission + primary tools + tool chains (~10 lines, full identity in SOUL.md/CLAUDE.md)
 
     methodology:
       level: full

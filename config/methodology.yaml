@@ -364,7 +364,7 @@ models:
     gates: po
     protocol_adaptations:
       work: "The problem and solution are already understood. Fix it. Test it. Complete it."
-    # Selected when: task_type = blocker AND urgency = critical
+    # Selected when: task_type = blocker AND priority = urgent
 
 # ─── Model Selection Rules ────────────────────────────────────────────
 #
@@ -379,7 +379,7 @@ model_selection:
     model: rework
   - condition: "task_type in [spike, concern]"
     model: research
-  - condition: "task_type = blocker AND urgency = critical"
+  - condition: "task_type = blocker AND priority = urgent"
     model: hotfix
   - condition: "agent = fleet-ops AND task.status = review"
     model: review

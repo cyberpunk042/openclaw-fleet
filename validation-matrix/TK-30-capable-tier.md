@@ -5,8 +5,9 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:24:04
+# MODE: task | injection: full | model: feature-development | generated: 20:24:15
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
+# FLEET: full-autonomous | execution | claude
 
 # YOU ARE: software-engineer
 
@@ -41,17 +42,14 @@ Execute the confirmed plan. Stay in scope.
 - Do NOT skip tests
 
 ## CONFIRMED PLAN
-1. Create DashboardHealth.tsx
-2. AgentGrid
-3. TaskPipeline
-4. StormIndicator
-5. BudgetGauge
-6. Tests
+**Architecture:** DashboardHealth container with 4 typed children (AgentGrid, TaskPipeline, StormIndicator, BudgetGauge). useFleetStatus hook → MC status API.
+**Target files:** fleet/ui/components/DashboardHealth.tsx, fleet/ui/hooks/useFleetStatus.ts
+**Patterns:** Observer, Adapter. **Constraints:** Existing MC build pipeline.
 
 ## INPUTS FROM COLLEAGUES
 ### Required Contributions
-- **design_input** ✓ from architect — *received*
-- **qa_test_definition** ✓ from qa-engineer — *received*
+- ✓ design_input (architect) — received
+- ✓ qa_test_definition (qa-engineer) — received
 
 ## DELIVERY PHASE: mvp
 Standards: tests: main flows and critical edges, docs: setup, usage, API for public, security: auth, validation, dep audit

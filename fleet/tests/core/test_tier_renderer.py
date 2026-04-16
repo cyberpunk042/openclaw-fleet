@@ -350,3 +350,183 @@ class TestFormatStageProtocol:
         assert "rejection feedback" in result.lower()
         # Should NOT say "Execute the confirmed plan"
         assert "Execute the confirmed plan" not in result
+
+
+# ─── TestTrimProtocolForTier ─────────────────────────────────────────────────
+
+
+class TestTrimProtocolForTier:
+    def test_must_must_not_on_analysis(self):
+        """Capable tier on analysis: strips CAN and How to advance, keeps MUST/MUST NOT."""
+        renderer = TierRenderer("capable")
+        result = renderer.format_stage_protocol("analysis", "software-engineer")
+        assert "MUST do" in result or "MUST:" in result
+        assert "MUST NOT" in result
+        assert "What you CAN" not in result
+        assert "How to advance" not in result
+
+    def test_must_must_not_on_work(self):
+        """Capable tier on work: returned unchanged (work has no CAN/advance sections)."""
+        expert = TierRenderer("expert")
+        capable = TierRenderer("capable")
+        expert_result = expert.format_stage_protocol("work", "software-engineer")
+        capable_result = capable.format_stage_protocol("work", "software-engineer")
+        # Work protocol has no CAN/advance to strip, so must_must_not = full
+        assert "MUST:" in capable_result
+        assert "MUST NOT:" in capable_result
+
+    def test_short_rules_on_reasoning(self):
+        """Lightweight tier on reasoning: condenses to MUST/MUST NOT lines."""
+        renderer = TierRenderer("lightweight")
+        result = renderer.format_stage_protocol("reasoning", "software-engineer")
+        assert result.startswith("MUST:")
+        # Should be compact — no ### headers, no full paragraphs
+        assert "###" not in result
+        line_count = len([l for l in result.split("\n") if l.strip()])
+        assert line_count <= 4
+
+    def test_short_rules_on_work(self):
+        """Lightweight tier on work: extracts MUST/MUST NOT from ### MUST: format."""
+        renderer = TierRenderer("lightweight")
+        result = renderer.format_stage_protocol("work", "software-engineer")
+        assert "MUST:" in result
+        assert "###" not in result
+
+
+# ─── TestProtocolAdaptations ─────────────────────────────────────────────────
+
+
+class TestProtocolAdaptations:
+    def test_contribution_replaces_po_references(self):
+        """is_contribution=True replaces PO review language with contribution language."""
+        renderer = TierRenderer("expert")
+        result = renderer.format_stage_protocol(
+            "reasoning", "architect", is_contribution=True,
+        )
+        assert "fleet_contribute" in result
+        # Should NOT reference PO confirmation for contributions
+        assert "PO confirmed the plan" not in result
+
+    def test_model_protocol_adaptation_inserted(self):
+        """Config-driven protocol_adaptation from contribution model is inserted."""
+        renderer = TierRenderer("expert")
+        result = renderer.format_stage_protocol(
+            "analysis", "architect", model_name="contribution",
+        )
+        assert "TARGET TASK" in result
+
+
+# ─── TestFormatRoleDataExtended ──────────────────────────────────────────────
+
+
+class TestFormatRoleDataExtended:
+    def test_architect_role_data(self):
+        """Architect data: design_tasks and high_complexity formatted."""
+        renderer = TierRenderer("expert")
+        data = {
+            "design_tasks": [
+                {"id": "task-d1", "title": "Design auth module", "stage": "reasoning"},
+                {"id": "task-d2", "title": "Design cache layer", "stage": "analysis"},
+            ],
+            "high_complexity": [
+                {"id": "task-hc1", "title": "Migrate database schema"},
+            ],
+        }
+        result = renderer.format_role_data("architect", data)
+        assert "## ROLE DATA" in result
+        assert "Design auth module" in result
+        assert "reasoning" in result
+        assert "Migrate database schema" in result
+        assert "{'id'" not in result
+
+    def test_devsecops_role_data(self):
+        """DevSecOps data: security_tasks and PRs needing review formatted."""
+        renderer = TierRenderer("expert")
+        data = {
+            "security_tasks": [
+                {"id": "task-s1", "title": "Audit auth middleware"},
+            ],
+            "prs_needing_security_review": [
+                {"id": "task-pr1", "title": "Add API endpoint", "pr": "https://github.com/org/repo/pull/99"},
+            ],
+        }
+        result = renderer.format_role_data("devsecops-expert", data)
+        assert "## ROLE DATA" in result
+        assert "Audit auth middleware" in result
+        assert "https://github.com/org/repo/pull/99" in result
+        assert "{'id'" not in result
+
+    def test_capable_tier_counts_plus_top3(self):
+        """Capable tier: counts shown, max 3 items listed."""
+        renderer = TierRenderer("capable")
+        data = {
+            "pending_approvals": 5,
+            "approval_details": [
+                {"id": f"apr-{i}", "task_id": f"task-{i}", "status": "pending"}
+                for i in range(5)
+            ],
+            "review_queue": [],
+        }
+        result = renderer.format_role_data("fleet-ops", data)
+        assert "5" in result
+        # Should show at most 3 items
+        assert "apr-0" in result
+        assert "apr-2" in result
+        assert "apr-3" not in result
+
+    def test_flagship_tier_counts_plus_top5(self):
+        """Flagship tier: counts shown, max 5 items listed."""
+        renderer = TierRenderer("flagship_local")
+        data = {
+            "unassigned_tasks": 7,
+            "unassigned_details": [
+                {"id": f"task-u{i}", "title": f"Task {i}", "priority": "medium"}
+                for i in range(7)
+            ],
+            "blocked_tasks": 0,
+            "progress": "0/7",
+            "inbox_count": 7,
+        }
+        result = renderer.format_role_data("project-manager", data)
+        assert "7" in result
+        assert "task-u0" in result
+        assert "task-u4" in result
+        assert "task-u5" not in result
+
+
+# ─── TestActionDirectiveEdge ─────────────────────────────────────────────────
+
+
+class TestActionDirectiveEdge:
+    def test_one_line_with_contributions_missing(self):
+        """Lightweight tier: BLOCKED with missing contributions returns short line."""
+        renderer = TierRenderer("lightweight")
+        result = renderer.format_action_directive(
+            "work", 0, 1, contributions_missing=["design_input", "qa_test_definition"],
+        )
+        assert "BLOCKED" in result
+        assert "design_input" in result
+        assert len(result) < 120
+
+
+# ─── TestSourceStringIntegrity ───────────────────────────────────────────────
+
+
+class TestSourceStringIntegrity:
+    def test_contribution_replacement_strings_exist_in_config(self):
+        """Verify the 4 strings used in is_contribution replacements exist in methodology.yaml."""
+        from fleet.core.stage_context import get_stage_instructions
+        # These strings are replaced by format_stage_protocol when is_contribution=True
+        # If methodology.yaml changes, these replacements silently stop matching
+        targets = [
+            ("analysis", "Present findings to the PO via task comments"),
+            ("reasoning", "Present the plan to the PO for confirmation"),
+            ("analysis", "PO reviewed the findings"),
+            ("reasoning", "PO confirmed the plan"),
+        ]
+        for stage, expected_string in targets:
+            protocol = get_stage_instructions(stage)
+            assert expected_string in protocol, (
+                f"String '{expected_string}' not found in {stage} protocol. "
+                f"Contribution replacements in tier_renderer.py will silently fail."
+            )

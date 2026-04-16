@@ -293,24 +293,8 @@ def build_heartbeat_context(
             elif agent_name in event.get("data", {}).get("mentions", []):
                 bundle.mentioned_by.append(event.get("data", {}).get("agent", "system"))
 
-    # Build pre-embed compact text
-    try:
-        from fleet.core.preembed import build_heartbeat_preembed
-        my_tasks = [t for t in tasks
-                     if t.custom_fields.agent_name == agent_name
-                     and t.status in (TaskStatus.INBOX, TaskStatus.IN_PROGRESS)]
-        bundle.preembed_text = build_heartbeat_preembed(
-            agent_name=agent_name,
-            role=agent_name,  # role resolution happens in context_assembly
-            assigned_tasks=my_tasks,
-            messages_count=len(bundle.chat_messages),
-            events_count=len(bundle.domain_events),
-            fleet_mode=bundle.fleet_work_mode,
-            fleet_phase=bundle.fleet_cycle_phase,
-            agents_online=bundle.agents_online,
-            agents_total=bundle.agents_total,
-        )
-    except Exception:
-        pass
+    # Note: preembed_text is built by the orchestrator calling
+    # build_heartbeat_preembed directly with the full parameter set.
+    # This bundler provides data for format_message() only.
 
     return bundle

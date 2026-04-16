@@ -20,7 +20,7 @@
 profiles:
   opus-1m:
     system_manuals: full         # docs/systems/*.md
-    agent_manual: full           # agent-manuals.md (full entry)
+    agent_manual: condensed      # agent-manuals.md (mission + tools, full identity in SOUL.md/CLAUDE.md)
     methodology: full            # methodology-manual.md (full stage)
     standards: full              # standards-manual.md (relevant standard)
     module_manual: condensed     # module-manuals.md (relevant modules)

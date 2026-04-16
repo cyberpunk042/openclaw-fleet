@@ -5,8 +5,9 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:24:04
+# MODE: task | injection: full | model: feature-development | generated: 20:24:15
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
+# FLEET: full-autonomous | execution | claude
 
 # YOU ARE: software-engineer
 
@@ -30,6 +31,6 @@ Inputs: design_input (architect), qa_test_definition (qa-engineer)
 ## DELIVERY PHASE: mvp
 
 ## WHAT TO DO NOW
-BLOCKED — missing contributions: design_input, qa_test_definition.
+Continue implementation.
 
 ```

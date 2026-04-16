@@ -69,6 +69,60 @@ class ModelSelectionRule:
     model: str
 
 
+def _evaluate_condition(condition: str, fields: dict) -> bool:
+    """Evaluate a condition string against task fields.
+
+    Splits on AND — all clauses must match.
+    """
+    clauses = [c.strip() for c in condition.split(" AND ")]
+    return all(_evaluate_clause(c, fields) for c in clauses)
+
+
+def _evaluate_clause(clause: str, fields: dict) -> bool:
+    """Evaluate a single clause against task fields.
+
+    Supports:
+      ``field is set``       — truthy check
+      ``field >= N``         — numeric comparison
+      ``field in [a, b]``    — membership
+      ``field = value``      — equality
+    """
+    # "field is set"
+    if " is set" in clause:
+        field_name = clause.replace(" is set", "").strip()
+        return bool(fields.get(field_name, ""))
+
+    # "field >= N"
+    if " >= " in clause:
+        field_name, value_str = clause.split(">=", 1)
+        field_name = field_name.strip()
+        try:
+            threshold = int(value_str.strip())
+        except ValueError:
+            return False
+        actual = fields.get(field_name, 0)
+        try:
+            return int(actual) >= threshold
+        except (ValueError, TypeError):
+            return False
+
+    # "field in [a, b, c]"
+    if " in [" in clause:
+        field_name = clause.split(" in ")[0].strip()
+        bracket = clause.split("[")[1].rstrip("]")
+        values = [v.strip() for v in bracket.split(",")]
+        return fields.get(field_name, "") in values
+
+    # "field = value"
+    if " = " in clause:
+        field_name, value = clause.split("=", 1)
+        field_name = field_name.strip()
+        value = value.strip()
+        return str(fields.get(field_name, "")) == value
+
+    return False
+
+
 @dataclass
 class MethodologyConfig:
     """Parsed methodology configuration."""
@@ -136,33 +190,26 @@ class MethodologyConfig:
         task_type: str = "",
         agent_name: str = "",
         task_status: str = "",
+        priority: str = "",
     ) -> MethodologyModel:
         """Select the methodology model for a task based on conditions.
 
         Evaluates model_selection rules in order. First match wins.
+        Each condition is split on AND — all clauses must match.
         Returns feature-development as default if no rules match.
         """
+        fields = {
+            "contribution_type": contribution_type,
+            "labor_iteration": labor_iteration,
+            "task_type": task_type,
+            "agent": agent_name,
+            "task.status": task_status,
+            "priority": priority,
+        }
         for rule in self.model_selection:
-            cond = rule.condition
-            if cond == "contribution_type is set" and contribution_type:
+            if rule.condition == "default":
                 return self.models.get(rule.model, self._default_model())
-            if cond == "labor_iteration >= 2" and labor_iteration >= 2:
-                return self.models.get(rule.model, self._default_model())
-            if "task_type in" in cond and task_type:
-                # Parse "task_type in [spike, concern]"
-                types_str = cond.split("[")[1].rstrip("]") if "[" in cond else ""
-                types = [t.strip() for t in types_str.split(",")]
-                if task_type in types:
-                    return self.models.get(rule.model, self._default_model())
-            if "task_type =" in cond and "in" not in cond and task_type:
-                target = cond.split("=")[1].strip().split(" ")[0]
-                if task_type == target:
-                    return self.models.get(rule.model, self._default_model())
-            if "agent =" in cond and agent_name:
-                target_agent = cond.split("agent =")[1].strip().split(" ")[0]
-                if agent_name == target_agent and "review" in cond and task_status == "review":
-                    return self.models.get(rule.model, self._default_model())
-            if cond == "default":
+            if _evaluate_condition(rule.condition, fields):
                 return self.models.get(rule.model, self._default_model())
         return self._default_model()
 

@@ -264,6 +264,10 @@ class Navigator:
                 if content:
                     ctx.sections.append(content)
 
+        # Track which branches the methodology section covers (its tables)
+        # to avoid duplicating content from intent-specific branch loaders.
+        methodology_covers: set[str] = set()
+
         for item in intent.inject:
             if isinstance(item, str):
                 # Simple string reference — try to parse as "branch: ref"
@@ -295,9 +299,17 @@ class Navigator:
             if level == "none":
                 continue
 
-            content = self._load_branch_content(branch, ref, level)
+            # If methodology was loaded at full level, it already has tables
+            # for tools, skills, commands, MCP, plugins — skip those branches.
+            if branch in methodology_covers:
+                continue
+
+            content = self._load_branch_content(branch, ref, level, role=role)
             if content:
                 ctx.sections.append(content)
+                # When methodology loads at full, it covers these table branches
+                if branch == "methodology" and level == "full":
+                    methodology_covers.update({"skills", "commands", "tools", "plugins", "mcp"})
 
     def _strip_annotation(self, ref: str) -> str:
         """Strip parenthetical annotation from a ref value.
@@ -331,12 +343,12 @@ class Navigator:
             if content:
                 ctx.sections.append(content)
 
-    def _load_branch_content(self, branch: str, ref: str, level: str) -> Optional[str]:
+    def _load_branch_content(self, branch: str, ref: str, level: str, role: str = "") -> Optional[str]:
         """Load content from a knowledge map branch at specified depth."""
         if branch == "agent_manual":
             return self._load_agent_manual(ref, level)
         elif branch == "methodology":
-            return self._load_methodology(level, stage=ref if isinstance(ref, str) else None)
+            return self._load_methodology(level, stage=ref if isinstance(ref, str) else None, role=role)
         elif branch == "standards":
             return self._load_standards(ref, level)
         elif branch == "skills":
@@ -417,8 +429,10 @@ class Navigator:
                     return f"You are {first_line.strip()}"
         return None
 
-    def _load_methodology(self, level: str, stage: Optional[str] = None) -> Optional[str]:
-        """Load methodology manual section."""
+    def _load_methodology(
+        self, level: str, stage: Optional[str] = None, role: str = "",
+    ) -> Optional[str]:
+        """Load methodology manual section, filtered by role when possible."""
         path = KNOWLEDGE_MAP_DIR / "methodology-manual.md"
         if not path.exists():
             return None
@@ -432,19 +446,86 @@ class Navigator:
             sections = content.split("\n## ")
             for section in sections:
                 if stage.lower() in section.lower().split("\n")[0].lower():
-                    if level == "full":
-                        return f"## {section}"
-                    elif level == "stage_only":
-                        # MUST/MUST NOT lines only
+                    if level == "stage_only":
                         lines = section.strip().split("\n")
                         must_lines = [l for l in lines if "MUST" in l or "must" in l.lower()]
                         stage_name = lines[0].strip()
                         return f"Stage: {stage_name}\n" + "\n".join(must_lines)
+                    # level == "full" — filter table rows by role
+                    if role:
+                        return f"## {self._filter_methodology_by_role(section, role)}"
+                    return f"## {section}"
             return None
 
         if level == "full":
             return content
         return None
+
+    def _filter_methodology_by_role(self, section: str, role: str) -> str:
+        """Filter methodology manual table rows to keep only role-relevant entries.
+
+        Table rows with role annotations like (devops), (QA, engineer) are filtered.
+        Rows without role annotations are kept (universal). Header rows are kept.
+        Non-table content (MUST DO, Purpose, etc.) is always kept.
+        """
+        role_short = self._role_short(role)
+        # Map of role short names to what appears in parenthetical annotations
+        role_keywords = {
+            "engineer": ["engineer"],
+            "architect": ["architect"],
+            "qa": ["qa", "qa-engineer"],
+            "devops": ["devops"],
+            "devsecops": ["devsecops"],
+            "fleet-ops": ["fleet-ops"],
+            "pm": ["pm"],
+            "writer": ["writer", "technical-writer"],
+            "ux": ["ux"],
+            "accountability": ["accountability"],
+        }
+        my_keywords = role_keywords.get(role_short, [role_short])
+
+        lines = section.split("\n")
+        filtered = []
+        in_table = False
+
+        for line in lines:
+            stripped = line.strip()
+            # Table detection
+            if stripped.startswith("|") and "|" in stripped[1:]:
+                in_table = True
+                # Header rows and separator rows — always keep
+                if stripped.startswith("| -") or stripped.startswith("|--") or "---" in stripped:
+                    filtered.append(line)
+                    continue
+                # Check column headers (first table row with content)
+                parts = [p.strip() for p in stripped.split("|") if p.strip()]
+                if len(parts) >= 1 and parts[0] in ("Tool", "Skill", "Command", "Server", "Plugin"):
+                    filtered.append(line)
+                    continue
+                # Content row — check for role annotation in parentheses
+                row_text = stripped.lower()
+                # Extract all parenthetical content
+                all_role_kws = [kw for kws in role_keywords.values() for kw in kws]
+                has_role_annotation = False
+                if "(" in row_text and ")" in row_text:
+                    paren_start = row_text.index("(")
+                    paren_end = row_text.index(")", paren_start)
+                    paren_content = row_text[paren_start + 1:paren_end]
+                    # Only treat as role filter if paren contains a known role keyword
+                    has_role_annotation = any(kw in paren_content for kw in all_role_kws)
+                if has_role_annotation:
+                    # Only keep if OUR role is mentioned
+                    if any(kw in row_text for kw in my_keywords) or "all" in row_text:
+                        filtered.append(line)
+                else:
+                    # No role annotation = universal, keep it
+                    filtered.append(line)
+            else:
+                if in_table and not stripped:
+                    in_table = False
+                filtered.append(line)
+
+        return "\n".join(filtered)
 
     def _load_standards(self, ref, level: str) -> Optional[str]:
         """Load standards manual section — specific standards, not entire manual."""

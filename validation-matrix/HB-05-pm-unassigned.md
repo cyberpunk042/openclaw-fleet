@@ -5,7 +5,7 @@
 ## fleet-context.md
 
 ```
-# MODE: heartbeat | injection: full | generated: 01:24:04
+# MODE: heartbeat | injection: full | generated: 20:24:15
 # Your fleet data is pre-embedded below. Follow HEARTBEAT.md priority protocol.
 
 # HEARTBEAT CONTEXT
@@ -30,6 +30,7 @@ None.
 - task-un2: Add changelog generation to writer CRON (medium) [?/? r:0%]
 - task-un3: Update fleet-identity config for beta (low) [?/? r:0%]
 **Blocked tasks:** 1
+- task-blk1: Blocked by infra migration (blocked by: task-inf)
 **Progress:** 12/25 done (48%)
 **Inbox:** 5
 

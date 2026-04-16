@@ -78,6 +78,7 @@ def build_task_preembed(
     confirmed_plan: str = "",
     parent_task_title: str = "",
     received_contribution_types: list[str] | None = None,
+    fleet_state: dict | None = None,
 ) -> str:
     """Build task pre-embed in autocomplete chain order.
 
@@ -94,6 +95,7 @@ def build_task_preembed(
         renderer: Optional TierRenderer for tier-aware rendering.
         rejection_feedback: Rejection feedback text (used with renderer for H11/H12).
         target_task: Optional target Task for contribution context (I1/I2/I3).
+        fleet_state: Optional fleet control state dict (work_mode, cycle_phase, backend_mode).
     """
     cf = task.custom_fields
     agent_name = cf.agent_name or ""
@@ -114,6 +116,7 @@ def build_task_preembed(
             task_type=cf.task_type or "",
             agent_name=agent_name,
             task_status=task.status.value if task.status else "",
+            priority=task.priority,
         )
         active_model_name = model.name
     except Exception:
@@ -140,6 +143,11 @@ def build_task_preembed(
     from datetime import datetime as _dt
     lines.append(f"# MODE: task | injection: full | model: {active_model_name} | generated: {_dt.now().strftime('%H:%M:%S')}")
     lines.append("# Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.")
+    if fleet_state:
+        _wm = fleet_state.get("work_mode", "")
+        _cp = fleet_state.get("cycle_phase", "")
+        _bm = fleet_state.get("backend_mode", "")
+        lines.append(f"# FLEET: {_wm} | {_cp} | {_bm}")
     lines.append("")
 
     iteration = cf.labor_iteration or 1
@@ -267,6 +275,20 @@ def build_task_preembed(
                 if contrib_depth == "names_only":
                     names = ", ".join(f"{s.contribution_type} ({s.role})" for s in required)
                     lines.append(f"Inputs: {names}")
+                elif contrib_depth == "status_only":
+                    lines.append("### Required Contributions")
+                    for s in required:
+                        mark = "✓" if s.contribution_type in received_set else "✗"
+                        status = "received" if s.contribution_type in received_set else "awaiting"
+                        lines.append(f"- {mark} {s.contribution_type} ({s.role}) — {status}")
+                elif contrib_depth == "summary":
+                    lines.append("### Required Contributions")
+                    for s in required:
+                        mark = "✓" if s.contribution_type in received_set else "✗"
+                        status = "received" if s.contribution_type in received_set else "awaiting"
+                        lines.append(f"- {mark} **{s.contribution_type}** from {s.role} — {status}")
+                        if s.contribution_type in received_set:
+                            lines.append(f"  {s.description[:100]}")
                 else:
                     lines.append("### Required Contributions")
                     for s in required:
@@ -340,11 +362,7 @@ def build_task_preembed(
     # § 10 removed — chain awareness is in TOOLS.md (static, read once)
     # Tool chains don't change per task or per cycle.
 
-    result = "\n".join(lines)
-    # Strip contribution marker if no contributions were inserted
-    result = result.replace("<!-- CONTRIBUTIONS_ABOVE -->\n", "")
-    result = result.replace("<!-- CONTRIBUTIONS_ABOVE -->", "")
-    return result
+    return "\n".join(lines)
 
 
 def build_heartbeat_preembed(

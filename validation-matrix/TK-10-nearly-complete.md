@@ -5,8 +5,9 @@
 ## task-context.md
 
 ```
-# MODE: task | injection: full | model: feature-development | generated: 01:24:04
+# MODE: task | injection: full | model: feature-development | generated: 20:24:15
 # Your task data is pre-embedded below. fleet_read_context() only if you need fresh data or a different task.
+# FLEET: full-autonomous | execution | claude
 
 # YOU ARE: software-engineer
 
@@ -42,7 +43,60 @@ Execute the confirmed plan. Stay in scope.
 - Do NOT modify files outside the plan's target
 - Do NOT skip tests
 
+## CONFIRMED PLAN
+**Architecture:** React component hierarchy under DashboardShell.
+DashboardHealth is the container component. Four child components receive typed props:
+- AgentGrid: agent[] → renders StatusCard per agent (color-coded by lifecycle state)
+- TaskPipeline: taskCounts{inbox,progress,review,done} → horizontal segmented bar
+- StormIndicator: stormState{severity,active,since} → circular gauge with severity colors
+- BudgetGauge: budgetState{pct5h,pct7d} → arc gauge with threshold markers
+
+**Data flow:** useFleetStatus hook polls MC status API every 10s.
+Hook returns typed FleetStatus object. DashboardHealth destructures and passes to children.
+No prop drilling beyond one level — each child gets exactly the slice it renders.
+
+**Target files:**
+- fleet/ui/components/DashboardHealth.tsx (container + 4 children)
+- fleet/ui/hooks/useFleetStatus.ts (MC status API poller)
+- fleet/ui/types/fleet-status.ts (typed interfaces)
+
+**Patterns:** Observer (useFleetStatus real-time polling), Adapter (MC API → FleetStatus typed interface)
+**Constraints:** Existing MC build pipeline. No new dependencies. Must work within DashboardShell layout grid.
+
+**Acceptance criteria mapping:**
+- TC-001 → AgentGrid renders 10 StatusCards (verified: agent[].length === 10)
+- TC-003 → TaskPipeline segments sum to total (verified: Object.values(counts).reduce === total)
+- TC-005 → BudgetGauge shows API % (verified: pct5h from /api/budget)
+- TC-007 → Keyboard navigation (verified: tabIndex on all interactive elements)
+
+
 ## INPUTS FROM COLLEAGUES
+
+## CONTRIBUTION: design_input (from architect)
+
+**Approach:** DashboardHealth component in fleet/ui/components/ using React.
+- AgentGrid: 10 cards, color-coded by status
+- TaskPipeline: horizontal bar chart (inbox/progress/review/done)
+- StormIndicator: circular gauge with severity colors
+- BudgetGauge: arc gauge with 5h and 7d usage
+
+**Target files:** fleet/ui/components/DashboardHealth.tsx, fleet/ui/hooks/useFleetStatus.ts
+**Patterns:** Observer (real-time), Adapter (API → component)
+**Constraints:** Existing MC build pipeline. No new deps.
+
+---
+## CONTRIBUTION: qa_test_definition (from qa-engineer)
+
+TC-001: AgentGrid shows 10 agent cards | unit | required
+TC-002: Agent card color matches status | unit | required
+TC-003: TaskPipeline segments sum to total | unit | required
+TC-004: StormIndicator correct severity color | unit | required
+TC-005: BudgetGauge shows API percentage | integration | required
+TC-006: Dashboard refreshes on status change | integration | recommended
+TC-007: Keyboard navigation works | e2e | required
+
+---
+
 ### Required Contributions
 - **design_input** ✓ from architect — *received*
 - **qa_test_definition** ✓ from qa-engineer — *received*

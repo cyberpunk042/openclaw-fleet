@@ -625,6 +625,11 @@ async def _refresh_agent_contexts(
                             comments = await mc.list_comments(board_id, current_task.id)
                         for c in (comments or []):
                             content = c.get("content", "") if isinstance(c, dict) else getattr(c, "content", "")
+                            if "[CONFIRMED_PLAN]" in content:
+                                # Structured marker — extract plan content after marker
+                                confirmed_plan = content.split("[CONFIRMED_PLAN]", 1)[1].strip()[:1000]
+                                break
+                            # Fallback: legacy format without structured marker
                             if "plan" in content.lower()[:50] and ("fleet_task_accept" in content.lower() or "accepted" in content.lower()):
                                 confirmed_plan = content[:1000]
                                 break
@@ -666,6 +671,7 @@ async def _refresh_agent_contexts(
                     confirmed_plan=confirmed_plan,
                     parent_task_title=parent_title,
                     received_contribution_types=received_contribs,
+                    fleet_state=fleet_state_dict,
                 )
 
                 # WHAT CHANGED — query events since last refresh for this agent's task
