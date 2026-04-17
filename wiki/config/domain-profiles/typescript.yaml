@@ -1,0 +1,76 @@
+# Domain Profile: TypeScript/Node.js
+#
+# For projects like OpenArms, OpenFleet — TypeScript source, pnpm toolchain,
+# vitest testing, Zod schemas, ESM modules.
+#
+# Layers over generic methodology.yaml definitions.
+
+domain: typescript
+description: "TypeScript/Node.js projects with pnpm toolchain"
+examples: [openarms, openfleet]
+
+stage_overrides:
+  document:
+    gate_commands: []  # no build commands — wiki pages only
+    path_patterns:
+      wiki-page: "wiki/domains/**/*.md"
+    forbidden_zones:
+      - "src/"    # no source code during document stage
+      - "*.ts"
+      - "*.test.ts"
+
+  design:
+    gate_commands: []  # no build commands — design docs only
+    path_patterns:
+      design-document: "wiki/domains/architecture/**/*.md"
+    forbidden_zones:
+      - "src/"
+      - "*.ts"
+      - "*.test.ts"
+
+  scaffold:
+    gate_commands:
+      - "pnpm tsgo"  # must compile
+    path_patterns:
+      type-definition: "src/**/*.ts"
+      test-stub: "src/**/*.test.ts"
+      config-file: ".env.example"
+    forbidden_patterns:
+      type-definition:
+        - control_flow: true        # no if/for/while/switch/try in function bodies
+        - function_bodies_over: 3   # no function body longer than 3 lines
+    verification:
+      no-business-logic: "analyzeForBusinessLogic(file) returns clean"
+      test-stubs-exist: "*.test.ts files contain describe() and it() blocks"
+      no-real-assertions: "expect() calls are placeholder only (toBe(true), toBeDefined)"
+
+  implement:
+    gate_commands:
+      - "pnpm tsgo"   # must compile
+      - "pnpm check"  # must lint
+    path_patterns:
+      implementation: "src/**/*.ts"
+      integration-wiring: "src/**/*.ts"  # existing file, verified via preexist check
+      config-file: "src/**/*.ts"
+    forbidden_zones:
+      - "*.test.ts"  # no test modifications during implement
+    verification:
+      integration-wiring-exists: "at least one existing file has new import referencing task artifacts"
+
+  test:
+    gate_commands:
+      - "pnpm test -- {test_file}"  # must pass with 0 failures
+    path_patterns:
+      test-implementation: "src/**/*.test.ts"
+    verification:
+      tests-pass: "gate command exits 0"
+      no-placeholder-assertions: "no expect(true).toBe(true) remaining"
+      min-real-assertions: 3
+
+# Bridge module pattern (recommended for integration model)
+patterns:
+  bridge-module:
+    description: "Thin adapter between new module and existing consumer (<80 LOC)"
+    path: "src/{location}/{slug}-bridge.ts"
+    max_loc: 80
+    when: "integration model, or when new module interface doesn't match consumer"

@@ -1,0 +1,201 @@
+# Methodology Profile: Spec-Driven
+#
+# Specifications are the source of truth. Code serves specs — never the other
+# way around. The Document stage produces executable artifacts (requirements
+# specs, constitutions, delta specs) that GENERATE the plan and tasks rather
+# than informing them loosely. Research agents gather context WHILE specifying.
+#
+# Inspired by spec-kit (GitHub) and OpenSpec framework. Not suitable for
+# exploratory work where the problem is still being discovered.
+#
+# See: wiki/config/methodology-profiles/README.md
+
+profile: spec-driven
+description: "Specs as source of truth — code serves specs, specs generate plans"
+style: "heavy document stage producing executable specs that drive all downstream work"
+
+# ─── PROVENANCE ─────────────────────────────────────────────────────────────
+derived_from:
+  - source: "src-github-spec-kit-specification-driven-development"
+    type: wiki
+    note: "spec-kit template structure, constitution-md, [NEEDS CLARIFICATION] markers"
+  - source: "src-openspec-spec-driven-development-framework"
+    type: wiki
+    note: "OpenSpec framework: delta specs, research-agent-in-specify, plan-generation"
+
+# ─── WHEN TO USE ────────────────────────────────────────────────────────────
+applicability:
+  best_for:
+    - "Features where requirements must be provably complete before implementation"
+    - "Compliance-driven work (SOC2, HIPAA) where specs ARE the audit artifact"
+    - "API contracts or integration agreements with external parties"
+    - "Projects where stakeholders approve specs before any code is touched"
+    - "Large features spanning multiple agents or sessions (spec is the handoff)"
+    - "When rework cost is very high and getting it right first matters"
+  not_for:
+    - "Exploratory spikes where the problem is not yet understood"
+    - "Hotfixes — solution is known, spec is overhead"
+    - "Fast-iteration experiments (use agile-ai or stage-gated)"
+    - "Solo one-session tasks with no handoff risk"
+  compatible_with_sdlc_profiles: [default, full]
+
+# ─── STAGE EMPHASIS ─────────────────────────────────────────────────────────
+# Document stage carries the majority of effort. It produces EXECUTABLE artifacts
+# that make all later stages mechanical rather than creative.
+stage_emphasis:
+  document:
+    weight: 0.45
+    primary_artifacts:
+      - requirements-spec           # formal FR/NFR/AC with checklist-as-unit-tests
+      - constitution-md             # 9 articles: purpose, principles, architecture,
+                                    #   data model, API, security, quality, operations, glossary
+      - delta-spec                  # diff from current state to required state
+      - context-research-dump       # research agent output during specify phase
+    key_gate_checks:
+      - requirements-spec-exists
+      - all-needs-clarification-markers-resolved  # [NEEDS CLARIFICATION] = block
+      - checklist-coverage-complete               # every FR has a verifiable criterion
+      - constitution-md-all-9-articles-present
+    notes: >
+      Research agents run DURING this stage to gather context. The spec is not
+      complete until [NEEDS CLARIFICATION] markers are resolved. The checklist
+      items in the requirements-spec function as unit tests for completeness.
+
+  design:
+    weight: 0.15
+    primary_artifacts:
+      - plan                        # GENERATED from spec, not free-form brainstorm
+      - task-list                   # GENERATED from plan — mechanical decomposition
+    key_gate_checks:
+      - plan-derives-from-spec      # trace from every plan item to a spec section
+      - no-code-files-created
+    notes: >
+      Design stage is lighter here because the spec already made the major
+      decisions. Plan and tasks are generated FROM spec sections — they are
+      traceability artifacts, not creative work.
+
+  scaffold:
+    weight: 0.15
+    primary_artifacts:
+      - type-definition             # interfaces and schemas derived from constitution data model
+      - test-stub                   # stubs pre-shaped by spec checklist items
+      - config-file
+    key_gate_checks:
+      - types-compile
+      - no-business-logic
+      - test-stubs-trace-to-spec    # each describe() block references a spec section
+    notes: >
+      Test stubs are shaped by the spec checklist — each stub corresponds to
+      a verifiable requirement. The connection is explicit, not implied.
+
+  implement:
+    weight: 0.20
+    primary_artifacts:
+      - implementation              # bounded by spec — out-of-scope features are rejected
+      - integration-wiring
+    key_gate_checks:
+      - code-compiles
+      - lint-passes
+      - no-scope-creep              # implementation adds nothing not in spec
+    notes: >
+      Implementors do not make design decisions — the spec already made them.
+      Scope creep is a gate failure. If a new requirement appears, update the
+      spec first (delta-spec), then implement.
+
+  test:
+    weight: 0.05
+    primary_artifacts:
+      - test-implementation         # spec checklist items become test assertions
+      - test-results
+    key_gate_checks:
+      - tests-pass
+      - spec-checklist-coverage     # all checklist items have a corresponding test
+    notes: >
+      Testing is lighter because test cases were pre-defined in the spec
+      checklist. The work is transcription and execution, not discovery.
+
+# ─── ARTIFACT PREFERENCES ───────────────────────────────────────────────────
+artifact_preferences:
+  preferred:
+    - requirements-spec            # the core spec-driven artifact
+    - constitution-md              # 9-article project constitution
+    - delta-spec                   # incremental change specs (not full rewrites)
+    - plan-generated-from-spec     # traceability: spec → plan → tasks
+    - test-stubs-with-spec-refs    # each stub traces to a spec section
+  deprioritized:
+    - free-form-design-plan        # replaced by plan-generated-from-spec
+    - exploratory-wiki-page        # research happens inside specify, not before
+    - ad-hoc-test-cases            # tests derive from spec checklist, not improvised
+
+# ─── AVAILABLE MODELS ───────────────────────────────────────────────────────
+models:
+  - feature-development    # primary — all 5 stages, spec-driven emphasis
+  - documentation          # when the deliverable IS the spec/constitution
+  - bug-fix                # narrow spec: reproduce → root cause → fix
+  - integration            # integration spec first, then wire
+
+# ─── SIGNATURE PRACTICES ────────────────────────────────────────────────────
+signature_practices:
+  - name: "Constitution-first"
+    when: "document stage, project or major feature kickoff"
+    description: >
+      Before writing a single line of code or a task list, produce a
+      constitution-md with all 9 articles filled. Each article is a gate.
+      Partial constitutions block progression. Inspired by spec-kit's
+      project-constitution template.
+
+  - name: "NEEDS CLARIFICATION markers"
+    when: "document stage, throughout spec authoring"
+    description: >
+      Any requirement that is ambiguous, under-specified, or pending
+      stakeholder input is marked [NEEDS CLARIFICATION: <question>].
+      Gate check counts unresolved markers — any >0 blocks advancement.
+      Inspired by spec-kit's template convention.
+
+  - name: "Research-agent-in-specify"
+    when: "document stage, while authoring spec"
+    description: >
+      Research agents run CONCURRENTLY with spec authoring to fill
+      [NEEDS CLARIFICATION] gaps. Agent produces a context-research-dump
+      artifact. Spec author reviews and incorporates. Source: OpenSpec framework.
+
+  - name: "Spec generates plan"
+    when: "design stage"
+    description: >
+      The plan is not brainstormed — it is GENERATED from the spec's
+      functional requirements sections. Each FR maps to one or more plan
+      items. No plan item exists without a spec reference. Traceability
+      is bidirectional.
+
+  - name: "Checklist-as-unit-tests"
+    when: "document stage, requirements-spec authoring"
+    description: >
+      Every functional requirement concludes with a verifiable checklist:
+      - [ ] System does X when Y
+      - [ ] System rejects Z with error E
+      These checklist items become test stubs in scaffold and test
+      assertions in test stage. The spec IS the test plan.
+
+  - name: "Delta specs for incremental changes"
+    when: "any feature adding to an existing spec-driven project"
+    description: >
+      Rather than editing the full constitution, changes are proposed as
+      delta-spec documents: old state, new state, rationale, affected
+      sections. Delta is reviewed and approved before implementation.
+
+# ─── ADOPTION NOTES ─────────────────────────────────────────────────────────
+adoption:
+  prerequisites:
+    - "methodology.yaml present (spec-driven layers over it)"
+    - "Operator comfortable with heavy document stage — resist urge to code early"
+    - "constitution-md template available in wiki/config/templates/"
+    - "requirements-spec template with checklist format available"
+  typical_onboarding_time: "2-3 features before the spec → plan → task chain feels natural"
+  migration_from_stage_gated: |
+    1. On next feature kickoff, open with constitution-md instead of gap-analysis
+    2. Add [NEEDS CLARIFICATION] markers to every ambiguous requirement
+    3. Run a research agent pass to resolve markers before proceeding
+    4. In design stage, generate plan FROM spec sections (one-to-one trace)
+    5. In scaffold, name describe() blocks after spec section IDs
+    6. Retrospect after first feature: did spec prevent rework?
+    7. If yes, adopt fully; if no, identify which spec artifact was thin

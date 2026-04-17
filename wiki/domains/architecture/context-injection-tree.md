@@ -7,6 +7,8 @@ created: 2026-04-09
 updated: 2026-04-09
 tags: [context, injection, autocomplete, preembed, navigator, profiles, tree, validation]
 epic: E001
+confidence: medium
+sources: []
 ---
 
 # Context Injection Decision Tree

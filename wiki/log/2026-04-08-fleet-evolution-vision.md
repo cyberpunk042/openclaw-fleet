@@ -6,6 +6,8 @@ status: active
 created: 2026-04-08
 updated: 2026-04-08
 tags: [vision, directives, operator, evolution, tools-system, brain, rag, models, budget, agents]
+confidence: medium
+sources: []
 ---
 
 # Fleet Evolution Vision

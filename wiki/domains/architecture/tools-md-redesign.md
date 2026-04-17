@@ -7,7 +7,19 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, tools-md, generation-pipeline, navigator, autocomplete, injection, focused]
-sources: [config/tool-roles.yaml, fleet/mcp/roles/*.py, scripts/generate-tools-md.py, docs/knowledge-map/intent-map.yaml]
+sources:
+  - id: tool-roles
+    type: documentation
+    file: config/tool-roles.yaml
+  - id: source
+    type: documentation
+    file: fleet/mcp/roles/*.py
+  - id: generate-tools-md
+    type: documentation
+    file: scripts/generate-tools-md.py
+  - id: intent-map
+    type: documentation
+    file: docs/knowledge-map/intent-map.yaml
 epic: E001
 phase: "1 — Design"
 ---

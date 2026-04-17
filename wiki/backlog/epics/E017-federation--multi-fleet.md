@@ -7,6 +7,8 @@ priority: P2
 created: 2026-04-08
 updated: 2026-04-09
 tags: [federation, multi-fleet, plane, identity, fleet-number, cross-fleet]
+confidence: high
+sources: []
 ---
 
 # Federation & Multi-Fleet

@@ -7,6 +7,8 @@ priority: P2
 created: 2026-04-08
 updated: 2026-04-09
 tags: [iac, persistence, docker, backup, kb, setup, lightrag, compose]
+confidence: high
+sources: []
 ---
 
 # IaC & Persistence

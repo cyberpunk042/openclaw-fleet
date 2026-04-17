@@ -1,0 +1,73 @@
+# SDLC Profile: Default (Middle Ground)
+#
+# The SDLC profile defines PROJECT-LEVEL POLICY — not task execution.
+# Task execution (stages, artifacts, gates) is defined in methodology.yaml.
+# The SDLC profile determines HOW MUCH methodology a project needs.
+#
+# See: wiki/domains/cross-domain/methodology-framework/sdlc-customization-framework.md
+
+profile: default
+description: "Stage-gated process with selected artifacts — the Goldilocks default"
+
+# ─── WHEN THIS PROFILE APPLIES ───────────────────────────────────────
+applicability:
+  phases: [mvp, staging, early-production]
+  scale: [small, medium]          # ~10k to ~1M lines
+  typical_projects:
+    - "MVP through staging with growing user base"
+    - "Team of 1-3 with methodology awareness"
+    - "Project that has outgrown ad-hoc process"
+
+# ─── EXECUTION MODE ────────────────────────────────────────────────
+execution:
+  mode: solo-or-harness           # Solo or harness v1/v2
+  harness: optional               # Harness available but not required
+  pm_level: L1-L2                 # Wiki backlog + optional hooks/commands
+
+# ─── ENFORCEMENT POLICY ────────────────────────────────────────────
+enforcement:
+  level: hooks-optional           # Hooks recommended but not required
+  stage_gates: enforced           # Stages are real gates, not advisory
+  hooks: recommended              # pre-commit, pre-write available
+  compliance_target: measured     # Track compliance but don't block on it
+
+# ─── METHODOLOGY POLICY ────────────────────────────────────────────
+methodology:
+  available_models:
+    - feature-development         # All 5 stages
+    - research                    # document + design
+    - knowledge-evolution         # document + implement
+    - documentation               # document only
+    - bug-fix                     # document + implement + test
+    - refactor                    # document + scaffold + implement + test
+    - hotfix                      # implement + test
+    - integration                 # scaffold + implement + test
+  stage_policy:
+    document: required
+    design: required              # Required for feature-dev, skippable for bug-fix/hotfix
+    scaffold: required            # Required for feature-dev/refactor, skippable for bug-fix
+    implement: required
+    test: required
+  artifact_depth: standard        # Standard artifacts per the model definitions
+
+# ─── TRACKING POLICY ───────────────────────────────────────────────
+tracking:
+  readiness_gate: 80              # Higher than simplified, lower than full
+  progress_tracking: frontmatter  # Frontmatter fields + pipeline status
+  review_gate: operator           # Operator reviews completions
+  milestone_tracking: optional    # Available but not required
+  human_final_gate: true          # 99→100 always human
+
+# ─── UPGRADE TRIGGERS ──────────────────────────────────────────────
+upgrade_to_full:
+  - "First paying customer or SLA commitment"
+  - "Codebase exceeds ~1M lines"
+  - "Multiple agents need coordination (fleet)"
+  - "Compliance requirements appear (SOC2, HIPAA, ISO)"
+  - "Overnight autonomous runs produce >20% rework"
+
+# ─── DOWNGRADE TRIGGERS ────────────────────────────────────────────
+downgrade_to_simplified:
+  - "Project enters experimental branch (time-boxed POC within production project)"
+  - "Solo operator on a feature spike — documented, will be reviewed"
+  - "Decision page justifying simplified chain for this specific scope"

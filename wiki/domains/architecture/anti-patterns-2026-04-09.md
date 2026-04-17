@@ -9,6 +9,7 @@ updated: 2026-04-10
 tags: [anti-patterns, lesson, operational, methodology, solo-session, git, subagents, minimizing]
 derived_from:
   - "TierRenderer session 2026-04-09"
+sources: []
 ---
 
 # 15 Anti-Patterns from TierRenderer Session

@@ -10,6 +10,8 @@ epic: E001
 related:
   - analysis-output-quality-blockers.md
   - investigation-output-quality-blockers.md
+confidence: medium
+sources: []
 ---
 
 # Plan: TK-01 Golden Path Output

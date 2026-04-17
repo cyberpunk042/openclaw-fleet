@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-09
 tags: [autocomplete, map, metadata, rag-map, knowledge, navigation, navigator, intent-map, injection]
+confidence: high
+sources: []
 ---
 
 # Autocomplete Web / Map Net

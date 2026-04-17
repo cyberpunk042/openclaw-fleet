@@ -6,6 +6,8 @@ status: active
 created: 2026-04-08
 updated: 2026-04-08
 tags: [backlog, planning, epics, roadmap]
+confidence: medium
+sources: []
 ---
 
 # Backlog

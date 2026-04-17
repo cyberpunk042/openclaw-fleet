@@ -53,7 +53,8 @@
       "Bash(.venv/bin/python -c ':*)",
       "Edit(/.claude/skills/fleet-threat-modeling/**)",
       "Edit(/.claude/skills/fleet-phase-testing/**)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(.venv/bin/python -m tools.view patterns)"
     ]
   }
 }

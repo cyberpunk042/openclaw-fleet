@@ -6,9 +6,19 @@ status: draft
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E003, E006, E008, effort, model, escalation, budget, adaptive]
-sources: [fleet/core/model_selection.py, fleet/core/budget_modes.py, config/fleet.yaml]
+sources:
+  - id: model-selection
+    type: documentation
+    file: fleet/core/model_selection.py
+  - id: budget-modes
+    type: documentation
+    file: fleet/core/budget_modes.py
+  - id: fleet
+    type: documentation
+    file: config/fleet.yaml
 epic: E003
 phase: "1 — Design"
+confidence: medium
 ---
 
 # Effort Escalation Design

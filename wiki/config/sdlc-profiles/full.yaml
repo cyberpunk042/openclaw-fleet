@@ -1,0 +1,87 @@
+# SDLC Profile: Full
+#
+# The SDLC profile defines PROJECT-LEVEL POLICY — not task execution.
+# Task execution (stages, artifacts, gates) is defined in methodology.yaml.
+# The SDLC profile determines HOW MUCH methodology a project needs.
+#
+# See: wiki/domains/cross-domain/methodology-framework/sdlc-customization-framework.md
+
+profile: full
+description: "Complete process for production systems with full enforcement and traceability"
+
+# ─── WHEN THIS PROFILE APPLIES ───────────────────────────────────────
+applicability:
+  phases: [staging, production, maintenance]
+  scale: [medium, large, massive]   # ~100k to 15M+ lines
+  typical_projects:
+    - "Production system with users/SLAs"
+    - "Fleet of agents requiring coordination"
+    - "System under compliance requirements"
+    - "Large codebase requiring governance"
+
+# ─── EXECUTION MODE ────────────────────────────────────────────────
+execution:
+  mode: harness-or-fleet          # Harness v2/v3 or full fleet orchestration
+  harness: required               # Must have a harness wrapping the agent
+  pm_level: L2-L3                 # Fleet management + optional full PM tool (Plane/DSPD)
+
+# ─── ENFORCEMENT POLICY ────────────────────────────────────────────
+enforcement:
+  level: full-infrastructure      # Hooks + commands + harness + immune system
+  stage_gates: blocking           # Gates are hard blocks, not advisory
+  hooks:
+    pre_bash: true                # Block unauthorized git ops, scope test commands
+    pre_write: true               # Block wrong-scope writes, protect infrastructure files
+    post_write: true              # Track artifacts per stage
+    post_compact: true            # Rebuild context from authoritative files after compaction
+  commands:
+    stage_complete: true          # /stage-complete validates + commits + advances
+    task_done: true               # /task-done verifies Done When + recalculates epic readiness
+    concern: true                 # /concern files structured issue
+  harness_controls:
+    loop_owned: true              # Agent never controls its own execution loop
+    task_dispatch: deterministic  # Harness picks tasks based on readiness, not agent preference
+    git_owned: true               # Agent never touches git directly
+    budget_cap: true              # Kill task if token budget exceeded
+    retry_cap: 3                  # Max retries per stage, auto-escalate on 4th
+  immune_system:
+    enabled: true                 # Automated disease detection and correction (fleet only)
+    doctor_cycle_seconds: 30
+    diseases: [deviation, laziness, protocol_violation, confident_but_wrong, scope_creep]
+    corrections: [teach, compact, prune, escalate]
+
+# ─── METHODOLOGY POLICY ────────────────────────────────────────────
+methodology:
+  available_models:
+    - feature-development         # All 5 stages, full artifact chain
+    - research                    # document + design
+    - knowledge-evolution         # document + implement
+    - documentation               # document only
+    - bug-fix                     # document + implement + test
+    - refactor                    # document + scaffold + implement + test
+    - hotfix                      # implement + test (emergency override)
+    - integration                 # scaffold + implement + test
+  stage_policy:
+    document: required            # No exceptions at full chain
+    design: required              # No exceptions for feature-dev
+    scaffold: required            # No exceptions for feature-dev/refactor
+    implement: required
+    test: required
+  artifact_depth: comprehensive   # All artifacts per model definition, nothing optional
+  contribution_gating: true       # Cross-agent inputs required before work begins (fleet)
+
+# ─── TRACKING POLICY ───────────────────────────────────────────────
+tracking:
+  readiness_gate: 99              # Highest gate — PO must confirm before dispatch
+  progress_tracking: realtime     # Via fleet_task_progress or harness updates
+  review_gate: adversarial        # Fleet-ops or human reviews every completion
+  milestone_tracking: required    # Milestones group epics into delivery targets
+  hierarchy_required: [milestone, epic, module, task]  # Full work breakdown
+  human_final_gate: true          # 99→100 ALWAYS requires human confirmation
+
+# ─── DOWNGRADE TRIGGERS ────────────────────────────────────────────
+# NEVER downgrade silently. Always a documented decision.
+downgrade_to_default:
+  - "Experimental branch within production project (time-boxed, documented)"
+  - "Team agrees to skip formal review for a specific low-risk batch"
+  - "Decision page documents: why, what risks accepted, who approved"

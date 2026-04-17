@@ -10,6 +10,8 @@ epic: E001
 related:
   - analysis-context-injection-blockers.md
   - investigation-context-injection-blockers.md
+confidence: medium
+sources: []
 ---
 
 # Plan: Context Injection Pipeline Blocker Fixes

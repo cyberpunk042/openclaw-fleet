@@ -1,0 +1,472 @@
+# Artifact Type System — defines every document/artifact type in the methodology.
+#
+# This file EXTENDS wiki-schema.yaml. The schema defines required_fields,
+# enums, and required_sections. This file adds: categories, content thresholds,
+# styling directives, verification methods, and template references.
+#
+# Resolution order:
+#   wiki-schema.yaml (structure) → artifact-types.yaml (detail) → domain profile (overrides)
+#
+# Design: wiki/domains/cross-domain/e003-artifact-type-system-design.md
+# Epic: E003 Artifact Type System
+
+# ---------------------------------------------------------------------------
+# Categories — organize types by purpose and knowledge layer
+# ---------------------------------------------------------------------------
+categories:
+  knowledge-pages:
+    description: "Wiki pages containing synthesized understanding"
+    layer_range: [1, 3]
+    types: [concept, source-synthesis, comparison, reference, deep-dive]
+
+  evolved-pages:
+    description: "Wiki pages distilled from other pages via cross-referencing"
+    layer_range: [4, 6]
+    requires_derived_from: true
+    types: [lesson, pattern, decision, principle]
+
+  navigation-pages:
+    description: "Pages that organize, curate, and guide through other pages"
+    layer: spine
+    types: [domain-overview, evolution, learning-path, index]
+
+  backlog-pages:
+    description: "Pages tracking planned work — milestones, epics, tasks, notes"
+    types: [milestone, epic, module, task, note]
+
+  methodology-documents:
+    description: "Documents produced during stage-gated methodology execution"
+    stage_bound: true
+    types: [operations-plan]
+    # Other methodology docs (requirements-spec, ADR, tech-spec, etc.)
+    # use existing wiki types (concept, decision, reference) with
+    # methodology-specific templates in config/templates/methodology/
+
+# ---------------------------------------------------------------------------
+# Artifact Classes — the three fundamental output types
+#
+# Each wiki page type belongs to one class. The class determines:
+# - Quality rules (documents must be binding; documentation must be accurate)
+# - Validation approach (documents: structural + completeness; docs: accuracy)
+# - Lifecycle (documents: draft→approved→superseded; docs: created→updated)
+#
+# See wiki lesson: "Three Classes of Methodology Output"
+# ---------------------------------------------------------------------------
+artifact_classes:
+  document:
+    description: "Written specification that CONSTRAINS future work — binding, complete, verifiable"
+    examples: [requirements-spec, ADR, tech-spec, test-plan, operations-plan]
+    quality_rule: "Must be binding — agents read it as instructions, not suggestions"
+  artifact:
+    description: "Tangible by-product of work — produced as side effect, validated by gate commands"
+    examples: [source-code, test-results, git-commits, deployment-packages]
+    quality_rule: "Must exist and pass gate command — structural validity, not semantic quality"
+  documentation:
+    description: "Explanatory material for users/maintainers — accurate, findable, maintainable"
+    examples: [concept, source-synthesis, lesson, pattern, domain-overview, user-guide]
+    quality_rule: "Must be accurate and useful — reader learns or decides from it"
+
+# ---------------------------------------------------------------------------
+# Type Definitions — per-type detail extending wiki-schema.yaml
+# ---------------------------------------------------------------------------
+types:
+
+  # === Knowledge Pages (class: documentation) ===
+
+  concept:
+    category: knowledge-pages
+    artifact_class: documentation
+    template: config/templates/concept.md
+    content_thresholds:
+      summary_min_words: 30
+      deep_analysis_min_words: 100
+      min_relationships: 1
+    styling:
+      callouts_required: false
+      callouts_recommended: true  # lint advisory if >80 lines and no callouts
+    verification:
+      gate: pipeline-post
+
+  source-synthesis:
+    category: knowledge-pages
+    artifact_class: documentation
+    template: config/templates/source-synthesis.md
+    content_thresholds:
+      summary_min_words: 30
+      min_relationships: 1
+      source_ratio: 0.25  # page length ≥25% of raw source length
+    styling:
+      callouts_required: false
+      callouts_recommended: true
+      reference_card: true  # should have > [!info] source reference card
+    verification:
+      gate: pipeline-post
+      custom: source-ratio-check
+
+  comparison:
+    category: knowledge-pages
+    artifact_class: documentation
+    template: config/templates/comparison.md
+    content_thresholds:
+      summary_min_words: 30
+      deep_analysis_min_words: 100
+      min_relationships: 2  # must compare TO something
+    styling:
+      callouts_required: true  # comparison matrix should use > [!abstract]
+    verification:
+      gate: pipeline-post
+
+  reference:
+    category: knowledge-pages
+    artifact_class: documentation  # references are LOOKUP material — explanatory, findable
+    template: config/templates/reference.md
+    content_thresholds:
+      summary_min_words: 30
+      min_relationships: 1
+    styling:
+      callouts_required: false
+    verification:
+      gate: pipeline-post
+
+  deep-dive:
+    category: knowledge-pages
+    artifact_class: documentation  # deep-dives are extended explanations — same class as concept
+    template: config/templates/deep-dive.md
+    content_thresholds:
+      summary_min_words: 30
+      deep_analysis_min_words: 200  # higher bar — this IS the analysis
+      min_relationships: 2
+    styling:
+      callouts_required: true  # deep-dives must structure with callouts
+    verification:
+      gate: pipeline-post
+
+  # === Evolved Pages ===
+
+  lesson:
+    category: evolved-pages
+    artifact_class: documentation
+    template: config/templates/lesson.md
+    content_thresholds:
+      summary_min_words: 30
+      insight_min_words: 50
+      min_relationships: 2  # at least DERIVED FROM + one other
+      min_evidence_items: 3  # ≥3 independent data points
+    styling:
+      callouts_required: true
+      callout_map:
+        Insight: "[!warning] or [!tip]"
+        Evidence: "[!bug]- for failures, [!success] for validated"
+        Applicability: "table, optionally in [!abstract]"
+    verification:
+      gate: pipeline-post
+
+  pattern:
+    category: evolved-pages
+    artifact_class: documentation
+    template: config/templates/pattern.md
+    content_thresholds:
+      summary_min_words: 30
+      pattern_description_min_words: 100
+      min_relationships: 2
+      min_instances: 2  # ≥2 concrete instances (not hypothetical)
+    styling:
+      callouts_required: true
+      callout_map:
+        Instances: "[!example]- foldable per instance"
+        When To Apply: "[!tip]"
+        When Not To: "[!warning]"
+    verification:
+      gate: pipeline-post
+
+  decision:
+    category: evolved-pages
+    artifact_class: document  # decisions are BINDING — they constrain future work
+    template: config/templates/decision.md
+    content_thresholds:
+      summary_min_words: 30
+      rationale_min_words: 100
+      min_relationships: 2
+      min_alternatives: 2  # ≥2 alternatives with rejection rationale
+    styling:
+      callouts_required: true
+      callout_map:
+        Decision: "[!success] with scenario-action table"
+        Alternatives: "[!warning] per rejected alternative"
+    verification:
+      gate: pipeline-post
+    required_frontmatter:
+      - reversibility
+
+  principle:
+    category: evolved-pages
+    artifact_class: document  # principles are the highest knowledge layer — governing truths
+    template: config/templates/principle.md
+    content_thresholds:
+      summary_min_words: 30
+      min_relationships: 3
+      min_derived_from: 3  # ≥3 source lessons/patterns
+    styling:
+      callouts_required: true
+      callout_map:
+        Statement: "[!tip] the governing principle"
+        Application: "[!info] how to apply"
+        Boundaries: "[!warning] when it doesn't apply"
+    verification:
+      gate: pipeline-post
+    required_frontmatter:
+      - derived_from
+
+  # === Navigation Pages ===
+
+  domain-overview:
+    category: navigation-pages
+    artifact_class: documentation  # navigation aid, organizes other pages
+    template: config/templates/domain-overview.md
+    content_thresholds:
+      summary_min_words: 30
+      min_relationships: 3
+    verification:
+      gate: pipeline-post
+
+  evolution:
+    category: navigation-pages
+    artifact_class: documentation  # historical record, explains how things changed
+    template: config/templates/evolution.md
+    content_thresholds:
+      summary_min_words: 30
+    verification:
+      gate: pipeline-post
+
+  learning-path:
+    category: navigation-pages
+    artifact_class: documentation  # curriculum/sequencing guide
+    template: config/templates/learning-path.md
+    content_thresholds:
+      summary_min_words: 30
+      min_sequence_items: 3
+    verification:
+      gate: pipeline-post
+
+  index:
+    category: navigation-pages
+    artifact_class: documentation  # navigation index
+    template: null  # indexes are hand-crafted or auto-generated
+    verification:
+      gate: pipeline-post
+
+  # === Backlog Pages ===
+
+  milestone:
+    category: backlog-pages
+    artifact_class: document
+    template: config/templates/milestone.md
+    required_frontmatter:
+      - priority
+      - target_date
+      - epics
+      - acceptance_criteria
+    content_thresholds:
+      summary_min_words: 30
+    verification:
+      gate: pipeline-post
+
+  epic:
+    category: backlog-pages
+    artifact_class: document
+    template: config/templates/epic.md
+    required_frontmatter:
+      - priority
+      - task_type
+      - current_stage
+      - readiness
+    verification:
+      gate: pipeline-post
+
+  module:
+    category: backlog-pages
+    artifact_class: document  # modules are BINDING work definitions (like epic, lighter)
+    template: config/templates/module.md
+    required_frontmatter:
+      - priority
+      - task_type
+      - current_stage
+      - readiness
+      - epic
+    verification:
+      gate: pipeline-post
+
+  task:
+    category: backlog-pages
+    artifact_class: document  # tasks are BINDING work definitions — constrain execution
+    template: config/templates/task.md
+    required_frontmatter:
+      - priority
+      - task_type
+      - current_stage
+      - readiness
+      - epic
+    verification:
+      gate: pipeline-post
+
+  note:
+    category: backlog-pages
+    artifact_class: documentation  # notes are recording/logging — explanatory, not constraining
+    template: config/templates/note.md
+    content_thresholds:
+      summary_min_words: 10
+    verification:
+      gate: pipeline-post
+
+  # === Methodology Documents ===
+
+  operations-plan:
+    category: methodology-documents
+    artifact_class: document  # operations plans are BINDING sequential instructions
+    template: config/templates/operations-plan.md
+    content_thresholds:
+      summary_min_words: 30
+      min_steps: 3
+    styling:
+      callouts_required: false  # checklists are inherently structured
+    verification:
+      gate: pipeline-post
+
+# ---------------------------------------------------------------------------
+# Methodology Document Templates (using existing wiki types)
+#
+# These are NOT separate types — they're specialized templates for documents
+# produced during methodology stages. They use existing wiki page types
+# (concept, decision, reference) but with methodology-specific structure.
+#
+# THE RULE FOR ADDING A NEW WIKI PAGE TYPE (not just a template):
+# A new page type is justified ONLY if it has STRUCTURALLY DIFFERENT rules
+# from all existing types — different required sections, different validation,
+# different lifecycle, or different quality bar. Methodology-specific CONTEXT
+# alone is NOT enough. Examples:
+#
+#   - requirements-spec → use `concept` (same structure as any concept page;
+#     just has methodology context). NOT a new type.
+#   - operations-plan → NEW TYPE (sequential checklist, no-judgment required,
+#     structurally different from concept which is explanatory prose).
+#   - ADR → use `decision` (same structure; classic ADR sections fit within
+#     decision template). NOT a new type, but worth its own methodology
+#     template due to distinct section conventions (Context/Decision/
+#     Consequences).
+#
+# Pages produced via these templates can declare their methodology identity
+# via the optional `methodology_doc_type:` frontmatter field (see wiki-schema.yaml).
+# This makes methodology role QUERYABLE without adding wiki page types.
+#
+# Scaffolder syntax: python3 -m tools.pipeline scaffold methodology/<template> "Title"
+# ---------------------------------------------------------------------------
+methodology_templates:
+  requirements-spec:
+    wiki_type: concept
+    artifact_class: document  # requirements are BINDING specifications
+    template: config/templates/methodology/requirements-spec.md
+    produced_at_stage: document
+    description: "Functional requirements, non-functional requirements, acceptance criteria"
+
+  infrastructure-analysis:
+    wiki_type: concept
+    artifact_class: documentation  # analysis output — describes existing state
+    template: config/templates/methodology/infrastructure-analysis.md
+    produced_at_stage: document
+    description: "Mapping of existing infrastructure — files, components, data flow"
+
+  gap-analysis:
+    wiki_type: concept
+    artifact_class: documentation  # analysis output — describes delta, not binding
+    template: config/templates/methodology/gap-analysis.md
+    produced_at_stage: document
+    description: "Gap identification — current vs required state, impact, complexity"
+
+  design-plan:
+    wiki_type: concept
+    artifact_class: document  # design decisions constrain subsequent implementation
+    template: config/templates/methodology/design-plan.md
+    produced_at_stage: design
+    description: "Problem analysis, alternatives, trade-offs, decisions, rationale"
+
+  tech-spec:
+    wiki_type: reference
+    artifact_class: document  # technical contract — constrains APIs and interfaces
+    template: config/templates/methodology/tech-spec.md
+    produced_at_stage: design
+    description: "Component specs, API tables, interface definitions, state management"
+
+  test-plan:
+    wiki_type: reference
+    artifact_class: document  # test contract — constrains what must pass
+    template: config/templates/methodology/test-plan.md
+    produced_at_stage: design
+    description: "Test strategy, test cases with IDs, inputs, expected outputs"
+
+  ADR:
+    wiki_type: decision
+    artifact_class: document  # architectural decisions are BINDING
+    template: config/templates/methodology/adr.md
+    produced_at_stage: design
+    description: "Architecture Decision Record — formal variant of decision page with Context/Decision/Consequences sections. Use when decision affects system architecture, needs durable provenance, or is hard to reverse."
+    section_conventions:
+      - "Status (proposed/accepted/deprecated/superseded)"
+      - "Context (forces at play, constraints)"
+      - "Decision (imperative statement wrapped in > [!success] callout)"
+      - "Consequences (benefits + costs as two tables)"
+      - "Alternatives Considered (≥2, each with > [!warning] rejection reason)"
+      - "Reversibility (easy/moderate/hard + what reversal requires)"
+      - "Related ADRs (depends on / supersedes / related to)"
+
+# ---------------------------------------------------------------------------
+# Stage Artifact Categories (generic, resolved by domain profiles)
+#
+# These define artifact CATEGORIES used in model chain definitions.
+# Domain profiles resolve them to concrete paths and gate commands.
+# ---------------------------------------------------------------------------
+stage_artifacts:
+  wiki-page:
+    description: "A markdown wiki page with frontmatter and required sections"
+    verification: file-exists + sections-present + word-count
+
+  design-document:
+    description: "A wiki page documenting decisions, specs, or architecture"
+    verification: file-exists + sections-present
+
+  type-definition:
+    description: "Source file defining types, interfaces, schemas, static data"
+    verification: file-exists + gate-command
+    domain_resolved: true  # path and gate from domain profile
+
+  test-stub:
+    description: "Test file with placeholder assertions only"
+    verification: file-exists + no-real-assertions
+    domain_resolved: true
+
+  implementation:
+    description: "Source file with business logic"
+    verification: file-exists + gate-command + has-logic
+    domain_resolved: true
+
+  integration-wiring:
+    description: "Existing file modified to import and use new code"
+    verification: file-preexisted + new-import-added
+    domain_resolved: true
+
+  test-implementation:
+    description: "Test file with real assertions that passes"
+    verification: file-exists + real-assertions + gate-passes
+    domain_resolved: true
+
+  test-results:
+    description: "Gate output confirming 0 test failures"
+    verification: gate-passes
+
+  code-fix:
+    description: "Source modification that fixes a specific root cause"
+    verification: file-exists + gate-command
+    domain_resolved: true
+
+  completion-log:
+    description: "Post-task log entry generated by harness or operator"
+    verification: file-exists

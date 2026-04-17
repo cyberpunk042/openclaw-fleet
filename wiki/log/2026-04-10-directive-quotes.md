@@ -7,9 +7,15 @@ status: active
 created: 2026-04-10
 updated: 2026-04-10
 tags: [directive, quotes, PO, methodology, complexity, trainee, modes]
+confidence: medium
+sources: []
 ---
 
 # Directive: Session Quotes (2026-04-09/10)
+
+## Summary
+
+Collection of key PO quotes from the 2026-04-09/10 sessions, preserved verbatim as standing-directive source material. Covers complexity-before-simplicity ("for things to become simple they have to become complex first"), the trainee principle ("I would not overwhelm my trainee"), operation modes + semi-autonomous + default workspace, shared vision of models + super-model, and the ecosystem-level fit (solo / Assistant / Fleet / Full Platform). These quotes anchor later synthesis work and are cited across multiple derivative pages.
 
 ## PO Quotes (verbatim)
 

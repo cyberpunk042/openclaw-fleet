@@ -7,7 +7,16 @@ confidence: medium
 created: 2026-04-08
 updated: 2026-04-08
 tags: [gateway, injection, truncation, tools-md, autocomplete-chain, E001]
-sources: [gateway/executor.py, scripts/push-agent-framework.sh, openarms source]
+sources:
+  - id: executor
+    type: documentation
+    file: gateway/executor.py
+  - id: push-agent-framework
+    type: documentation
+    file: scripts/push-agent-framework.sh
+  - id: openarms-source
+    type: documentation
+    file: openarms source
 ---
 
 # Gateway File Injection — Research Findings

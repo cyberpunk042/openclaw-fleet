@@ -8,11 +8,12 @@ created: 2026-04-11
 updated: 2026-04-11
 tags: [analysis, context-injection, blockers, model-selection, tier-rendering, data-shapes, validation]
 epic: E001
+sources: []
 ---
 
 # Analysis: Context Injection Pipeline Blockers
 
-## Context
+## Summary
 
 The context injection rendering pipeline has 29 generated scenarios and 0 PO-confirmed leaves. Before leaf-by-leaf validation can begin, the pipeline itself must be trustworthy. This analysis examines what's broken and where.
 

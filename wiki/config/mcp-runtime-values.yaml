@@ -1,0 +1,123 @@
+# MCP Consumer Runtime Values
+#
+# Consumers of this wiki's MCP server declare their runtime identity via the
+# `MCP_CLIENT_RUNTIME` environment variable, set in their `.mcp.json` entry
+# for `research-wiki`:
+#
+#   {
+#     "mcpServers": {
+#       "research-wiki": {
+#         "command": "python3",
+#         "args": ["-m", "tools.mcp_server"],
+#         "cwd": "${HOME}/devops-solutions-research-wiki",
+#         "env": {
+#           "MCP_CLIENT_RUNTIME": "harness-openarms-v10"
+#         }
+#       }
+#     }
+#   }
+#
+# Absence defaults to `solo`. Solo is the default for every project.
+#
+# See:
+#   - wiki/decisions/00_inbox/consumer-runtime-signaling-via-mcp-config.md (decision)
+#   - wiki/lessons/00_inbox/execution-mode-is-consumer-property-not-project-property.md (lesson)
+#   - tools/common.py get_consumer_runtime() (implementation)
+#
+# POLICY: this file is advisory — the wiki accepts any string value for observability.
+# Unknown values are logged but not rejected (see Open Question in the decision page).
+# This list documents the EXPECTED values so consumers know what to declare.
+
+schema_version: 1
+
+# ---------------------------------------------------------------------------
+# Convention for runtime-value strings
+# ---------------------------------------------------------------------------
+#
+# Format: <mode>-<project>-<version>
+#   - mode: solo | harness | fleet | full-system | sub-agent
+#   - project: short lowercase name (e.g., openarms, openfleet, aicp)
+#   - version: vN (e.g., v10, v11)
+#
+# Examples:
+#   - solo                              (the default; no project/version suffix)
+#   - harness-openarms-v10              (OpenArms harness at version 10)
+#   - harness-openarms-v11              (OpenArms harness at version 11 — when released)
+#   - fleet-openfleet-v1                (OpenFleet fleet orchestrator at v1)
+#   - full-system-aicp-v1               (AICP full-system runtime)
+#   - sub-agent-openfleet-v1-qa         (a sub-agent dispatched by OpenFleet fleet v1; role=qa)
+#
+# The suffix `-<role>` is optional, only used for sub-agents that want to
+# distinguish themselves from their dispatching runtime.
+
+convention:
+  format: "<mode>-<project>-<version>[-<role>]"
+  modes:
+    - solo
+    - harness
+    - fleet
+    - full-system
+    - sub-agent
+
+# ---------------------------------------------------------------------------
+# Known values — declared by projects in the current ecosystem
+# ---------------------------------------------------------------------------
+#
+# Each entry names a consumer runtime that has been coordinated with the
+# consuming project. Consumers not listed here are accepted but unrecognized.
+
+known_values:
+
+  - value: solo
+    project: (any)
+    description: "The default. Solo human + Claude Code conversation (or any MCP client) with no harness/fleet wrapping."
+    is_default: true
+
+  - value: harness-openarms-v10
+    project: openarms
+    description: "OpenArms harness v10 — TypeScript harness with validate-stage.cjs + verify-done-when.cjs + pre-bash/pre-write hooks. Dispatches one task at a time, agent never sees backlog."
+    project_remote: https://github.com/cyberpunk042/openarms
+    status: declared
+
+  - value: harness-openarms-v11
+    project: openarms
+    description: "OpenArms harness v11 — planned/in-progress version (per OpenArms roadmap). Update when released."
+    project_remote: https://github.com/cyberpunk042/openarms
+    status: planned
+
+  - value: fleet-openfleet-v1
+    project: openfleet
+    description: "OpenFleet fleet orchestrator v1 — Python deterministic 30s cycle. 10 agents. Immune system + contribution gating."
+    project_remote: https://github.com/cyberpunk042/openfleet
+    status: declared
+
+  - value: full-system-aicp-v1
+    project: aicp
+    description: "AICP AI Control Platform — complexity scorer + circuit breaker + LocalAI/Claude routing. Full-system mode."
+    project_remote: https://github.com/cyberpunk042/devops-expert-local-ai
+    status: declared
+
+  - value: solo-control-plane
+    project: devops-control-plane
+    description: "devops-control-plane running in solo mode (its own Claude sessions consuming the wiki). No harness wraps it currently."
+    project_remote: https://github.com/cyberpunk042/devops-control-plane
+    status: declared
+
+# ---------------------------------------------------------------------------
+# Future coordination — back-and-forth with consuming projects
+# ---------------------------------------------------------------------------
+#
+# When a consuming project adopts runtime declaration, they should:
+#   1. Add `MCP_CLIENT_RUNTIME` to their `.mcp.json` env block
+#   2. Use a value matching the convention above
+#   3. Open a PR against this file to register their value under known_values
+#
+# The wiki does not block on unknown values — but registering makes the
+# signal visible to other consumers and to observability dashboards.
+
+coordination:
+  upstream_pr_target: wiki/config/mcp-runtime-values.yaml
+  new_value_requirements:
+    - must_match: convention.format
+    - must_specify: project, description, project_remote, status
+    - status_values: [planned, declared, deprecated]

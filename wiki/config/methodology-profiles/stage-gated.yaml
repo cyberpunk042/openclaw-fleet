@@ -1,0 +1,166 @@
+# Methodology Profile: Stage-Gated
+#
+# The default execution style for this wiki and its ecosystem projects.
+# Encodes the core methodology.yaml sequence with balanced emphasis across
+# all five stages. No single stage dominates — understanding, decisions,
+# structure, logic, and proof each get deliberate attention.
+#
+# This IS what methodology.yaml already encodes. Naming it explicitly makes
+# it selectable/comparable alongside the other profiles.
+#
+# See: wiki/config/methodology-profiles/README.md
+
+profile: stage-gated
+description: "Balanced 5-stage execution with gates — the Goldilocks default"
+style: "uniform progress through document → design → scaffold → implement → test"
+
+# ─── PROVENANCE ─────────────────────────────────────────────────────────────
+derived_from:
+  - source: "methodology.yaml"
+    type: internal
+    note: "This profile makes the implicit style of methodology.yaml explicit"
+
+# ─── WHEN TO USE ────────────────────────────────────────────────────────────
+applicability:
+  best_for:
+    - "Most features, modules, and epics where the solution is not fully known"
+    - "New domains where thorough documentation prevents rework"
+    - "Teams or operators with methodology awareness at L1-L2"
+    - "Projects in the default or full SDLC profile"
+    - "The research wiki itself (production, growing, operator-supervised)"
+  not_for:
+    - "Emergencies where solution is known (use hotfix model)"
+    - "Pure research tasks with no implementation (use research model)"
+    - "Spec-first projects where specs ARE the product (use spec-driven)"
+    - "AI-native workflows with persona orchestration (use agile-ai)"
+  compatible_with_sdlc_profiles: [simplified, default, full]
+
+# ─── STAGE EMPHASIS ─────────────────────────────────────────────────────────
+# Weights represent relative effort share within a task cycle.
+# All five stages receive meaningful attention — none is a formality.
+stage_emphasis:
+  document:
+    weight: 0.20
+    primary_artifacts:
+      - requirements-spec
+      - infrastructure-analysis
+      - gap-analysis
+      - wiki-page (research findings, source synthesis)
+    key_gate_checks:
+      - wiki-page-exists
+      - no-code-files-created
+    notes: "Problem must be understood before any design begins. No shortcuts."
+
+  design:
+    weight: 0.20
+    primary_artifacts:
+      - design-plan
+      - decision (ADR)
+      - tech-spec
+      - test-plan
+    key_gate_checks:
+      - design-doc-exists
+      - no-code-files-created
+    notes: "Trade-offs resolved on paper. Code shapes sketched in docs, not files."
+
+  scaffold:
+    weight: 0.20
+    primary_artifacts:
+      - type-definition
+      - test-stub
+      - config-file
+    key_gate_checks:
+      - types-compile
+      - no-business-logic
+      - test-stubs-exist
+    notes: "Skeleton only. Zero behavior. Gate rejects any logic in function bodies."
+
+  implement:
+    weight: 0.25
+    primary_artifacts:
+      - implementation
+      - integration-wiring
+    key_gate_checks:
+      - code-compiles
+      - lint-passes
+      - integration-wiring-exists
+    notes: "Fill scaffold with real logic. Wire into existing runtime. No new tests."
+
+  test:
+    weight: 0.15
+    primary_artifacts:
+      - test-implementation
+      - test-results
+    key_gate_checks:
+      - tests-pass
+      - no-placeholder-assertions
+    notes: "Replace stubs with real assertions. Gate requires 0 failures, no placeholders."
+
+# ─── ARTIFACT PREFERENCES ───────────────────────────────────────────────────
+artifact_preferences:
+  preferred:
+    - requirements-spec           # formal FR/NFR/AC decomposition
+    - design-plan                 # decision analysis before any code
+    - gap-analysis                # delta between current and required state
+    - type-definition + test-stub # scaffold pair (always together)
+    - integration-wiring          # proves the module connects, not just compiles
+  deprioritized:
+    - operational-runbook         # not needed for standard features
+    - migration-plan              # only when explicitly changing existing behavior
+    - performance-baseline        # optional unless NFRs specify latency/throughput
+
+# ─── AVAILABLE MODELS ───────────────────────────────────────────────────────
+models:
+  - feature-development    # primary — all 5 stages
+  - research               # document + design
+  - knowledge-evolution    # document + implement
+  - documentation          # document only
+  - bug-fix                # document + implement + test
+  - refactor               # document + scaffold + implement + test
+  - hotfix                 # implement + test (emergency bypass)
+  - integration            # scaffold + implement + test
+
+# ─── SIGNATURE PRACTICES ────────────────────────────────────────────────────
+signature_practices:
+  - name: "Gate-before-advance"
+    when: "every stage transition"
+    description: >
+      Advancing from one stage to the next requires the previous stage's
+      gate checks to pass. No 'soft' gates — if the check fails, fix it
+      before proceeding. The pipeline post command validates this.
+
+  - name: "Forbidden-zone enforcement"
+    when: "document and design stages"
+    description: >
+      Code files must not exist or be modified during document/design.
+      Domain profiles define the forbidden path patterns (e.g. src/*.ts).
+      Gate check explicitly verifies no code was created.
+
+  - name: "Integration-wiring requirement"
+    when: "implement stage"
+    description: >
+      Implementation is not complete until at least one existing file
+      imports and calls the new code. Prevents orphaned modules that
+      compile but are never reachable.
+
+  - name: "Iterative depth"
+    when: "document stage"
+    description: >
+      Ingestion and research are multi-pass: extract → cross-ref → gaps
+      → deepen. First pass is never final. Source describes → read an
+      instance. README ≠ understanding.
+
+# ─── ADOPTION NOTES ─────────────────────────────────────────────────────────
+adoption:
+  prerequisites:
+    - "methodology.yaml present (this profile layers over it)"
+    - "Domain profile configured (defines forbidden zones and gate commands)"
+    - "pipeline post runs clean before starting new work"
+  typical_onboarding_time: "1 sprint (operator familiar with gates after 2-3 features)"
+  migration_from_other_profiles: |
+    Stage-gated is the default baseline — other profiles LAYER ON it or DIVERGE
+    from it for specific reasons. Migrating back is always safe:
+    1. Ensure methodology.yaml is current
+    2. Set profile: stage-gated in project config
+    3. Run pipeline post — existing pages are already compatible
+    4. Resume next feature using standard feature-development model

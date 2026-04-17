@@ -7,6 +7,8 @@ priority: P2
 created: 2026-04-08
 updated: 2026-04-09
 tags: [sleep, offline, heartbeat, context-switching, compaction, timing, effort, responsive]
+confidence: high
+sources: []
 ---
 
 # Agent Lifecycle Fine-Tuning

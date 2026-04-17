@@ -7,7 +7,16 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, E014, navigator, intent-map, pack-skills, sub-agents, expansion]
-sources: [docs/knowledge-map/intent-map.yaml, config/skill-stage-mapping.yaml, config/agent-tooling.yaml]
+sources:
+  - id: intent-map
+    type: documentation
+    file: docs/knowledge-map/intent-map.yaml
+  - id: skill-stage-mapping
+    type: documentation
+    file: config/skill-stage-mapping.yaml
+  - id: agent-tooling
+    type: documentation
+    file: config/agent-tooling.yaml
 epic: [E001, E014]
 phase: "1 — Design"
 ---

@@ -7,6 +7,7 @@ confidence: high
 created: 2026-04-10
 updated: 2026-04-10
 tags: [review, findings, scenarios, context-injection, validation, issues]
+sources: []
 ---
 
 # Critical Review Findings — Context Injection Scenarios

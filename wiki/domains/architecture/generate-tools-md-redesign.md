@@ -7,7 +7,16 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, generation-pipeline, tools-md, algorithm, IaC]
-sources: [scripts/generate-tools-md.py, config/tool-roles.yaml, config/tool-chains.yaml]
+sources:
+  - id: generate-tools-md
+    type: documentation
+    file: scripts/generate-tools-md.py
+  - id: tool-roles
+    type: documentation
+    file: config/tool-roles.yaml
+  - id: tool-chains
+    type: documentation
+    file: config/tool-chains.yaml
 epic: E001
 phase: "1 — Design"
 ---

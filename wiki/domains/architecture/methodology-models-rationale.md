@@ -10,7 +10,8 @@ tags: [methodology, models, rationale, config, selection, contribution, rework, 
 sources:
   - id: src-model-methodology
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/spine/model-methodology.md
+    project: devops-solutions-research-wiki
+    path: wiki/spine/model-methodology.md
     title: "Model: Methodology"
 ---
 

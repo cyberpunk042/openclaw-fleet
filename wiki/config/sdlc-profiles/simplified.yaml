@@ -1,0 +1,67 @@
+# SDLC Profile: Simplified
+#
+# The SDLC profile defines PROJECT-LEVEL POLICY — not task execution.
+# Task execution (stages, artifacts, gates) is defined in methodology.yaml.
+# The SDLC profile determines HOW MUCH methodology a project needs.
+#
+# See: wiki/domains/cross-domain/methodology-framework/sdlc-customization-framework.md
+
+profile: simplified
+description: "Minimum viable process for exploration and rapid iteration"
+
+# ─── WHEN THIS PROFILE APPLIES ───────────────────────────────────────
+applicability:
+  phases: [poc, early-mvp]
+  scale: [micro, small]          # <10k to ~100k lines
+  typical_projects:
+    - "New idea being validated"
+    - "Solo developer exploring a concept"
+    - "Spike or time-boxed experiment within a larger project"
+
+# ─── EXECUTION MODE ────────────────────────────────────────────────
+execution:
+  mode: solo                      # Human + agent in conversation, no wrapping
+  harness: none                   # No harness — human IS the loop
+  pm_level: L1                    # Wiki backlog only, no fleet/tool
+
+# ─── ENFORCEMENT POLICY ────────────────────────────────────────────
+enforcement:
+  level: advisory                 # CLAUDE.md rules only, no hooks
+  stage_gates: advisory           # Stages recommended, not blocked
+  hooks: none                     # No pre-commit, pre-write, etc.
+  compliance_target: best-effort  # No measured compliance threshold
+
+# ─── METHODOLOGY POLICY ────────────────────────────────────────────
+# What methodology features are ACTIVE at this chain level.
+# The models themselves are defined in methodology.yaml — this just
+# says which ones are available and how strictly they're applied.
+methodology:
+  available_models:
+    - hotfix                      # implement + test
+    - bug-fix                     # document + implement + test
+    - documentation               # document only
+    - feature-development         # Compressed: design + scaffold may merge
+  stage_policy:
+    document: optional            # Can skip for trivial changes
+    design: skip                  # Design is implicit or in conversation
+    scaffold: skip                # Merged with implement
+    implement: required
+    test: required
+  artifact_depth: minimal         # Fewer artifacts per stage, lighter templates
+
+# ─── TRACKING POLICY ───────────────────────────────────────────────
+tracking:
+  readiness_gate: 30              # Low bar — operator judgment is the real gate
+  progress_tracking: frontmatter  # Basic frontmatter fields only
+  review_gate: operator           # Human reviews, no fleet-ops
+  milestone_tracking: none        # No milestones — epics and tasks only
+  human_final_gate: true          # 99→100 still requires human (universal)
+
+# ─── UPGRADE TRIGGERS ──────────────────────────────────────────────
+# When this chain is no longer sufficient
+upgrade_to_default:
+  - "Agent violates stage boundaries despite CLAUDE.md rules"
+  - "Project moves from POC to MVP with real users or stakeholders"
+  - "Codebase exceeds ~100k lines"
+  - "Multiple agents need to coordinate on the same codebase"
+  - "Operator finds themselves manually catching errors the pipeline should catch"

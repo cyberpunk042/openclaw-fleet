@@ -1,0 +1,123 @@
+# Domain Profile: Knowledge (pure research wikis, no code)
+#
+# For projects that are PURELY knowledge-oriented — no production code, just
+# curated markdown knowledge with frontmatter, relationships, maturity lifecycle.
+# Distinct from python-wiki (which has Python tools maintaining a wiki); this
+# is for projects that ARE wikis, not tool-wiki hybrids.
+#
+# Examples: a documentation-only repo, a personal knowledge base without tooling,
+# a research notebook that publishes through Obsidian or similar.
+#
+# Layers over generic methodology.yaml definitions.
+
+domain: knowledge
+description: "Pure knowledge projects — markdown wikis without production code"
+examples: [documentation-only-repos, pkm-notebooks, research-archives]
+
+# ---------------------------------------------------------------------------
+# Stage Overrides — resolve generic artifacts to Knowledge domain specifics
+# ---------------------------------------------------------------------------
+stage_overrides:
+  document:
+    gate_commands:
+      - "python3 -m tools.pipeline post"  # if tooling is wired — optional
+    path_patterns:
+      wiki-page: "wiki/**/*.md"
+      source-synthesis: "wiki/sources/**/*.md"
+      concept: "wiki/domains/**/*.md"
+    forbidden_zones:
+      - "src/"
+      - "tools/"
+    # At document stage, knowledge projects produce:
+    #   - Source syntheses (L1 — distill raw sources)
+    #   - Concept pages (L2 — what a thing IS)
+    #   - Comparison pages (L3 — evaluate alternatives)
+
+  design:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      design-document: "wiki/decisions/**/*.md"
+      decision-page: "wiki/decisions/**/*.md"
+    forbidden_zones:
+      - "src/"
+      - "tools/"
+    # Design in a pure knowledge project = Decision pages (ADR-style) +
+    # Deep-dive pages that capture HOW-level detail
+
+  scaffold:
+    # In a pure knowledge project, scaffold = creating page stubs in 00_inbox
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      page-stub: "wiki/**/00_inbox/*.md"
+    allowed_content:
+      page-stub: "Frontmatter + Summary + placeholder sections — no deep content yet"
+    verification:
+      stub-has-frontmatter: "YAML frontmatter present with title/type/domain"
+
+  implement:
+    # "Implement" in knowledge domain = promote the page through maturity folders
+    # 00_inbox → 01_drafts → 02_synthesized → 03_validated → 04_principles
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      validated-page: "wiki/**/03_validated/*.md"
+      principle-page: "wiki/**/04_principles/*.md"
+    verification:
+      has-relationships: "Page has ≥1 relationship to other wiki pages"
+      has-sources: "Page has source provenance (URL or file reference)"
+
+  test:
+    # "Test" = cross-reference validation + gap analysis
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+      - "python3 -m tools.pipeline gaps"
+      - "python3 -m tools.pipeline crossref"
+    verification:
+      no-orphans: "Page is reachable from domain _index.md"
+      no-dead-relationships: "All [[wikilinks]] resolve to real pages"
+      no-thin-pages: "Page meets content threshold from artifact-types.yaml"
+
+# ---------------------------------------------------------------------------
+# Domain-Specific Quality Rules
+# ---------------------------------------------------------------------------
+quality_rules:
+  frontmatter_required:
+    - title
+    - type
+    - domain
+    - status
+    - confidence
+    - created
+    - updated
+    - sources
+    - tags
+  relationships_minimum: 1
+  summary_minimum_words: 30
+  allowed_types:
+    - concept
+    - source-synthesis
+    - comparison
+    - reference
+    - deep-dive
+    - lesson
+    - pattern
+    - decision
+    - principle
+    - domain-overview
+    - learning-path
+    - evolution
+    - note
+
+# ---------------------------------------------------------------------------
+# How This Domain Differs From python-wiki
+# ---------------------------------------------------------------------------
+# python-wiki: has tools/ directory with Python validation/maintenance tooling.
+#   Scaffold stage produces YAML configs; Implement produces Python code.
+#
+# knowledge: no code at all. The wiki IS the project. Scaffold = page stubs.
+#   Implement = promote through maturity folders. Test = cross-ref validation.
+#
+# If your project has BOTH a wiki AND tools/ maintaining it → use python-wiki.
+# If your project is PURE markdown with no production code → use knowledge.

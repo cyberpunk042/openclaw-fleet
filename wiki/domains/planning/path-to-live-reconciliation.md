@@ -6,7 +6,14 @@ status: active
 created: 2026-04-09
 updated: 2026-04-09
 tags: [planning, reconciliation, path-to-live, epics, status, progress]
-sources: [docs/milestones/active/path-to-live.md, wiki/backlog/_index.md]
+sources:
+  - id: path-to-live
+    type: documentation
+    file: docs/milestones/active/path-to-live.md
+  - id: index
+    type: documentation
+    file: wiki/backlog/_index.md
+confidence: medium
 ---
 
 # Path-to-Live Reconciliation — Where We Are

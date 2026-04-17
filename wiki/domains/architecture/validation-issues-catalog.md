@@ -6,7 +6,14 @@ status: active
 created: 2026-04-09
 updated: 2026-04-09
 tags: [validation, issues, heartbeat, task, preembed, autocomplete, quality]
-sources: [validation-matrix/*.md, PO review session 2026-04-09]
+sources:
+  - id: source
+    type: documentation
+    file: validation-matrix/*.md
+  - id: po-review-session-2026-04-09
+    type: documentation
+    file: PO review session 2026-04-09
+confidence: medium
 ---
 
 # Validation Issues Catalog

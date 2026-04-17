@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [chains, buses, propagation, events, tools, group-calls, cross-task-tracking]
+confidence: high
+sources: []
 ---
 
 # Chain/Bus Architecture

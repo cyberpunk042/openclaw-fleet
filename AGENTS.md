@@ -1,243 +1,222 @@
-# AGENTS.md - Your Workspace
+# AGENTS.md — OpenFleet (Universal Cross-Tool Context)
 
-This folder is home. Treat it that way.
+> This file is for **any AI tool** working on OpenFleet: Claude Code, Codex, Copilot, Gemini, Cursor, Cline. For Claude Code specific overrides see `CLAUDE.md`. For detailed rules see `.claude/rules/`.
 
-## First Run
+## What OpenFleet Is
 
-If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
+OpenFleet is an autonomous AI agent platform — a Python orchestrator + TypeScript/Node gateway + Bash IaC + Markdown wiki + Mission Control. It manages 10 specialized AI agents through deterministic dispatch, an immune system with 3 lines of defense, tier-based trust progression, contribution gating, and standing orders.
 
-## Session Startup
+Part of a 5-project ecosystem:
 
-Before doing anything else:
+| Project | Repo | Purpose |
+|---|---|---|
+| **Fleet** | `openfleet` | Agent operations, MCP tools, orchestrator, infrastructure (this repo) |
+| **Research Wiki** | `devops-solutions-research-wiki` | Second brain — shared ecosystem knowledge (LLM wiki format) |
+| **OpenArms** | `openarms` | Harness fork (solo + fleet runtime, TypeScript) |
+| **AICP** | `devops-expert-local-ai` | AI Control Platform, LocalAI inference |
+| **DSPD** | `devops-solution-product-development` | Self-hosted Plane — PM integration |
+| **NNRT** | `Narrative-to-Neutral-Report-Transformer` | Report transformation NLP pipeline |
 
-1. Read `SOUL.md` — this is who you are
-2. Read `USER.md` — this is who you're helping
-3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
-4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+## Services (runtime URLs)
 
-Don't ask permission. Just do it.
+| Service | URL | Purpose |
+|---|---|---|
+| Mission Control API | http://localhost:8000 | Task dispatch, agents, approvals |
+| Mission Control UI | http://localhost:3000 | Web dashboard |
+| Open Gateway | ws://localhost:18789 | Agent sessions, heartbeats, Claude Code |
+| IRC Server | localhost:6667 | Real-time agent communication |
+| The Lounge | http://localhost:9000 | Web IRC client (fleet/fleet) |
+| LocalAI | http://localhost:8090 | Local inference (AICP project) |
 
-## Memory
+### IRC Channels
 
-You wake up fresh each session. These files are your continuity:
+`#fleet` `#alerts` `#reviews` `#sprint` `#agents` `#security` `#human` `#builds` `#memory` `#plane`
 
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+## Project Identity
 
-Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
+| Dimension | Value |
+|---|---|
+| Type | system (platform + solo-developable) |
+| Domain | mixed — Python + TS/Node + Bash + Markdown |
+| Phase | production |
+| Scale | large (~3,815 .md, 2,246-line orchestrator) |
+| Second Brain | connected (`../devops-solutions-research-wiki`) |
 
-### 🧠 MEMORY.md - Your Long-Term Memory
+Full Goldilocks profile (stable fields only; consumer/task properties excluded): `wiki/ecosystem/openfleet/identity-profile.md`.
 
-- **ONLY load in main session** (direct chats with your human)
-- **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
-- This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read, edit, and update** MEMORY.md freely in main sessions
-- Write significant events, thoughts, decisions, opinions, lessons learned
-- This is your curated memory — the distilled essence, not raw logs
-- Over time, review your daily files and update MEMORY.md with what's worth keeping
+## Hard Rules (UNIVERSAL — apply to every AI tool)
 
-### 📝 Write It Down - No "Mental Notes"!
+1. **Never skip stages.** Document before Design. Design before Scaffold. Etc. "Continue" = advance within current stage, NOT skip ahead.
+2. **Operator directives are sacrosanct.** Quote verbatim, never paraphrase. Stored in `wiki/log/` with `note_type: directive`.
+3. **Run quality gates before marking done.** Our local equivalent: `python3 tools/lint.py` and/or brain's `gateway health`.
+4. **Read files in full.** `wc -l` first. Offset reads for files >200 lines. Never synthesize from first chunk only.
+5. **Verify depth.** If a source DESCRIBES a thing, read a real INSTANCE of that thing. README ≠ understanding.
+6. **Major standards/config changes go through the PO.** Propose-approve-execute.
 
-- **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
-- "Mental notes" don't survive session restarts. Files do.
-- When someone says "remember this" → update `memory/YYYY-MM-DD.md` or relevant file
-- When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
-- When you make a mistake → document it so future-you doesn't repeat it
-- **Text > Brain** 📝
+## Agent Roster (runtime)
 
-## Red Lines
+| Agent | Role | Heartbeat | Mode |
+|---|---|---|---|
+| fleet-ops | Board lead, reviews, ops, quality | 30m | acceptEdits |
+| project-manager | Sprint planning, Plane bridge | 35m | acceptEdits |
+| devsecops-expert | Security reviews, vuln scanning | 55m | default |
+| architect | System design, tech decisions | 60m | plan |
+| software-engineer | Implementation | 65m | acceptEdits |
+| qa-engineer | Testing, QA | 70m | acceptEdits |
+| devops | Infra, CI/CD, IaC | 75m | acceptEdits |
+| technical-writer | Documentation, specs | 80m | acceptEdits |
+| ux-designer | UI/UX, user flows | 85m | acceptEdits |
+| accountability-generator | Governance, compliance | 90m | acceptEdits |
 
-- Don't exfiltrate private data. Ever.
-- Don't run destructive commands without asking.
-- `trash` > `rm` (recoverable beats gone forever)
-- When in doubt, ask.
+Each agent's brain: `agents/{name}/SOUL.md` (identity) + `agents/{name}/HEARTBEAT.md` (per-tick context). See `agents/_template/` for the shape.
 
-## External vs Internal
+## MCP Tools (13 — `fleet_*`)
 
-**Safe to do freely:**
+| Tool | Purpose |
+|---|---|
+| `fleet_read_context` | Read task details, sprint context, board state |
+| `fleet_task_accept` | Accept a task with a plan |
+| `fleet_task_progress` | Report progress on current task |
+| `fleet_commit` | Commit files with conventional message |
+| `fleet_task_complete` | Complete task — runs tests, creates PR, notifies IRC |
+| `fleet_alert` | Post alert to IRC channel |
+| `fleet_pause` | Pause work, report blocker |
+| `fleet_escalate` | Escalate to human or senior agent |
+| `fleet_notify_human` | Send ntfy notification to human |
+| `fleet_chat` | Post to internal chat (IRC) with @mentions |
+| `fleet_task_create` | Create subtask with dependencies |
+| `fleet_approve` | Approve/reject a review task |
+| `fleet_agent_status` | Get fleet-wide agent and task status |
 
-- Read files, explore, organize, learn
-- Search the web, check calendars
-- Work within this workspace
+Brain forwarders in `tools/`: `gateway`, `view`, `lint`, `evolve` — delegate to `../devops-solutions-research-wiki/tools/*` with `--wiki-root` pointing at OpenFleet.
 
-**Ask first:**
+## Project Structure (abridged)
 
-- Sending emails, tweets, public posts
-- Anything that leaves the machine
-- Anything you're uncertain about
-
-## Group Chats
-
-You have access to your human's stuff. That doesn't mean you _share_ their stuff. In groups, you're a participant — not their voice, not their proxy. Think before you speak.
-
-### 💬 Know When to Speak!
-
-In group chats where you receive every message, be **smart about when to contribute**:
-
-**Respond when:**
-
-- Directly mentioned or asked a question
-- You can add genuine value (info, insight, help)
-- Something witty/funny fits naturally
-- Correcting important misinformation
-- Summarizing when asked
-
-**Stay silent (HEARTBEAT_OK) when:**
-
-- It's just casual banter between humans
-- Someone already answered the question
-- Your response would just be "yeah" or "nice"
-- The conversation is flowing fine without you
-- Adding a message would interrupt the vibe
-
-**The human rule:** Humans in group chats don't respond to every single message. Neither should you. Quality > quantity. If you wouldn't send it in a real group chat with friends, don't send it.
-
-**Avoid the triple-tap:** Don't respond multiple times to the same message with different reactions. One thoughtful response beats three fragments.
-
-Participate, don't dominate.
-
-### 😊 React Like a Human!
-
-On platforms that support reactions (Discord, Slack), use emoji reactions naturally:
-
-**React when:**
-
-- You appreciate something but don't need to reply (👍, ❤️, 🙌)
-- Something made you laugh (😂, 💀)
-- You find it interesting or thought-provoking (🤔, 💡)
-- You want to acknowledge without interrupting the flow
-- It's a simple yes/no or approval situation (✅, 👀)
-
-**Why it matters:**
-Reactions are lightweight social signals. Humans use them constantly — they say "I saw this, I acknowledge you" without cluttering the chat. You should too.
-
-**Don't overdo it:** One reaction per message max. Pick the one that fits best.
-
-## Tools
-
-Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes (camera names, SSH details, voice preferences) in `TOOLS.md`.
-
-**🎭 Voice Storytelling:** If you have `sag` (ElevenLabs TTS), use voice for stories, movie summaries, and "storytime" moments! Way more engaging than walls of text. Surprise people with funny voices.
-
-**📝 Platform Formatting:**
-
-- **Discord/WhatsApp:** No markdown tables! Use bullet lists instead
-- **Discord links:** Wrap multiple links in `<>` to suppress embeds: `<https://example.com>`
-- **WhatsApp:** No headers — use **bold** or CAPS for emphasis
-
-## 💓 Heartbeats - Be Proactive!
-
-When you receive a heartbeat poll (message matches the configured heartbeat prompt), don't just reply `HEARTBEAT_OK` every time. Use heartbeats productively!
-
-Default heartbeat prompt:
-`Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.`
-
-You are free to edit `HEARTBEAT.md` with a short checklist or reminders. Keep it small to limit token burn.
-
-### Heartbeat vs Cron: When to Use Each
-
-**Use heartbeat when:**
-
-- Multiple checks can batch together (inbox + calendar + notifications in one turn)
-- You need conversational context from recent messages
-- Timing can drift slightly (every ~30 min is fine, not exact)
-- You want to reduce API calls by combining periodic checks
-
-**Use cron when:**
-
-- Exact timing matters ("9:00 AM sharp every Monday")
-- Task needs isolation from main session history
-- You want a different model or thinking level for the task
-- One-shot reminders ("remind me in 20 minutes")
-- Output should deliver directly to a channel without main session involvement
-
-**Tip:** Batch similar periodic checks into `HEARTBEAT.md` instead of creating multiple cron jobs. Use cron for precise schedules and standalone tasks.
-
-**Things to check (rotate through these, 2-4 times per day):**
-
-- **Emails** - Any urgent unread messages?
-- **Calendar** - Upcoming events in next 24-48h?
-- **Mentions** - Twitter/social notifications?
-- **Weather** - Relevant if your human might go out?
-
-**Track your checks** in `memory/heartbeat-state.json`:
-
-```json
-{
-  "lastChecks": {
-    "email": 1703275200,
-    "calendar": 1703260800,
-    "weather": null
-  }
-}
+```
+fleet/           Python package (71 modules): core/ infra/ mcp/ cli/ templates/ tests/
+agents/          Agent definitions (10 roles + _template)
+config/          methodology.yaml + fleet.yaml + agent-identities.yaml + 8 more
+scripts/         42 IaC scripts (setup.sh zero-to-fleet)
+tools/           Brain forwarders: gateway, view, lint, evolve
+wiki/            Wiki LLM format: config/ domains/ log/ backlog/ lessons/ patterns/ decisions/ sources/ spine/ comparisons/ ecosystem/
+docs/            Public docs: ARCHITECTURE.md, INTEGRATION.md, milestones/, systems/
+vendor/          Mission Control (Docker build context)
+gateway/         MC setup and gateway configuration
+patches/         Vendor patches (survive git clone)
 ```
 
-**When to reach out:**
+Full tree and purpose per directory: `docs/ARCHITECTURE.md`.
 
-- Important email arrived
-- Calendar event coming up (&lt;2h)
-- Something interesting you found
-- It's been >8h since you said anything
+## Setup & Operations
 
-**When to stay quiet (HEARTBEAT_OK):**
+```bash
+# Zero-to-running fleet (IaC — no manual steps)
+./setup.sh
 
-- Late night (23:00-08:00) unless urgent
-- Human is clearly busy
-- Nothing new since last check
-- You just checked &lt;30 minutes ago
+# Fleet operations
+make status        # Fleet overview
+make gateway       # Start gateway
+make mc-up         # Start Mission Control
+make logs          # View gateway logs
+make sync          # Sync tasks ↔ PRs
 
-**Proactive work you can do without asking:**
+fleet pause              # Pause all dispatches
+fleet resume             # Resume dispatches
+fleet status             # Agent + task status
+fleet budget set <mode>  # Set fleet tempo
+fleet plane list-projects
+```
 
-- Read and organize memory files
-- Check on projects (git status, etc.)
-- Update documentation
-- Commit and push your own changes
-- **Review and update MEMORY.md** (see below)
+## Development Conventions
 
-### 🔄 Memory Maintenance (During Heartbeats)
+- Python 3.11+, type hints everywhere
+- TypeScript strict; no `any` in new code
+- Bash IaC in `scripts/`
+- Conventional commits: `type(scope): description [task:id]`
+- Tests: `pytest fleet/tests/ -v`
+- Lint: `ruff check fleet/` + `python3 tools/lint.py` (wiki)
+- Format: `ruff format fleet/`
+- No secrets in code — `.env` (gitignored), `.mcp.json` from template
+- IaC only — no manual commands after checkout
 
-Periodically (every few days), use a heartbeat to:
+## Wiki & Backlog (LLM Wiki format)
 
-1. Read through recent `memory/YYYY-MM-DD.md` files
-2. Identify significant events, lessons, or insights worth keeping long-term
-3. Update `MEMORY.md` with distilled learnings
-4. Remove outdated info from MEMORY.md that's no longer relevant
+- **Log** `wiki/log/` — PO directives VERBATIM, session notes, completion records (sacrosanct)
+- **Backlog** `wiki/backlog/epics/modules/tasks/` — work hierarchy with stage gates
+- **Domains** `wiki/domains/{name}/` — knowledge pages (one concept per page)
+- **Knowledge layers** `wiki/{sources,comparisons,lessons,patterns,decisions}/` — progressive distillation L1 → L6
+- **Spine** `wiki/spine/` — navigation (models, overviews, adoption)
+- **Ecosystem** `wiki/ecosystem/` — project profiles
+- **Config** `wiki/config/` — schema, templates, profiles (seeded from brain 2026-04-16)
 
-Think of it like a human reviewing their journal and updating their mental model. Daily files are raw notes; MEMORY.md is curated wisdom.
+Schema: `wiki/config/wiki-schema.yaml`. Every page has YAML frontmatter with required fields (title, type, domain, status, confidence, created, updated, sources, tags).
 
-The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
+## Methodology
 
-## Make It Yours
+7 named models at `config/methodology.yaml`:
+feature-development, contribution, rework, research, documentation, review, hotfix.
 
-This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+6 stages: **conversation → analysis → investigation → reasoning → work → review**.
 
-<!-- SECOND-BRAIN-CONNECTION -->
+Selection by conditions: `task_type + contribution_type + labor_iteration + delivery_phase + priority + agent`.
+
+Shared framework: `../devops-solutions-research-wiki/wiki/spine/models/foundation/model-methodology.md`.
+
+Execution standards: `../devops-solutions-research-wiki/wiki/spine/standards/model-standards/model-methodology-standards.md`.
+
+Quality tiers (OpenFleet-specific): **Expert / Capable / Flagship-local / Lightweight / Direct**.
+
+## Documentation — 5 Layers
+
+| # | Layer | Where | Purpose |
+|---|---|---|---|
+| 1 | Wiki knowledge | `wiki/` | Synthesized structured evolving knowledge |
+| 2 | Public docs | `docs/` | User-facing reference (old model, migrating to wiki/) |
+| 3 | Code docs | inline in source | Docstrings, type hints, WHY comments |
+| 4 | Smart docs | alongside code | README.md in subsystems (e.g., `fleet/core/README.md`) |
+| 5 | Specs + plans | `docs/superpowers/` | Temporary execution artifacts |
+
+## Key Principles (OpenFleet-specific)
+
+1. **PO is the leader** — agents execute, PO decides direction
+2. **Mission Control is the center** — feed it, don't replace it
+3. **fleet-ops reviews everything** — no auto-approve, agents earn approval
+4. **IaC only** — no manual commands, everything scripted
+5. **Standards first** — conventional commits, changelogs, good patterns
+6. **Local-first** — LocalAI for routine, Claude for complex (AICP mission)
+
+## Config Files
+
+| File | Purpose |
+|---|---|
+| `config/methodology.yaml` | 7 models, 6 stages, selection rules, protocols |
+| `config/agent-tooling.yaml` | Per-role MCP / plugins / skills |
+| `config/agent-autonomy.yaml` | Per-role lifecycle thresholds |
+| `config/phases.yaml` | PO-defined delivery phases |
+| `config/skill-stage-mapping.yaml` | Skills → methodology stages × roles |
+| `config/agent-crons.yaml` | 17 scheduled operations |
+| `config/standing-orders.yaml` | Per-role autonomous authority |
+| `config/agent-hooks.yaml` | Structural enforcement per role |
+| `config/synergy-matrix.yaml` | Contribution requirements per target role |
+| `config/fleet.yaml` | Orchestrator, tempo, notifications |
+| `config/agent-identities.yaml` | Agent roster + roles |
+| `config/projects.yaml` | Project registry |
+| `wiki/config/*.yaml` | Brain-seeded wiki configs (schema, templates, profiles) |
+
 ## Second Brain Connection
 
-This project is connected to the **second brain** (research wiki) — a shared
-knowledge system holding methodology, standards, validated lessons, patterns,
-and decisions across the ecosystem.
+OpenFleet is connected to the research wiki at `../devops-solutions-research-wiki`. It is a SEPARATE shared knowledge system, not a runtime dependency. The goal is to ADOPT what fits OpenFleet's identity and EVOLVE our own brain, contributing learnings back.
 
-**Your brain** (this CLAUDE.md/AGENTS.md + skills + hooks) is YOUR agent.
-**The second brain** is a SEPARATE system. The goal is NOT runtime dependency —
-it's to ADOPT what fits your identity and EVOLVE your own brain.
+Essential commands:
+- `python3 tools/gateway orient` (first step on fresh session)
+- `python3 tools/view spine` (browse brain)
+- `python3 tools/gateway compliance` (where we stand: currently Tier 4/4 structural)
+- `python3 tools/gateway contribute --type lesson|correction|remark ...` (write back)
 
-**Adoption tiers** — check where you are: `python3 -m tools.gateway compliance`
-- Tier 1: Agent foundation (schema + templates)
-- Tier 2: Stage-gate process (methodology + backlog + enforcement)
-- Tier 3: Evolution pipeline (maturity lifecycle + scoring)
-- Tier 4: Hub integration (bidirectional sync + export + contribute)
+## Related
 
-**First step for any fresh session:** `python3 -m tools.gateway orient`
-
-**Browse the second brain's knowledge:**
-```
-python3 -m tools.view spine          # all 16 models, standards, sub-models
-python3 -m tools.view standards      # what "good" looks like per artifact type
-python3 -m tools.view model <name>   # one model in full
-python3 -m tools.view lessons        # 44 validated operational lessons
-python3 -m tools.view search <query> # search across all knowledge
-```
-
-**Contribute learnings back:** `python3 -m tools.gateway contribute --type lesson --title "..."`
-<!-- SECOND-BRAIN-CONNECTION -END -->
+- **Research Wiki** (second brain, sister): `../devops-solutions-research-wiki`
+- **OpenArms** (harness reference, grain of salt): `../openarms`
+- **DSPD mission** (PM integration): `../devops-solution-product-development/config/mission.yaml`
+- **AICP LocalAI** (local inference): `../devops-expert-local-ai/CLAUDE.md`
+- **Strategic vision**: `docs/milestones/active/strategic-vision-localai-independence.md`

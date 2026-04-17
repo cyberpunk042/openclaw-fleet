@@ -7,9 +7,15 @@ note_type: directive
 created: 2026-04-09
 updated: 2026-04-09
 tags: [directive, methodology, llm-wiki, shared-models, vision, integration, modes, PO]
+confidence: medium
+sources: []
 ---
 
 # Directive: Integrate Shared Models (LLM Wiki + Methodology)
+
+## Summary
+
+PO directive to integrate two foundational shared models from the research wiki (LLM Wiki + Methodology) into OpenFleet as the standard ecosystem vocabulary. The models apply at four levels — solo / assistant / fleet / full-platform — with the context injection system as the delivery mechanism for methodology model instances. Integration means adopting shared vocabulary where it aligns, evolving methodology.yaml from one model to multiple named models, and treating OpenFleet's validation matrix as test suite for methodology-model context injection.
 
 ## PO Directives (Verbatim)
 

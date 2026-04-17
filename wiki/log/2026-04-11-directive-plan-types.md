@@ -7,9 +7,15 @@ status: active
 created: 2026-04-11
 updated: 2026-04-11
 tags: [directive, plans, methodology, reasoning-stage, quality, PO]
+confidence: medium
+sources: []
 ---
 
 # Directive: Plan Types — Design Plan vs Operations Plan
+
+## Summary
+
+PO directive distinguishing two fundamentally different artifacts that both get called "plan": a **Design Plan** (the real plan — what we deliver and how we reach there: architecture, rationale, data flow, component connections, constraints, traceability) versus an **Operations Plan** (a personal TODO list — sequential steps, mechanical, useful only for handing brainless work to cheap models). The methodology's "produce a plan in reasoning stage" always means a Design Plan. An Operations Plan is never a plan deliverable.
 
 ## PO Directive (verbatim)
 

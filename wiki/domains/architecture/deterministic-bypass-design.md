@@ -6,9 +6,16 @@ status: draft
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E003, brain, deterministic, bypass, cost, intelligence]
-sources: [fleet/cli/orchestrator.py, fleet/core/brain_writer.py]
+sources:
+  - id: orchestrator
+    type: documentation
+    file: fleet/cli/orchestrator.py
+  - id: brain-writer
+    type: documentation
+    file: fleet/core/brain_writer.py
 epic: E003
 phase: "1 — Design"
+confidence: medium
 ---
 
 # Deterministic Bypass Design

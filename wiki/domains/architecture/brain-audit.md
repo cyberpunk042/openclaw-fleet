@@ -7,7 +7,19 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E003, brain, orchestrator, intelligence, audit]
-sources: [fleet/cli/orchestrator.py, fleet/core/brain_writer.py, fleet/core/heartbeat_gate.py, docs/milestones/active/fleet-elevation/04-the-brain.md]
+sources:
+  - id: orchestrator
+    type: documentation
+    file: fleet/cli/orchestrator.py
+  - id: brain-writer
+    type: documentation
+    file: fleet/core/brain_writer.py
+  - id: heartbeat-gate
+    type: documentation
+    file: fleet/core/heartbeat_gate.py
+  - id: 04-the-brain
+    type: documentation
+    file: docs/milestones/active/fleet-elevation/04-the-brain.md
 epic: E003
 phase: "0 — Research"
 ---

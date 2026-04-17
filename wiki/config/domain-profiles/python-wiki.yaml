@@ -1,0 +1,135 @@
+# Domain Profile: Python/Wiki
+#
+# For projects like the research wiki — Python tools, markdown wiki pages,
+# pipeline-based validation, YAML config, Obsidian-compatible output.
+#
+# Layers over generic methodology.yaml definitions.
+# Full domain chain: wiki/domains/cross-domain/domain-chain-python-wiki.md
+# Real examples: E003 Artifact Type System (this wiki's own Feature Dev execution)
+
+domain: python-wiki
+description: "Python tool projects and knowledge wikis"
+examples: [devops-solutions-research-wiki]
+
+# ---------------------------------------------------------------------------
+# Stage Overrides — resolve generic artifacts to Python/Wiki specifics
+# ---------------------------------------------------------------------------
+stage_overrides:
+  document:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      wiki-page: "wiki/**/*.md"
+    forbidden_zones:
+      - "tools/"    # no tool code during document stage (understanding, not building)
+      - "src/"
+    # Templates used at this stage (from methodology.yaml chain):
+    #   methodology/requirements-spec → wiki/domains/{domain}/{slug}-requirements.md
+    #   methodology/infrastructure-analysis → wiki/domains/{domain}/{slug}-infrastructure.md
+    #   methodology/gap-analysis → wiki/domains/{domain}/{slug}-gaps.md
+
+  design:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      design-document: "wiki/domains/**/*.md"
+      decision-page: "wiki/decisions/*.md"
+    forbidden_zones:
+      - "tools/"
+      - "src/"
+    # Templates used at this stage:
+    #   methodology/design-plan → wiki/domains/{domain}/{slug}-design.md
+    #   decision → wiki/decisions/{slug}.md  (for ADRs)
+    #   methodology/tech-spec → wiki/domains/{domain}/{slug}-tech-spec.md
+    #   methodology/test-plan → wiki/domains/{domain}/{slug}-test-plan.md
+
+  scaffold:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+    path_patterns:
+      type-definition: "config/**/*.yaml"       # schemas, artifact-types, methodology configs
+      config-file: "config/**/*.yaml"            # same — configs ARE the scaffold in this domain
+      test-stub: "tests/**/*.py"                 # if Python tests exist
+      template-file: "config/templates/**/*.md"  # wiki page templates
+    forbidden_zones: []
+    allowed_content:
+      type-definition: "YAML declarations only — no Python logic"
+      template-file: "Frontmatter + section headings + guidance comments — no real content"
+    verification:
+      no-business-logic: "config files contain only declarations, no Python logic"
+      templates-parse: "template variables ({{title}}, {{date}}) present"
+
+  implement:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+      - "python3 -m tools.validate"
+    path_patterns:
+      wiki-page: "wiki/**/*.md"                  # content pages with real knowledge
+      implementation: "tools/**/*.py"            # Python tool code with real logic
+      config-file: "config/**/*.yaml"            # config enrichments
+      skill-file: "skills/**/*.md"               # skill definitions
+    integration_requirement:
+      description: "New tool code must be imported by existing pipeline or used by existing skill"
+      check: "At least one existing file in tools/ or skills/ references the new code"
+    verification:
+      pipeline-post-passes: "python3 -m tools.pipeline post exits 0 with 0 validation errors"
+      wiki-pages-valid: "All new wiki pages have valid frontmatter, required sections, ≥30 word summaries"
+
+  test:
+    gate_commands:
+      - "python3 -m tools.pipeline post"
+      - "python3 -m tools.validate"
+      - "python3 -m tools.lint --summary"
+    path_patterns:
+      test-implementation: "tests/**/*.py"
+      test-results: null  # pipeline post IS the test for this domain
+    verification:
+      pipeline-passes: "pipeline post exits 0"
+      validation-clean: "validate exits 0"
+      lint-advisory: "lint issues are advisory, not blocking — but new issues should not increase"
+
+# ---------------------------------------------------------------------------
+# Knowledge Domain Extensions — unique to wiki projects
+# ---------------------------------------------------------------------------
+knowledge_operations:
+  ingestion:
+    description: "Process raw sources into wiki knowledge pages"
+    pipeline: "pipeline fetch → pipeline post (or smart ingestion via wiki-agent skill)"
+    gate: "pipeline post 0 errors"
+    quality_rule: "Page length ≥ 25% of raw source length (depth verification)"
+
+  evolution:
+    description: "Distill higher-layer pages from existing wiki knowledge"
+    pipeline: "pipeline evolve --score → scaffold → generate → pipeline post"
+    gate: "Evolved page has derived_from, evidence from sources, pipeline post passes"
+    quality_rules:
+      lesson: "≥3 evidence items, mechanism explained, applicability with boundaries"
+      pattern: "≥2 instances with page references, When Not To equally detailed"
+      decision: "≥2 alternatives with rejection reasons, reversibility honest"
+
+  curation:
+    description: "Maintain domain overviews, learning paths, indexes"
+    pipeline: "pipeline post → pipeline gaps → pipeline crossref"
+    gate: "Maturity map reflects actual distribution, gaps name specific topics"
+
+# ---------------------------------------------------------------------------
+# Conventions specific to Python/Wiki domain
+# ---------------------------------------------------------------------------
+conventions:
+  page_structure: "YAML frontmatter → # Title → ## Sections per wiki-schema.yaml"
+  relationship_format: "- VERB: Target Name (optional context)"
+  filename: "kebab-case, ASCII-only, max 80 chars"
+  validation: "python3 -m tools.pipeline post (runs 6-step chain)"
+  commit_style: "conventional — feat/fix/docs/chore(scope): message"
+  sync: "rsync to Windows/Obsidian vault via tools/sync.py"
+
+# ---------------------------------------------------------------------------
+# Real Example: E003 Artifact Type System (Feature Dev in this domain)
+# ---------------------------------------------------------------------------
+# Document: wiki/domains/cross-domain/methodology-standards-initiative-infrastructure.md
+#           wiki/domains/cross-domain/methodology-standards-initiative-gaps.md
+#           wiki/domains/cross-domain/e003-artifact-type-system-requirements.md
+# Design:   wiki/domains/cross-domain/e003-artifact-type-system-design.md
+# Scaffold: config/artifact-types.yaml, config/templates/*.md, config/wiki-schema.yaml
+# Implement: config/methodology.yaml, config/domain-profiles/*.yaml, tools/validate.py
+# Test:     python3 -m tools.pipeline post → 0 errors

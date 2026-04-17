@@ -7,7 +7,22 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, E007, skills, plugins, packs, ecosystem, per-role, allocation]
-sources: [config/agent-tooling.yaml, config/skill-packs.yaml, config/skill-assignments.yaml, config/skill-stage-mapping.yaml, ecosystem research]
+sources:
+  - id: agent-tooling
+    type: documentation
+    file: config/agent-tooling.yaml
+  - id: skill-packs
+    type: documentation
+    file: config/skill-packs.yaml
+  - id: skill-assignments
+    type: documentation
+    file: config/skill-assignments.yaml
+  - id: skill-stage-mapping
+    type: documentation
+    file: config/skill-stage-mapping.yaml
+  - id: ecosystem-research
+    type: documentation
+    file: ecosystem research
 epic: [E001, E007]
 phase: "0 — Research"
 ---

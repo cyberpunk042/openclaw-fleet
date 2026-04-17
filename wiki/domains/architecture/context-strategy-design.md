@@ -6,9 +6,16 @@ status: draft
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E003, E008, context, compaction, strategy, session, rate-limit]
-sources: [docs/milestones/active/context-window-awareness-and-control.md, fleet-elevation/04-the-brain.md]
+sources:
+  - id: context-window-awareness-and-control
+    type: documentation
+    file: docs/milestones/active/context-window-awareness-and-control.md
+  - id: 04-the-brain
+    type: documentation
+    file: fleet-elevation/04-the-brain.md
 epic: E003
 phase: "1 — Design"
+confidence: medium
 ---
 
 # Context Strategy Design

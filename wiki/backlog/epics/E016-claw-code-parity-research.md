@@ -7,6 +7,8 @@ priority: P2
 created: 2026-04-08
 updated: 2026-04-09
 tags: [claw-code, aicp, parity, rust, features, localai, independence]
+confidence: high
+sources: []
 ---
 
 # Claw Code Parity Research

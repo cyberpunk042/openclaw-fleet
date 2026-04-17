@@ -8,11 +8,12 @@ created: 2026-04-11
 updated: 2026-04-11
 tags: [analysis, context-injection, output-quality, blockers, systemic, contribution, navigator, events, preembed]
 epic: E001
+sources: []
 ---
 
 # Analysis: Why TK-01 Produces 88 Lines Instead of 200+
 
-## Context
+## Summary
 
 TK-01 is the golden path: software-engineer, work stage, 40% progress, expert tier, all contributions received, MVP phase, full injection. This is the SIMPLEST scenario — every feature should be visible. Instead, 88 lines of generic boilerplate. Every feature we built is absent from the output.
 

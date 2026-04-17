@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [rag, lightrag, knowledge-base, memory, indexing, persistence, fleet-compose]
+confidence: high
+sources: []
 ---
 
 # RAG/Knowledge System (LightRAG)

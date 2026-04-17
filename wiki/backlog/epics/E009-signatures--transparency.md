@@ -7,6 +7,8 @@ priority: P2
 created: 2026-04-08
 updated: 2026-04-09
 tags: [signatures, labor-stamps, transparency, provenance, identity, trainee, metrics]
+confidence: high
+sources: []
 ---
 
 # Signatures & Transparency

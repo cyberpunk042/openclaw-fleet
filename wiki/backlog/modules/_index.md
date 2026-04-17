@@ -6,6 +6,8 @@ status: active
 created: 2026-04-08
 updated: 2026-04-09
 tags: [modules, backlog]
+confidence: medium
+sources: []
 ---
 
 # Modules

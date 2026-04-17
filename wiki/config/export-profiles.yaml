@@ -1,0 +1,86 @@
+# Export profiles for sister project integration
+
+openfleet:
+  description: "Export for LightRAG ingestion via kb_sync.py"
+  target_format: openfleet-kb
+  output_dir: ../openfleet/docs/knowledge-map/kb/research-wiki/
+  transforms:
+    frontmatter: strip
+    type_map:
+      concept: "Research"
+      source-synthesis: "Research"
+      comparison: "Research Synthesis"
+      reference: "Research"
+      deep-dive: "Research Synthesis"
+    status_map: {}
+    add_metadata:
+      - key: "Type"
+        value: "{type_mapped}"
+      - key: "Source Project"
+        value: "devops-solutions-research-wiki"
+      - key: "Date"
+        value: "{updated}"
+    relationship_format: preserve
+    resolution: full
+  filters:
+    min_confidence: medium
+    min_status: synthesized
+    exclude_domains: []
+
+aicp:
+  description: "Export for LocalAI Collections KB"
+  target_format: aicp-kb
+  output_dir: ../devops-expert-local-ai/docs/kb/research-wiki/
+  transforms:
+    frontmatter: markdown-headers
+    type_map:
+      concept: "Research Finding"
+      source-synthesis: "Research Finding"
+      comparison: "Research Finding"
+      reference: "Infrastructure Reference"
+      deep-dive: "Research Finding"
+    status_map:
+      synthesized: "RESEARCHED"
+      verified: "VERIFIED"
+      stale: "OUTDATED"
+    add_metadata:
+      - key: "Type"
+        value: "{type_mapped}"
+      - key: "Date"
+        value: "{updated}"
+      - key: "Status"
+        value: "{status_mapped}"
+      - key: "Sources"
+        value: "{source_urls}"
+    resolution: condensed
+  filters:
+    min_confidence: medium
+    min_status: synthesized
+    domains:
+      - infrastructure
+      - devops
+      - ai-models
+      - ai-agents
+      - security
+      - knowledge-systems
+
+methodology:
+  description: "Export methodology engine config bundle for consumer projects"
+  target_format: methodology-bundle
+  output_dir: null  # set per invocation via --output
+  bundle_files:
+    - config/methodology.yaml
+    - config/artifact-types.yaml
+    - config/domain-profiles/typescript.yaml
+    - config/domain-profiles/python-wiki.yaml
+    - config/domain-profiles/infrastructure.yaml
+    - config/wiki-schema.yaml
+    - config/quality-standards.yaml
+  bundle_wiki_pages:
+    - wiki/spine/methodology-adoption-guide.md
+    - wiki/domains/cross-domain/artifact-chains-by-model.md
+    - wiki/domains/cross-domain/model-composition-rules.md
+    - wiki/domains/cross-domain/methodology-evolution-protocol.md
+  transforms:
+    frontmatter: preserve
+    resolution: full

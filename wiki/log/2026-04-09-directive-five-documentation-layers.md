@@ -10,11 +10,17 @@ tags: [directive, documentation, layers, wiki, docs, code-docs, smart-docs, spec
 sources:
   - id: src-research-wiki-directive
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/log/2026-04-09-directive-docs-layers-old-models.md
+    project: devops-solutions-research-wiki
+    path: wiki/log/2026-04-09-directive-docs-layers-old-models.md
     title: "Documentation Layers + Old Model Tolerance"
+confidence: medium
 ---
 
 # Directive: Five Documentation Layers
+
+## Summary
+
+PO directive establishing five distinct documentation layers that must not be conflated: **wiki knowledge** (synthesized, structured, evolving — the second brain's core), **public docs** (user-facing reference, old model in OpenFleet — migrate incrementally), **code docs** (inline docstrings + WHY comments alongside source), **smart docs** (documentation files distributed through src/ explaining subsystems), and **specs & plans** (temporary execution artifacts in docs/superpowers/). The LLM Wiki IS the standard for all ecosystem projects; old models are tolerated during transition but realigned toward wiki/ structure over time.
 
 ## PO Directive (verbatim)
 

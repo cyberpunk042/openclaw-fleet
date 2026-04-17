@@ -10,6 +10,7 @@ tags: [investigation, context-injection, blockers, model-selection, tier-renderi
 epic: E001
 related:
   - analysis-context-injection-blockers.md
+sources: []
 ---
 
 # Investigation: Context Injection Pipeline Blocker Solutions

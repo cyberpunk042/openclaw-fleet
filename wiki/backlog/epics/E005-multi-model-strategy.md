@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [codex, mimo, qwen, turboquant, localai, routing, free-models, trainee]
+confidence: high
+sources: []
 ---
 
 # Multi-Model Strategy

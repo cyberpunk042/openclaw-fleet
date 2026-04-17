@@ -1,0 +1,228 @@
+# Methodology Profile: Test-Driven
+#
+# Tests before code. The failing test is the specification. Red → Green →
+# Refactor is the atomic development cycle. Test stubs in the Scaffold stage
+# are not placeholders — they are executable specifications that describe
+# behavior before any implementation exists.
+#
+# Fits naturally into the stage-gated flow: scaffold produces failing tests,
+# implement makes them pass, test stage verifies coverage and cleans up.
+# The difference from stage-gated: scaffold tests are NOT placeholders —
+# they have real assertions against not-yet-implemented behavior.
+#
+# See: wiki/config/methodology-profiles/README.md
+
+profile: test-driven
+description: "Tests before code — failing tests as specs, Red→Green→Refactor cycle"
+style: "scaffold produces real failing tests; implement makes them pass; refactor preserves green"
+
+# ─── PROVENANCE ─────────────────────────────────────────────────────────────
+derived_from:
+  - source: "methodology.yaml"
+    type: internal
+    note: "Extends standard scaffold→implement→test with inverted test-first discipline"
+  - source: "src-bmad-method-agile-ai-development-framework"
+    type: wiki
+    note: "TEA persona's quality-first emphasis; test-as-executable-spec framing"
+
+# ─── WHEN TO USE ────────────────────────────────────────────────────────────
+applicability:
+  best_for:
+    - "Modules with well-defined interfaces and verifiable behavior contracts"
+    - "Critical path code where regressions are costly (billing, auth, data pipelines)"
+    - "Refactoring work where behavior must be preserved exactly"
+    - "Library or utility code that will be consumed by many callers"
+    - "Any feature where the expected behavior can be stated before implementation"
+    - "Pairs well with spec-driven profile (spec checklists become test cases)"
+  not_for:
+    - "Exploratory UI work where acceptance criteria are visual/subjective"
+    - "Infrastructure-as-code where integration tests > unit tests"
+    - "Research stages (no tests to write yet — solution unknown)"
+    - "Hotfixes under time pressure where test-first slows mitigation"
+    - "First pass on a brand-new domain with no stable interfaces yet"
+  compatible_with_sdlc_profiles: [simplified, default, full]
+
+# ─── RED → GREEN → REFACTOR CYCLE ───────────────────────────────────────────
+# This is the core practice. Each implementation unit follows this cycle.
+# The cycle maps to our stage sequence.
+tdd_cycle:
+  red:
+    stage: scaffold
+    action: "Write a failing test that describes desired behavior"
+    gate: "Test file must FAIL (not error — fail with assertion)"
+    note: >
+      A test that errors (cannot compile, missing import) is not Red —
+      it is broken. Red means the behavior is testable but not yet present.
+      The test must run and report a failure, not a crash.
+
+  green:
+    stage: implement
+    action: "Write the minimum code to make the failing test pass"
+    gate: "Test must pass. No additional code beyond what the test requires."
+    note: >
+      'Minimum' is strict: do not implement features not yet under test.
+      Gold-plating in Green phase creates untested behavior and defeats TDD.
+      If you find yourself writing logic the test doesn't require — stop.
+
+  refactor:
+    stage: test (first pass) + implement (re-entry)
+    action: "Improve code structure while keeping all tests green"
+    gate: "All tests must remain green after every refactor step"
+    note: >
+      Refactor is continuous. After Green, improve names, extract functions,
+      reduce duplication. After each change, run tests. Never accumulate
+      multiple structural changes before running tests — single-step refactor.
+
+# ─── STAGE EMPHASIS ─────────────────────────────────────────────────────────
+stage_emphasis:
+  document:
+    weight: 0.15
+    primary_artifacts:
+      - requirements-spec           # behavior specifications, not just features
+      - interface-definition        # function signatures, input/output contracts
+      - edge-case-catalog           # enumerate boundary conditions before coding
+    key_gate_checks:
+      - wiki-page-exists
+      - behavior-contracts-stated   # what should the system DO, not just what it IS
+    notes: >
+      Document stage focuses on behavioral specification. What does this
+      unit DO for valid input? What does it DO for invalid input? What are
+      the boundary conditions? These questions produce the test list.
+
+  design:
+    weight: 0.10
+    primary_artifacts:
+      - test-plan                   # exhaustive list of test cases (not stubs yet)
+      - interface-spec              # exact function signatures and type contracts
+    key_gate_checks:
+      - test-plan-exists
+      - test-cases-enumerated       # test list complete before scaffold begins
+    notes: >
+      Design produces the TEST LIST — an ordered catalog of test cases
+      to implement in scaffold. This is the critical TDD artifact.
+      Implementation design follows from test design.
+
+  scaffold:
+    weight: 0.35
+    primary_artifacts:
+      - test-implementation         # REAL assertions, not placeholders — but failing
+      - type-definition             # signatures only, no bodies (or throw NotImplemented)
+    key_gate_checks:
+      - tests-exist-and-fail        # tests must FAIL (not error, not skip)
+      - no-business-logic-in-src    # src stubs throw / return placeholder only
+      - test-cases-match-test-plan  # every test-plan entry has a test
+    notes: >
+      This is the INVERSION from stage-gated. Scaffold tests are NOT
+      stubs with expect(true).toBe(true). They are real assertions against
+      real (failing) behavior. The implementation body is the stub — a
+      throw new Error('not implemented') or equivalent.
+
+  implement:
+    weight: 0.30
+    primary_artifacts:
+      - implementation              # minimum code to pass each failing test
+    key_gate_checks:
+      - all-scaffold-tests-pass     # every Red test is now Green
+      - no-new-logic-without-test   # if you added logic, there's a test for it
+      - lint-passes
+    notes: >
+      Red → Green. Make one test pass at a time. Do not skip ahead.
+      After all tests pass, refactor. Refactor does not mean add features.
+      Run tests after every single structural change.
+
+  test:
+    weight: 0.10
+    primary_artifacts:
+      - test-implementation         # coverage expansion: edge cases, integration
+      - test-results                # 0 failures, coverage report
+    key_gate_checks:
+      - tests-pass
+      - coverage-threshold-met      # per project config (e.g. 80% line coverage)
+      - no-untested-public-api      # every exported function has at least one test
+    notes: >
+      Test stage adds coverage for cases not in the original test list:
+      error paths, integration points, performance boundaries. All new
+      tests must also go Red first, then Green.
+
+# ─── ARTIFACT PREFERENCES ───────────────────────────────────────────────────
+artifact_preferences:
+  preferred:
+    - test-plan                     # test list before any scaffold begins
+    - edge-case-catalog             # boundary conditions documented before code
+    - real-failing-test             # scaffold test with real assertion (not placeholder)
+    - interface-spec                # types and signatures agreed before implementation
+    - coverage-report               # objective measure, not subjective "looks tested"
+  deprioritized:
+    - placeholder-test-stub         # to.be(true) stubs have no place in TDD
+    - integration-heavy-scaffold    # scaffold focuses on unit test layer
+    - premature-optimization        # Refactor phase is for structure, not performance
+
+# ─── AVAILABLE MODELS ───────────────────────────────────────────────────────
+models:
+  - feature-development    # primary — full cycle, scaffold emphasis
+  - bug-fix                # write a failing test for the bug FIRST, then fix
+  - refactor               # all tests green before refactor; stay green throughout
+  - integration            # integration test layer added on top of unit tests
+
+# ─── SIGNATURE PRACTICES ────────────────────────────────────────────────────
+signature_practices:
+  - name: "Test list before scaffold"
+    when: "design stage"
+    description: >
+      Before writing a single test file, produce the test list: an ordered
+      catalog of test cases. Format: behavior under test + input scenario +
+      expected output. This list drives scaffold stage completely.
+
+  - name: "Red before Green"
+    when: "scaffold stage"
+    description: >
+      Every test must be proven to fail before implementation begins.
+      Run the test suite after writing each test. If a test passes before
+      implementation — the test is wrong, the behavior already exists, or
+      the assertion is vacuous. Investigate before proceeding.
+
+  - name: "Single-step refactor"
+    when: "refactor cycle within implement and test stages"
+    description: >
+      Make one structural change. Run tests. If green, make the next change.
+      Never accumulate 3 refactors before running tests. Small steps preserve
+      the ability to identify exactly which change broke the suite.
+
+  - name: "Triangulation for generalization"
+    when: "implement stage, when tempted to generalize"
+    description: >
+      Do not generalize until you have at least 3 test cases that require
+      the general solution. Premature generalization creates untested code
+      paths. Let the tests drive the design toward generality.
+
+  - name: "Bug-test-first"
+    when: "any bug fix under this profile"
+    description: >
+      Before touching production code, write a test that reproduces the bug.
+      The test must fail (red). Fix the bug. Test must pass (green). This
+      guarantees the bug is understood and cannot regress silently.
+
+  - name: "Coverage as gate, not target"
+    when: "test stage"
+    description: >
+      Coverage percentage is a minimum gate, not a goal to maximize. 100%
+      coverage with vacuous assertions is worse than 80% with strong assertions.
+      The gate is: every exported public API has at least one meaningful test.
+
+# ─── ADOPTION NOTES ─────────────────────────────────────────────────────────
+adoption:
+  prerequisites:
+    - "methodology.yaml present"
+    - "Test runner configured and fast (tests run in <5s for unit layer)"
+    - "Domain profile gate commands configured for test execution"
+    - "Operator comfortable with the discomfort of writing tests before code exists"
+  typical_onboarding_time: "5-10 TDD cycles before Red→Green→Refactor is natural"
+  migration_from_stage_gated: |
+    1. In the NEXT feature's scaffold stage, change the test-stub template:
+       instead of expect(true).toBe(true), write a real assertion for real behavior
+    2. Confirm the test FAILS before touching implementation files
+    3. In implement stage, make each failing test pass — one at a time
+    4. After all green: refactor ONE thing, run tests, repeat
+    5. After the feature: retrospect on test quality — were assertions specific?
+    6. Gradually make test-plan a required design artifact
+    7. After 3 features, evaluate: are integration tests catching what unit tests miss?

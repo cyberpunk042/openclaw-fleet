@@ -1,0 +1,68 @@
+# Domain Profile: Infrastructure as Code
+#
+# For projects like devops-control-plane — Terraform, Docker, CI/CD pipelines,
+# YAML configs, shell scripts, deployment automation.
+#
+# Layers over generic methodology.yaml definitions.
+
+domain: infrastructure
+description: "Infrastructure as Code projects (Terraform, Docker, CI/CD)"
+examples: [devops-control-plane]
+
+stage_overrides:
+  document:
+    gate_commands: []
+    path_patterns:
+      wiki-page: "wiki/**/*.md"  # or docs/**/*.md depending on project
+    forbidden_zones:
+      - "*.tf"
+      - "*.sh"
+      - "Dockerfile"
+
+  design:
+    gate_commands: []
+    path_patterns:
+      design-document: "wiki/**/*.md"
+    forbidden_zones:
+      - "*.tf"
+      - "*.sh"
+      - "Dockerfile"
+
+  scaffold:
+    gate_commands:
+      - "terraform validate"  # must be syntactically valid
+    path_patterns:
+      type-definition: "**/*.tf"        # Terraform variable/output definitions
+      config-file: "**/*.tfvars"        # Variable files
+    forbidden_zones: []
+    verification:
+      no-business-logic: "Terraform files contain only variable, output, data declarations — no resource blocks"
+
+  implement:
+    gate_commands:
+      - "terraform validate"
+      - "terraform plan"  # must produce a valid plan
+    path_patterns:
+      implementation: "**/*.tf"         # Resource blocks, modules
+      config-file: "**/*.tfvars"
+      integration-wiring: "**/*.tf"     # Module references, data sources linking components
+    verification:
+      terraform-plan-clean: "terraform plan produces no errors"
+
+  test:
+    gate_commands:
+      - "terraform plan"
+      - "terraform apply -auto-approve"  # against staging/test environment
+    path_patterns:
+      test-implementation: "tests/**/*.tf"  # or terratest Go files
+      test-results: null
+    verification:
+      tests-pass: "terraform apply succeeds against test environment"
+      infrastructure-operational: "health check endpoint returns 200"
+
+# Infrastructure-specific conventions
+conventions:
+  state_management: "Remote state in S3/GCS with locking"
+  environment_separation: "Separate tfvars per environment (dev, staging, prod)"
+  module_pattern: "Reusable modules in modules/, environment configs in environments/"
+  secret_management: "Never commit secrets — use vault or env injection"

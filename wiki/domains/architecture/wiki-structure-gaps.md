@@ -10,11 +10,13 @@ tags: [wiki, llm-wiki, second-brain, gaps, structure, evolution]
 sources:
   - id: src-model-llm-wiki
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/spine/model-llm-wiki.md
+    project: devops-solutions-research-wiki
+    path: wiki/spine/model-llm-wiki.md
     title: "Model: LLM Wiki"
   - id: src-second-brain
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/spine/model-second-brain.md
+    project: devops-solutions-research-wiki
+    path: wiki/spine/model-second-brain.md
     title: "Model: Second Brain"
 ---
 

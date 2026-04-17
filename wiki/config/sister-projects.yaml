@@ -1,0 +1,198 @@
+# Sister-Projects Registry
+#
+# Projects in the ecosystem that this wiki can READ (structured, not manual grep).
+# Each entry declares location + wiki layout + git remote for fallback + queryable fields.
+#
+# Resolves the "how does the research wiki communicate with sister projects"
+# gap — historically agents have browsed sister projects with one-off Bash
+# commands. This registry gives the gateway structured access: list
+# epics/tasks/logs/lessons, read specific docs, find pages by tag, etc.
+#
+# Usage: `python3 -m tools.sister_project <name> <action> [args]`
+#        MCP: wiki_sister_project
+#        Source resolver: tools/source_resolver.py (project+path sources)
+#
+# Design: additive layer on top of the existing gateway. Each sister project
+# is read-only from this wiki's perspective. Writes go through the sister
+# project's own tooling, not through here.
+#
+# PATH convention (2026-04-15 operator directive): paths use `~/` home-expansion
+# form, not absolute `/home/<user>/...` form. This keeps the registry portable
+# across operators/machines — Path.expanduser() resolves `~/` at runtime to the
+# actual home directory. The logical "shared parent folder" assumption is
+# preserved but not hardcoded.
+#
+# REMOTE fallback (2026-04-15 operator directive): each entry carries a `remote:`
+# block describing its git remote. When `path` is not accessible locally, the
+# source resolver (tools/source_resolver.py) falls back to gh CLI or raw-GitHub
+# URL. This allows cross-project sources to resolve on machines where not all
+# sisters are cloned.
+
+projects:
+
+  openarms:
+    description: "Personal AI assistant layer — OpenClaw fork, 20+ channels, harness-based solo agent + fleet runtime"
+    path: ~/openarms
+    wiki_dir: wiki                       # relative to path
+    auto_connect: true                   # operator-authorized: full setup will connect this sister
+    remote:
+      type: github
+      owner: cyberpunk042
+      repo: openarms
+      default_branch: main
+      url: https://github.com/cyberpunk042/openarms
+    # Layout — which directories exist and what's in them
+    layout:
+      backlog:
+        epics: backlog/epics             # E001 through E017 etc.
+        modules: backlog/modules
+        tasks: backlog/tasks             # T001+ task files with frontmatter
+      logs: log                          # dated session/handoff/completion logs
+      domains:                            # knowledge organized by topic
+        architecture: domains/architecture
+        learnings: domains/learnings     # distilled lessons from runs
+      config:
+        methodology: config/methodology.yaml
+        claude_md: CLAUDE.md             # at project root, not under wiki/
+        agents_md: AGENTS.md
+    # Frontmatter fields we care about (for filtering/summary)
+    queryable_frontmatter:
+      - status       # done / review / active / draft / etc.
+      - priority     # P0 / P1 / P2
+      - readiness    # 0-100
+      - current_stage
+      - stages_completed
+      - epic         # task → epic back-reference
+      - task_type
+      - note_type    # session / handoff / completion / etc.
+      - tags
+    # Known file-naming patterns for quick listing
+    patterns:
+      epic: "E\\d{3}-.*\\.md"
+      task: "T\\d{3,4}-.*\\.md"
+      log_dated: "\\d{4}-\\d{2}-\\d{2}-.*\\.md"
+      learning: "agent-behavior-.*\\.md|lesson-.*\\.md|pattern-.*\\.md"
+
+  openfleet:
+    description: "Agent workforce + deterministic orchestrator (10 agents, 30s cycle)"
+    path: ~/openfleet
+    wiki_dir: wiki
+    auto_connect: true                   # operator-authorized
+    remote:
+      type: github
+      owner: cyberpunk042
+      repo: openfleet
+      default_branch: main
+      url: https://github.com/cyberpunk042/openfleet
+    layout:
+      backlog:
+        epics: backlog/epics
+        tasks: backlog/tasks
+      logs: log
+      domains:
+        architecture: domains/architecture
+      # OpenFleet-specific: authoritative design lives under docs/ (not wiki/) —
+      # docs/systems/ for system specs, docs/milestones/active/ for in-flight
+      # design work with per-milestone subdirs. These are treated as
+      # architecture-class content for absorption-tracking purposes.
+      # Note: layout dirs are not recursive — declare each milestone subdir
+      # explicitly (flexible-tools principle: operator declares what matters).
+      docs:
+        systems: ../docs/systems                              # "../" because layout paths resolve under wiki_dir; docs/ is a sibling
+        milestones_active: ../docs/milestones/active
+        milestone_immune_system: ../docs/milestones/active/immune-system
+    queryable_frontmatter:
+      - status
+      - priority
+      - readiness
+      - epic
+      - tags
+
+  aicp:
+    description: "AI Control Platform — local inference routing, 9 loaded models, 80% Claude token reduction target"
+    path: ~/devops-expert-local-ai
+    wiki_dir: docs/kb                    # AICP uses docs/kb/ not wiki/
+    auto_connect: true                   # operator-authorized
+    remote:
+      type: github
+      owner: cyberpunk042
+      repo: devops-expert-local-ai
+      default_branch: main
+      url: https://github.com/cyberpunk042/devops-expert-local-ai
+    aliases:
+      - devops-expert-local-ai          # some sources refer by repo name
+    layout:
+      # Actual structure confirmed 2026-04-15 — only 2 top-level dirs under docs/kb
+      domains:
+        infrastructure: infrastructure
+        research: research
+    queryable_frontmatter:
+      - status
+      - tags
+
+  devops-control-plane:
+    description: "Unified project management platform — operational rules, tech auto-detection engine, vault"
+    path: ~/devops-control-plane
+    wiki_dir: docs                       # repo-root docs/
+    auto_connect: false                  # PENDING operator authorization; skip in full setup — use `--connect-project ~/devops-control-plane` to connect explicitly
+    remote:
+      type: github
+      owner: cyberpunk042
+      repo: devops-control-plane
+      default_branch: main
+      url: https://github.com/cyberpunk042/devops-control-plane
+    layout:
+      # Actual structure confirmed 2026-04-15 — root-level .md files + 3 subdirs.
+      # NOTE: our prior claim of "24 immune system rules under docs/rules/" was wrong;
+      # no rules/ directory exists. Rules-related content lives in the top-level
+      # docs/*.md files (ANALYSIS.md, AUDIT.md, ADAPTERS.md etc.) and in adr/ and audits/.
+      root_docs: .
+      domains:
+        adr: adr
+        api: api
+        audits: audits
+        examples: examples
+    queryable_frontmatter:
+      - status
+      - priority
+
+  openclaw:
+    description: "Upstream parent of OpenArms — fork relationship, features flow both ways"
+    path: ~/openclaw
+    wiki_dir: docs
+    auto_connect: false                  # not locally accessible + not an integration target
+    remote:
+      type: github
+      owner: cyberpunk042                 # TODO: verify owner when openclaw is accessible
+      repo: openclaw
+      default_branch: main
+      url: https://github.com/cyberpunk042/openclaw
+    layout: {}
+    queryable_frontmatter: []
+    note: "OpenClaw is OpenArms's upstream. Usually accessed via OpenArms's patches/ directory, not directly. Remote owner unverified — path not accessible at session time 2026-04-15."
+
+# Write policy — this wiki never writes to sister projects via these tools.
+# Cross-project contributions go through each project's own contribution flow.
+# NO TRUNCATION policy: the sister_project tool does not apply default caps
+# on list/read/grep operations. Callers receive full content. See
+# raw/notes/2026-04-15-directive-no-caps-no-compact-read-full.md for the
+# operator directive that established this rule.
+write_policy: read-only
+
+# Source resolution policy (2026-04-15 operator directive):
+# When a wiki page has a source entry with `project: X, path: Y`, the resolver
+# (tools/source_resolver.py) tries these backends in order until one succeeds:
+#   1. LOCAL   — read {project.path}/{path} from the local filesystem (after ~/ expansion)
+#   2. GH_API  — gh api repos/{remote.owner}/{remote.repo}/contents/{path} (requires gh CLI authenticated)
+#   3. RAW     — curl https://raw.githubusercontent.com/{remote.owner}/{remote.repo}/{remote.default_branch}/{path}
+# Each attempt returns a structured Receipt (see Adapters Never Raise pattern).
+# Failure surfaces the error per-backend; the resolver never raises.
+#
+# EMPIRICAL: these 5 sister projects are PRIVATE GitHub repos as of 2026-04-15.
+# raw.githubusercontent.com returns HTTP 404 without auth, so the raw_github
+# backend is effectively only useful for public-repo content. gh_api is the
+# practical remote backend when local is missing and the operator is signed in
+# via `gh auth login`.
+source_resolution:
+  backends: [local, gh_api, raw_github]
+  cache_ttl_seconds: 3600                # cache remote fetches for 1 hour

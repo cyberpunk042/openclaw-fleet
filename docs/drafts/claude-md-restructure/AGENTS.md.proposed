@@ -1,0 +1,145 @@
+# AGENTS.md — OpenFleet (Universal Cross-Tool Context)
+
+> This file is for **any AI tool** working on OpenFleet: Claude Code, Codex, Copilot, Gemini, Cursor, Cline. For Claude Code specific overrides see `CLAUDE.md`. For detailed rules see `.claude/rules/`.
+
+## What OpenFleet Is
+
+OpenFleet is an autonomous AI agent platform — a Python orchestrator + TypeScript/Node gateway + Bash IaC + Markdown wiki + Mission Control. It manages 10 specialized AI agents through deterministic dispatch, an immune system with 3 lines of defense, tier-based trust progression, contribution gating, and standing orders.
+
+Part of a 5-project ecosystem:
+
+| Project | Repo | Purpose |
+|---|---|---|
+| **Fleet** | `openfleet` | Agent operations, MCP tools, orchestrator, infrastructure (this repo) |
+| **Research Wiki** | `devops-solutions-research-wiki` | Second brain — shared ecosystem knowledge (LLM wiki format) |
+| **OpenArms** | `openarms` | Harness fork (solo + fleet runtime, TypeScript) |
+| **AICP** | `devops-expert-local-ai` | AI Control Platform, LocalAI inference |
+| **DSPD** | `devops-solution-product-development` | Self-hosted Plane — PM integration |
+
+## Project Identity
+
+| Dimension | Value |
+|---|---|
+| Type | system (platform + solo-developable) |
+| Domain | mixed — Python + TS/Node + Bash + Markdown |
+| Phase | production |
+| Scale | large (~3,815 .md, 2,246-line orchestrator) |
+| Second Brain | connected (`../devops-solutions-research-wiki`) |
+
+Full Goldilocks profile (stable fields only; consumer/task properties excluded): `wiki/ecosystem/openfleet/identity-profile.md`.
+
+## Hard Rules (UNIVERSAL — apply to every AI tool)
+
+1. **Never skip stages.** Document before Design. Design before Scaffold. Etc. "Continue" = advance within current stage, NOT skip ahead.
+2. **Operator directives are sacrosanct.** Quote verbatim, never paraphrase. Stored in `wiki/log/` with `note_type: directive`.
+3. **Run quality gates before marking done.** Our local equivalent: `python3 tools/lint.py` and/or brain's `gateway health`.
+4. **Read files in full.** `wc -l` first. Offset reads for files >200 lines. Never synthesize from first chunk only.
+5. **Verify depth.** If a source DESCRIBES a thing, read a real INSTANCE of that thing. README ≠ understanding.
+6. **Major standards/config changes go through the PO.** Propose-approve-execute.
+
+## Agent Roster (runtime)
+
+| Agent | Role | Heartbeat | Mode |
+|---|---|---|---|
+| fleet-ops | Board lead, reviews, ops, quality | 30m | acceptEdits |
+| project-manager | Sprint planning, Plane bridge | 35m | acceptEdits |
+| devsecops-expert | Security reviews, vuln scanning | 55m | default |
+| architect | System design, tech decisions | 60m | plan |
+| software-engineer | Implementation | 65m | acceptEdits |
+| qa-engineer | Testing, QA | 70m | acceptEdits |
+| devops | Infra, CI/CD, IaC | 75m | acceptEdits |
+| technical-writer | Documentation, specs | 80m | acceptEdits |
+| ux-designer | UI/UX, user flows | 85m | acceptEdits |
+| accountability-generator | Governance, compliance | 90m | acceptEdits |
+
+Each agent's brain: `agents/{name}/SOUL.md` (identity) + `agents/{name}/HEARTBEAT.md` (per-tick context). See `agents/_template/` for the shape.
+
+## Project Structure (abridged)
+
+```
+fleet/           Python package (71 modules): core/ infra/ mcp/ cli/ templates/ tests/
+agents/          Agent definitions (10 roles + _template)
+config/          methodology.yaml + fleet.yaml + agent-identities.yaml + 8 more
+scripts/         42 IaC scripts (setup.sh zero-to-fleet)
+tools/           Brain forwarders: gateway, view, lint, evolve
+wiki/            Wiki LLM format: config/ domains/ log/ backlog/ lessons/ patterns/ decisions/ sources/ spine/ comparisons/ ecosystem/
+docs/            Public docs: ARCHITECTURE.md, INTEGRATION.md, milestones/, systems/
+vendor/          Mission Control (Docker build context)
+gateway/         MC setup and gateway configuration
+patches/         Vendor patches (survive git clone)
+```
+
+Full tree and purpose per directory: `docs/ARCHITECTURE.md`.
+
+## Development Conventions
+
+- Python 3.11+, type hints everywhere
+- TypeScript strict; no `any` in new code
+- Bash IaC in `scripts/`
+- Conventional commits: `type(scope): description [task:id]`
+- Tests: `pytest fleet/tests/ -v`
+- Lint: `ruff check fleet/` + `python3 tools/lint.py` (wiki)
+- Format: `ruff format fleet/`
+- No secrets in code — `.env` (gitignored), `.mcp.json` from template
+- IaC only — no manual commands after checkout
+
+## Wiki & Backlog (LLM Wiki format)
+
+- **Log** `wiki/log/` — PO directives VERBATIM, session notes, completion records (sacrosanct)
+- **Backlog** `wiki/backlog/epics/modules/tasks/` — work hierarchy with stage gates
+- **Domains** `wiki/domains/{name}/` — knowledge pages (one concept per page)
+- **Knowledge layers** `wiki/{sources,comparisons,lessons,patterns,decisions}/` — progressive distillation L1 → L6
+- **Spine** `wiki/spine/` — navigation (models, overviews, adoption)
+- **Ecosystem** `wiki/ecosystem/` — project profiles
+- **Config** `wiki/config/` — schema, templates, profiles (seeded from brain 2026-04-16)
+
+Schema: `wiki/config/wiki-schema.yaml`. Every page has YAML frontmatter with required fields (title, type, domain, status, confidence, created, updated, sources, tags).
+
+## Methodology
+
+7 named models at `config/methodology.yaml`:
+feature-development, contribution, rework, research, documentation, review, hotfix.
+
+6 stages: **conversation → analysis → investigation → reasoning → work → review**.
+
+Selection by conditions: `task_type + contribution_type + labor_iteration + delivery_phase + priority + agent`.
+
+Shared framework: `../devops-solutions-research-wiki/wiki/spine/models/foundation/model-methodology.md`.
+
+Execution standards: `../devops-solutions-research-wiki/wiki/spine/standards/model-standards/model-methodology-standards.md`.
+
+Quality tiers (OpenFleet-specific): **Expert / Capable / Flagship-local / Lightweight / Direct**.
+
+## Documentation — 5 Layers
+
+| # | Layer | Where | Purpose |
+|---|---|---|---|
+| 1 | Wiki knowledge | `wiki/` | Synthesized structured evolving knowledge |
+| 2 | Public docs | `docs/` | User-facing reference (old model, migrating to wiki/) |
+| 3 | Code docs | inline in source | Docstrings, type hints, WHY comments |
+| 4 | Smart docs | alongside code | README.md in subsystems (e.g., `fleet/core/README.md`) |
+| 5 | Specs + plans | `docs/superpowers/` | Temporary execution artifacts |
+
+## Key Principles (OpenFleet-specific)
+
+1. **PO is the leader** — agents execute, PO decides direction
+2. **Mission Control is the center** — feed it, don't replace it
+3. **fleet-ops reviews everything** — no auto-approve
+4. **IaC only** — no manual commands, everything scripted
+5. **Local-first** — LocalAI for routine, Claude for complex
+
+## Second Brain Connection
+
+OpenFleet is connected to the research wiki at `../devops-solutions-research-wiki`. It is a SEPARATE shared knowledge system, not a runtime dependency. The goal is to ADOPT what fits OpenFleet's identity and EVOLVE our own brain, contributing learnings back.
+
+Essential commands:
+- `python3 tools/gateway orient` (first step on fresh session)
+- `python3 tools/view spine` (browse brain)
+- `python3 tools/gateway compliance` (where we stand: currently Tier 4/4 structural)
+- `python3 tools/gateway contribute --type lesson|correction|remark ...` (write back)
+
+## Related
+
+- Brain: `../devops-solutions-research-wiki`
+- OpenArms (harness reference, grain of salt): `../openarms`
+- Strategic vision: `docs/milestones/active/strategic-vision-localai-independence.md`

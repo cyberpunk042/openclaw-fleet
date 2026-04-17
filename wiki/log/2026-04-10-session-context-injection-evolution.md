@@ -7,9 +7,15 @@ status: active
 created: 2026-04-10
 updated: 2026-04-10
 tags: [session, context-injection, tier-renderer, methodology-models, shared-models, anti-patterns, E001]
+confidence: medium
+sources: []
 ---
 
 # Session: Context Injection System Evolution (2026-04-09 → 2026-04-10)
+
+## Summary
+
+Two-day session that significantly evolved OpenFleet's context injection system: TierRenderer with 8 format methods and tier-aware depth across all sections, named methodology models (7 in methodology.yaml with selection rules), shared-models integration (LLM Wiki + Methodology + Second Brain from research wiki), file ownership established (one instruction → one owner file), and 15 anti-patterns logged. Foundation work for subsequent validation matrix — 29 scenarios generated but zero PO-confirmed. The pipeline ADAPTS; whether it adapts CORRECTLY requires per-scenario PO review.
 
 ## Honest State
 

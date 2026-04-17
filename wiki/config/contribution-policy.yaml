@@ -1,0 +1,191 @@
+# Contribution Policy — Trust Tiers for Agent Write-Back
+#
+# This file defines WHO can write WHAT to the wiki, and WHERE it lands.
+# Per the Flexibility Principle (wiki/config/README.md), this is the
+# WIKI'S DEFAULT policy — consuming projects can override.
+#
+# Core principle: NEITHER pure approval NOR pure auto-merge. Trust-tiered
+# via maturity lifecycle. Contributions auto-land in 00_inbox (visible
+# but not authoritative). Promotion requires review at each maturity tier.
+# Trust tier of the contributor affects which tier they can land in.
+#
+# See also:
+# - wiki/spine/references/context-file-taxonomy.md (origin/authority dimension)
+# - wiki/domains/cross-domain/model-quality-failure-prevention.md (three lines of defense)
+# - wiki/config/README.md (Flexibility Principle section)
+
+version: 1.0
+last_updated: 2026-04-14
+
+# ---------------------------------------------------------------------------
+# TRUST TIERS — who contributes and where they can land
+#
+# Default landing is always 00_inbox. Higher tiers MAY skip inbox with
+# operator approval, but promotion beyond their declared ceiling ALWAYS
+# requires human review.
+# ---------------------------------------------------------------------------
+tiers:
+
+  operator:
+    description: "The human operator — trusted to write anywhere, subject to own review"
+    can_write_to: [00_inbox, 01_drafts, 02_synthesized, 03_validated, 04_principles]
+    default_landing: 00_inbox
+    auto_promote: false  # operator chooses when to promote
+    audit_required: false  # operator is the audit trail
+    examples:
+      - "human operator via direct edit"
+      - "operator via `gateway contribute` without --contributor flag"
+
+  harness-trusted:
+    description: "Sister-project harness with established approval history (e.g. OpenArms v10)"
+    can_write_to: [00_inbox, 01_drafts]
+    default_landing: 00_inbox
+    auto_promote: false
+    audit_required: true
+    examples:
+      - "openarms-harness-v10 (contributed 22 lessons in April 2026)"
+      - "openfleet-orchestrator (if/when wired for write-back)"
+    promotion_to_this_tier_requires:
+      - "Operator approval"
+      - "Consistent history of accepted contributions"
+      - "Contributor identity declared in contribution-policy.yaml `known_contributors`"
+
+  fleet-agent:
+    description: "Individual fleet agent — unreviewed, needs graduation"
+    can_write_to: [00_inbox]
+    default_landing: 00_inbox
+    auto_promote: false
+    audit_required: true
+    examples:
+      - "openfleet agent workspace-XXX during a task"
+      - "any agent dispatched by an orchestrator without established history"
+
+  external-unknown:
+    description: "External tool or agent without established trust"
+    can_write_to: [00_inbox]
+    default_landing: 00_inbox
+    auto_promote: false
+    audit_required: true
+    requires_review: true
+    examples:
+      - "MCP client from an unregistered external project"
+      - "any contribution without --contributor flag when not operator"
+
+# ---------------------------------------------------------------------------
+# KNOWN CONTRIBUTORS — declared trusted sources
+#
+# Used to map --contributor flag to trust tier.
+# Format: contributor_id → tier (+ optional metadata)
+# ---------------------------------------------------------------------------
+known_contributors:
+  operator:
+    tier: operator
+    description: "The human operator of this wiki"
+
+  openarms-harness-v10:
+    tier: harness-trusted
+    description: "OpenArms harness v10 — hooks + skill-stage-mapping, 100% stage compliance"
+    contribution_history:
+      - "22 lessons from overnight runs (April 2026)"
+    project_path_hints:
+      # Tilde-form paths — resolved at runtime via Path.expanduser().
+      # Authoritative path registry is wiki/config/sister-projects.yaml.
+      - "~/openarms"
+      - "openarms"
+
+  gateway-cli:
+    tier: operator  # when run locally by operator, inherits operator tier
+    description: "The gateway CLI tool when invoked by the operator"
+
+# ---------------------------------------------------------------------------
+# PROMOTION RULES — what moves content UP the maturity ladder
+#
+# Each promotion gate is a list of requirements. ALL must be met.
+# Enforcement: currently MANUAL (operator reviews). Future: harness may
+# be allowed to auto-promote within its trust tier if all automated gates
+# pass.
+# ---------------------------------------------------------------------------
+promotion:
+
+  inbox_to_drafts:
+    description: "Raw contribution → working draft"
+    requires:
+      - "operator-review"
+      - "cross-reference-complete (≥1 relationship to existing page)"
+      - "sources-verified (if contribution has sources)"
+      - "frontmatter-valid (passes wiki-schema)"
+    automated_gates:
+      - "python3 -m tools.pipeline post (0 validation errors)"
+
+  drafts_to_synthesized:
+    description: "Working draft → cross-referenced and structurally sound"
+    requires:
+      - "operator-review"
+      - "relationship-density-check (≥2 relationships)"
+      - "no-contradictions (with existing wiki pages)"
+      - "key-insights-present (lesson type only)"
+    automated_gates:
+      - "python3 -m tools.pipeline post (0 errors)"
+      - "python3 -m tools.pipeline crossref (no duplicate concept)"
+
+  synthesized_to_validated:
+    description: "Cross-referenced → evidence-backed and applicable"
+    requires:
+      - "operator-review"
+      - "evidence-count-minimum-3 (for lessons)"
+      - "instances-minimum-2 (for patterns)"
+      - "alternatives-minimum-2 (for decisions)"
+      - "applicability-table (present in page body)"
+    automated_gates:
+      - "python3 -m tools.pipeline post"
+
+  validated_to_principles:
+    description: "Evidence-backed → governing truth"
+    requires:
+      - "operator-review"
+      - "derived-from-minimum-3 (≥3 source lessons/patterns)"
+      - "universal-applicability (demonstrated across ≥3 domains)"
+      - "time-in-validated (≥30 days without contradiction)"
+    automated_gates:
+      - "python3 -m tools.pipeline post"
+    note: "The principles layer is SMALL by design. Only governing truths reach here."
+
+# ---------------------------------------------------------------------------
+# CONTRIBUTION STATUS VALUES (enum — mirrored in wiki-schema.yaml)
+# ---------------------------------------------------------------------------
+status_values:
+  pending-review:
+    description: "Contribution landed in target folder; awaiting human review"
+    default: true
+  accepted:
+    description: "Reviewed and accepted; may still be promoted through maturity tiers"
+  rejected:
+    description: "Reviewed and rejected; page is retained in log/ for audit but not promoted"
+  superseded:
+    description: "Accepted at some point, now replaced by a newer contribution or consolidated into another page"
+
+# ---------------------------------------------------------------------------
+# AUDIT TRAIL — what every contribution MUST record
+#
+# These fields are written to frontmatter by `gateway contribute`.
+# ---------------------------------------------------------------------------
+audit_trail:
+  required_fields:
+    - contributed_by       # contributor identifier (e.g. "openarms-harness-v10")
+    - contribution_source  # origin path or "self"
+    - contribution_date    # ISO date
+    - contribution_status  # starts as "pending-review"
+  optional_fields:
+    - contribution_reason  # what drove the contribution
+    - contribution_ref     # URL, commit SHA, task ID if applicable
+
+# ---------------------------------------------------------------------------
+# PER-PROJECT OVERRIDES (Flexibility Principle)
+#
+# Consuming projects can override this policy by providing their own
+# contribution-policy.yaml. Common overrides:
+# - Adding project-specific contributors to known_contributors
+# - Relaxing promotion requirements for internal use
+# - Tightening requirements for open-source projects with many contributors
+# - Disabling specific tiers (e.g. disallow external-unknown entirely)
+# ---------------------------------------------------------------------------

@@ -1,0 +1,233 @@
+# Methodology Profile: Agile-AI
+#
+# Scale-Domain-Adaptive intelligence. Multiple specialized agent personas
+# collaborate through defined phases: Analysis → Planning → Solutioning →
+# Implementation. Supports party mode (all personas active in one session)
+# and structured brainstorming with 60+ facilitation techniques.
+#
+# Inspired by the BMAD (Breakthrough Method for Agile AI Development) framework.
+# Not a stage-gated sequential flow — phases may overlap and iterate. Personas
+# bring domain expertise; the operator steers intent, not implementation detail.
+#
+# See: wiki/config/methodology-profiles/README.md
+
+profile: agile-ai
+description: "Multi-persona AI collaboration across Analysis→Planning→Solutioning→Implementation"
+style: "persona-driven phases with structured brainstorming, PRFAQ stress-testing, party-mode sessions"
+
+# ─── PROVENANCE ─────────────────────────────────────────────────────────────
+derived_from:
+  - source: "src-bmad-method-agile-ai-development-framework"
+    type: wiki
+    note: "Personas, phases, party mode, PRFAQ, 60+ brainstorming techniques, SDA intelligence"
+
+# ─── WHEN TO USE ────────────────────────────────────────────────────────────
+applicability:
+  best_for:
+    - "Strategic features where multiple expertise domains are needed simultaneously"
+    - "Kickoffs where the problem space needs structured exploration before committing"
+    - "Ambiguous or large-scope epics where operator input shapes direction"
+    - "Projects where AI fills multiple specialist roles (PM, architect, developer, UX)"
+    - "Situations where brainstorming quality matters — 60+ techniques prevent groupthink"
+    - "PRFAQ stress-testing before committing to a large build"
+  not_for:
+    - "Routine bug fixes or well-understood features (overhead exceeds benefit)"
+    - "Tight deadlines where persona coordination slows execution"
+    - "Solo sessions where the operator just wants to code (use stage-gated)"
+    - "Spec-first compliance projects (use spec-driven)"
+  compatible_with_sdlc_profiles: [default, full]
+
+# ─── PHASE MAPPING ──────────────────────────────────────────────────────────
+# BMAD uses 4 phases, not 5 stages. This section maps phases to methodology
+# stages so pipeline tooling can track readiness in the standard schema.
+phase_to_stage_mapping:
+  analysis:      [document]           # understanding the problem domain
+  planning:      [document, design]   # requirements + options + roadmap
+  solutioning:   [design, scaffold]   # architecture + detailed design + structure
+  implementation:[implement, test]    # build + verify
+
+# ─── STAGE EMPHASIS ─────────────────────────────────────────────────────────
+stage_emphasis:
+  document:
+    weight: 0.30
+    primary_artifacts:
+      - wiki-page (problem framing, domain analysis)
+      - prfaq                         # press release + FAQ stress-test
+      - stakeholder-map               # who cares, what they need, what they fear
+      - brainstorm-session-notes      # structured output from 60-technique sessions
+    key_gate_checks:
+      - problem-framed-by-multiple-personas
+      - prfaq-completed               # working-backwards artifact required for large features
+      - brainstorm-conducted          # AI as facilitator, not generator
+    notes: >
+      Analysis phase runs with all relevant personas present. The PM persona
+      drives problem framing. The Architect persona flags technical constraints
+      early. The UX persona surfaces user impact. TEA (Technical Execution Agent)
+      maps implementation risk. Output: shared understanding, not just notes.
+
+  design:
+    weight: 0.30
+    primary_artifacts:
+      - design-plan                   # architecture decisions by Architect persona
+      - user-stories                  # UX persona output
+      - tech-spec                     # TEA output — interface definitions
+      - decision (ADR)                # PM persona records choices + rationale
+    key_gate_checks:
+      - design-doc-exists
+      - architect-persona-signed-off
+      - no-code-files-created
+    notes: >
+      Planning and Solutioning phases (BMAD) map here. Multiple personas
+      produce separate artifacts then converge. Disagreements are surfaced
+      as explicit decision records, not buried in prose.
+
+  scaffold:
+    weight: 0.15
+    primary_artifacts:
+      - type-definition
+      - test-stub
+      - config-file
+    key_gate_checks:
+      - types-compile
+      - no-business-logic
+    notes: >
+      Scaffold is the transition from Solutioning to Implementation phase.
+      Developer persona leads. Architect persona reviews structure against
+      the design-plan before implementation begins.
+
+  implement:
+    weight: 0.20
+    primary_artifacts:
+      - implementation
+      - integration-wiring
+    key_gate_checks:
+      - code-compiles
+      - lint-passes
+      - integration-wiring-exists
+    notes: >
+      Developer persona leads implementation. TEA monitors for drift from
+      the design-plan. Scope changes trigger a return to Solutioning, not
+      ad-hoc coding decisions.
+
+  test:
+    weight: 0.05
+    primary_artifacts:
+      - test-implementation
+      - test-results
+    key_gate_checks:
+      - tests-pass
+      - no-placeholder-assertions
+    notes: >
+      QA persona (if present) reviews test coverage. TEA verifies the
+      implementation matches the architecture. Test stage is deliberately
+      lean because quality was designed in, not bolted on.
+
+# ─── ARTIFACT PREFERENCES ───────────────────────────────────────────────────
+artifact_preferences:
+  preferred:
+    - prfaq                      # working-backwards stress-test before committing
+    - brainstorm-session-notes   # structured 60-technique output, not stream-of-consciousness
+    - persona-specific-artifacts # Architect→design-plan, PM→decision, UX→user-stories
+    - party-mode-convergence-doc # single doc produced when all personas agree
+  deprioritized:
+    - solo-gap-analysis          # replaced by multi-persona analysis phase
+    - requirements-spec          # replaced by user-stories + PRFAQ combination
+    - micro-task-list            # agile-ai works in story-sized chunks, not micro-tasks
+
+# ─── PERSONAS ───────────────────────────────────────────────────────────────
+# Named personas available in this profile. In party mode, all are active.
+# In focus mode, one persona leads per session.
+personas:
+  - id: pm
+    name: "Product Manager"
+    leads: [analysis, planning]
+    artifacts: [prfaq, stakeholder-map, decision]
+    focus: "What should we build and why? What does success look like?"
+
+  - id: architect
+    name: "System Architect"
+    leads: [solutioning]
+    artifacts: [design-plan, tech-spec, architecture-diagram]
+    focus: "How should the system be structured? What are the trade-offs?"
+
+  - id: developer
+    name: "Developer"
+    leads: [implementation]
+    artifacts: [implementation, integration-wiring, test-stub]
+    focus: "How do we build this correctly and maintain velocity?"
+
+  - id: ux
+    name: "UX Analyst"
+    leads: [planning]
+    artifacts: [user-stories, flow-diagram, accessibility-notes]
+    focus: "Who uses this? What do they experience? What causes confusion?"
+
+  - id: tea
+    name: "Technical Execution Agent"
+    leads: [implementation, test]
+    artifacts: [test-plan, risk-map, integration-checklist]
+    focus: "What can break? How do we verify it works? What's the blast radius?"
+
+# ─── SIGNATURE PRACTICES ────────────────────────────────────────────────────
+signature_practices:
+  - name: "Party mode"
+    when: "kickoff of any major feature or epic"
+    description: >
+      All relevant personas are activated in a single session. The operator
+      poses the problem; personas respond from their domain lens. Contradictions
+      are surfaced early. Convergence produces a party-mode-convergence-doc.
+      Prevents the blind spots of any single perspective.
+
+  - name: "PRFAQ stress-test"
+    when: "before committing to any large build (>3 days of work)"
+    description: >
+      Write the press release announcing the feature as if it's shipping.
+      Write 10 FAQs a skeptical stakeholder would ask. If you can't answer
+      the FAQs, the design is not ready. Sourced from Amazon working-backwards
+      practice, surfaced in BMAD framework.
+
+  - name: "Structured brainstorming"
+    when: "any exploration or problem-framing session"
+    description: >
+      AI acts as FACILITATOR, not generator. Operator provides the seed.
+      AI applies techniques from the 60+ brainstorming library: SCAMPER,
+      Six Hats, Reverse Brainstorming, Jobs-to-Be-Done, etc. Output is
+      structured session notes, not a raw dump.
+
+  - name: "SDA Intelligence (Scale-Domain-Adaptive)"
+    when: "throughout all phases"
+    description: >
+      Persona behavior adapts to the scale and domain of the project.
+      A startup MVP and an enterprise integration get different depth from
+      the same persona. Context is explicit: project scale, domain constraints,
+      and operator preferences are always active.
+
+  - name: "Persona sign-off gates"
+    when: "stage transitions"
+    description: >
+      Stage advances require the relevant persona to sign off. Architect
+      must sign off on scaffold structure before implementation begins.
+      PM must sign off on design-plan before scaffold. Disagreements block.
+
+# ─── AVAILABLE MODELS ───────────────────────────────────────────────────────
+models:
+  - feature-development    # primary — full phases, multi-persona
+  - research               # analysis phase only (no implementation)
+  - documentation          # PM or UX persona produces artifact
+
+# ─── ADOPTION NOTES ─────────────────────────────────────────────────────────
+adoption:
+  prerequisites:
+    - "methodology.yaml present"
+    - "Operator comfortable directing personas — BMAD requires active steering"
+    - "PRFAQ template available (wiki/config/templates/methodology/prfaq.md)"
+    - "Brainstorming technique library reference available"
+  typical_onboarding_time: "3-5 sessions before persona coordination feels natural"
+  migration_from_stage_gated: |
+    1. On next epic kickoff, activate party mode: name the personas relevant to this domain
+    2. Run the analysis phase with all personas: each surfaces concerns from their lens
+    3. Before design, run PRFAQ: can you write the press release? If not, document gaps
+    4. In design phase, assign each artifact to the owning persona
+    5. Require Architect sign-off before scaffold, PM sign-off before design completion
+    6. Retrospect: did multiple perspectives prevent a blind spot?
+    7. If party mode felt like overhead, narrow to 2 personas; agile-ai scales down

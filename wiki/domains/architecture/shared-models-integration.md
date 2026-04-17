@@ -10,27 +10,33 @@ tags: [methodology, llm-wiki, shared-models, integration, context-injection, sta
 sources:
   - id: src-model-llm-wiki
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/spine/model-llm-wiki.md
+    project: devops-solutions-research-wiki
+    path: wiki/spine/model-llm-wiki.md
     title: "Model: LLM Wiki"
   - id: src-model-methodology
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/spine/model-methodology.md
+    project: devops-solutions-research-wiki
+    path: wiki/spine/model-methodology.md
     title: "Model: Methodology"
   - id: src-methodology-framework
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/domains/cross-domain/methodology-framework.md
+    project: devops-solutions-research-wiki
+    path: wiki/domains/cross-domain/methodology-framework.md
     title: "Methodology Framework"
   - id: src-task-type-artifact-matrix
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/domains/devops/task-type-artifact-matrix.md
+    project: devops-solutions-research-wiki
+    path: wiki/domains/devops/task-type-artifact-matrix.md
     title: "Task Type Artifact Matrix"
   - id: src-execution-modes
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/domains/devops/execution-modes-and-end-conditions.md
+    project: devops-solutions-research-wiki
+    path: wiki/domains/devops/execution-modes-and-end-conditions.md
     title: "Execution Modes and End Conditions"
   - id: src-backlog-hierarchy
     type: documentation
-    file: /home/jfortin/devops-solutions-research-wiki/wiki/domains/devops/backlog-hierarchy-rules.md
+    project: devops-solutions-research-wiki
+    path: wiki/domains/devops/backlog-hierarchy-rules.md
     title: "Backlog Hierarchy Rules"
 ---
 

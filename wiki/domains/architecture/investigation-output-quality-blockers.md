@@ -10,6 +10,7 @@ tags: [investigation, context-injection, output-quality, solutions, options]
 epic: E001
 related:
   - analysis-output-quality-blockers.md
+sources: []
 ---
 
 # Investigation: Solutions for Context Output Quality

@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-09
 tags: [plugins, skills, commands, packs, superpowers, reverse-hooks, marketplace, ring, trailofbits, ecosystem]
+confidence: high
+sources: []
 ---
 
 # Plugin/Skill/Command Ecosystem

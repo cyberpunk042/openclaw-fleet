@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [brain, orchestrator, context, effort, lifecycle, dispatch, intelligence]
+confidence: high
+sources: []
 ---
 
 # Brain Evolution

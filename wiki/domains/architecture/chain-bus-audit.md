@@ -7,7 +7,16 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E002, chains, buses, event-chain, propagation, audit]
-sources: [fleet/core/event_chain.py, fleet/core/chain_runner.py, fleet/mcp/tools.py]
+sources:
+  - id: event-chain
+    type: documentation
+    file: fleet/core/event_chain.py
+  - id: chain-runner
+    type: documentation
+    file: fleet/core/chain_runner.py
+  - id: tools
+    type: documentation
+    file: fleet/mcp/tools.py
 epic: E002
 phase: "0 — Research"
 ---

@@ -7,7 +7,10 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, E003, E008, operational-modes, heartbeat, task, injection, context]
-sources: [PO feedback 2026-04-09]
+sources:
+  - id: po-feedback-2026-04-09
+    type: documentation
+    file: PO feedback 2026-04-09
 epic: [E001, E003]
 phase: "1 — Design"
 ---

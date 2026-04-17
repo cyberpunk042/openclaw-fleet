@@ -7,9 +7,15 @@ status: active
 created: 2026-04-10
 updated: 2026-04-10
 tags: [directive, tasks, ops-board, plane, tools-blocked, methodology, multi-level, PO]
+confidence: medium
+sources: []
 ---
 
 # Directive: Multi-Level Tasks + Tools_Blocked Rethink
+
+## Summary
+
+PO directive establishing two distinct task levels in OpenFleet — **Ops board tasks** (OCMC pieces that agents execute and send for fleet-ops review) vs **Plane tasks** (the real PM-level story/epic that may have multiple Ops pieces contributing). An agent can complete their Ops task without completing the Plane task. Also directs rethinking `tools_blocked` in methodology.yaml: blocking should be per-model-per-stage (contribution + analysis ≠ feature + analysis), not globally per-stage. Plane is optional augmentation; the platform must work without it.
 
 ## PO Directive (verbatim)
 

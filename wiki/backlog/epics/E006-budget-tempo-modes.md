@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [budget, tempo, modes, ocmc, spending, work-window, economic]
+confidence: high
+sources: []
 ---
 
 # Budget & Tempo Modes

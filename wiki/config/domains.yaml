@@ -1,0 +1,22 @@
+# OpenFleet — Domain registry
+# Each domain gets a wiki/domains/{name}/ folder with _index.md
+# Seeded from brain 2026-04-16, adapted to OpenFleet's actual domains
+
+domains:
+  architecture:
+    description: "Fleet architecture, context injection, tier rendering, methodology models, orchestrator design, agent lifecycle, validation matrix"
+  backlog:
+    description: "Epics, modules, tasks tracked in wiki/backlog/ — sprint planning and work hierarchy"
+  log:
+    description: "Operator directives (verbatim), session notes, completion records — sacrosanct"
+  planning:
+    description: "Path-to-live reconciliation, roadmaps, milestone planning"
+
+# Domains reserved for future expansion as content grows:
+# - fleet-ops       (10-agent orchestration, immune system, contribution gating)
+# - orchestration   (deterministic shell, 30s cycle, dispatch, storm graduation)
+# - methodology     (9-model selection, stage gates, ALLOWED/FORBIDDEN, quality tiers)
+# - tools-platforms (MCP server, gateway, Mission Control, IRC, plane-sync)
+# - cross-domain    (principles, patterns crossing multiple fleet concerns)
+#
+# Do not create a domain for a single page. Cluster >=3 pages first.

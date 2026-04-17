@@ -7,7 +7,16 @@ confidence: high
 created: 2026-04-09
 updated: 2026-04-09
 tags: [E001, E014, navigator, intent-map, autocomplete, knowledge-map, gaps]
-sources: [docs/knowledge-map/intent-map.yaml, config/methodology.yaml, config/agent-tooling.yaml]
+sources:
+  - id: intent-map
+    type: documentation
+    file: docs/knowledge-map/intent-map.yaml
+  - id: methodology
+    type: documentation
+    file: config/methodology.yaml
+  - id: agent-tooling
+    type: documentation
+    file: config/agent-tooling.yaml
 epic: [E001, E014]
 phase: "0 — Research"
 ---

@@ -7,6 +7,8 @@ priority: P1
 created: 2026-04-08
 updated: 2026-04-08
 tags: [agents, directive-chain, autocomplete, templating, injection, tools-md, heartbeat, identity]
+confidence: high
+sources: []
 ---
 
 # Agent Directive Chain Evolution
