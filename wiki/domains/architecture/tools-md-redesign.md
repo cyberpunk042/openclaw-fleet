@@ -350,10 +350,10 @@ No concern mixing. Each file owns its content. TOOLS.md is purely: **what I call
 
 ## Relationships
 
-- PART_OF: E001 (Agent Directive Chain Evolution)
-- DEPENDS_ON: tool-roles.yaml completeness
-- DEPENDS_ON: Navigator intent-map.yaml completeness
-- ENABLES: E002 (agents know their chains — focused, not drowned)
-- ENABLES: E003 (brain delivers right context at right time via Navigator)
-- RELATES_TO: E007 (plugin/skill ecosystem — skills move to Navigator delivery)
-- RELATES_TO: E014 (autocomplete web — Navigator IS the delivery mechanism)
+- PART OF: [[Agent Directive Chain Evolution]]
+- CONSTRAINED BY: tool-roles.yaml completeness
+- CONSTRAINED BY: Navigator intent-map.yaml completeness
+- ENABLES: [[Chain/Bus Architecture]] (agents know their chains — focused, not drowned)
+- ENABLES: [[Brain Evolution]] (brain delivers right context at right time via Navigator)
+- RELATES TO: [[Plugin/Skill/Command Ecosystem]] (skills move to Navigator delivery)
+- RELATES TO: [[Autocomplete Web / Map Net]] (Navigator IS the delivery mechanism)

@@ -221,5 +221,8 @@ Findings 1, 7, 8, 10 all trace to the same root: the generator bypasses the real
 
 ## Relationships
 
-- BUILDS ON: [Analysis: Output Quality Blockers](analysis-output-quality-blockers.md)
-- FEEDS INTO: reasoning stage (plan)
+- BUILDS ON: [[Analysis: Why TK-01 Produces 88 Lines of Low-Value Output]]
+- FEEDS INTO: [[Plan: TK-01 Golden Path — 200+ Lines of High-Value Output]]
+- FEEDS INTO: [[Context Injection Decision Tree]]
+- RELATES TO: [[Context Strategy Design — E003]]
+- RELATES TO: [[Tier Rendering Design Rationale]]

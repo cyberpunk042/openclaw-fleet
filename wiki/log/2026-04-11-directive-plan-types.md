@@ -53,3 +53,7 @@ Operations plans don't need documents — they're personal working notes. Design
 
 - FEEDS INTO: [[Plan: Context Injection Pipeline Blocker Fixes]]
 - FEEDS INTO: [[Plan: TK-01 Golden Path — 200+ Lines of High-Value Output]]
+- FEEDS INTO: [[Methodology Models Rationale]] (design-vs-operations distinction applies to reasoning-stage output across all 7 models)
+- CONSTRAINS: [[Integration Chain Mapping — OpenFleet Position 2026-04-18]] (Step 12 work-loop produces artifacts per model; the plan-type distinction gates what counts as a valid reasoning-stage deliverable)
+- RELATES TO: [[Shared Models Integration — LLM Wiki + Methodology in OpenFleet]]
+- RELATES TO: [[Session: Context Injection System Evolution]]

@@ -89,4 +89,7 @@ E001's real work: redesign TOOLS.md to be FOCUSED (3-5K), push detail into skill
 ## Relationships
 
 - FEEDS INTO: [[Agent Directive Chain Evolution]]
+- FEEDS INTO: [[Brain Evolution]] (injection is brain-layer; findings inform brain design)
 - RELATES TO: [[Autocomplete Web / Map Net]] (injection is how agents access the map)
+- RELATES TO: [[TOOLS.md Redesign — Focused Desk, Detail On-Demand]] (TOOLS.md truncation findings drive this redesign)
+- RELATES TO: [[Context Strategy Design — E003]]
