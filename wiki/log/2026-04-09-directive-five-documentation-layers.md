@@ -59,3 +59,7 @@ The LLM Wiki IS the standard for ALL projects in the ecosystem. No regression. I
 ## Relationships
 
 - FEEDS INTO: [[Wiki Structure Gaps — LLM Wiki Model Alignment]]
+- FEEDS INTO: [[Shared Models Integration — LLM Wiki + Methodology in OpenFleet]]
+- FEEDS INTO: [[Directive: Integrate Shared Models (LLM Wiki + Methodology)]]
+- RELATES TO: [[Integration Chain Mapping — OpenFleet Position 2026-04-18]]
+- RELATES TO: [[Operational Depth Gaps — What Structural Compliance Doesn't Measure]]

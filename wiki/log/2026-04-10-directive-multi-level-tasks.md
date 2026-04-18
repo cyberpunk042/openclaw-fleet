@@ -52,3 +52,7 @@ The system works WITHOUT Plane. Plane augments but is not required. All tool blo
 ## Relationships
 
 - FEEDS INTO: [[Operational Modes — Heartbeat vs Task, Injection Levels]]
+- FEEDS INTO: [[Methodology Models Rationale]]
+- FEEDS INTO: [[Chain/Bus Architecture]]
+- RELATES TO: [[Agent Directive Chain Evolution]]
+- RELATES TO: [[Brain Evolution]]
