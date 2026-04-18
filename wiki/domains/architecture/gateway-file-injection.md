@@ -88,5 +88,5 @@ E001's real work: redesign TOOLS.md to be FOCUSED (3-5K), push detail into skill
 
 ## Relationships
 
-- FEEDS_INTO: E001 (Agent Directive Chain Evolution)
-- RELATES_TO: E014 (Autocomplete Web — injection is how agents access the map)
+- FEEDS INTO: [[Agent Directive Chain Evolution]]
+- RELATES TO: [[Autocomplete Web / Map Net]] (injection is how agents access the map)

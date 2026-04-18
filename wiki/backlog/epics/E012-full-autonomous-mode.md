@@ -120,10 +120,10 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E001 (Directive Chain — agents need complete directives for autonomous operation)
-- DEPENDS_ON: E003 (Brain Evolution — brain creates contributions, manages dispatch gates)
-- DEPENDS_ON: E007 (Ecosystem — agents need their skills available)
-- RELATES_TO: E002 (Chain/Bus — chains propagate contribution events)
-- RELATES_TO: E006 (Budget — autonomous mode must respect budget constraints)
-- RELATES_TO: E008 (Lifecycle — autonomous timing must be tuned)
-- RELATES_TO: E009 (Signatures — autonomous work needs provenance)
+- BUILDS ON: [[Agent Directive Chain Evolution]] (agents need complete directives for autonomous operation)
+- BUILDS ON: [[Brain Evolution]] (brain creates contributions, manages dispatch gates)
+- BUILDS ON: [[Plugin/Skill/Command Ecosystem]] (agents need their skills available)
+- RELATES TO: [[Chain/Bus Architecture]] (chains propagate contribution events)
+- RELATES TO: [[Budget & Tempo Modes]] (autonomous mode must respect budget constraints)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (autonomous timing must be tuned)
+- RELATES TO: [[Signatures & Transparency]] (autonomous work needs provenance)

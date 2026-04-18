@@ -246,7 +246,7 @@ Call fleet_read_context() FIRST to load your task before any work.
 
 ## Relationships
 
-- PART_OF: E001 (Agent Directive Chain — this is the fix for the conflation)
-- RELATES_TO: E003 (Brain — brain sets the mode)
-- RELATES_TO: E008 (Lifecycle — heartbeat vs active mode)
-- RELATES_TO: E014 (Navigator — different intents per mode)
+- PART OF: [[Agent Directive Chain Evolution]] (this is the fix for the conflation)
+- RELATES TO: [[Brain Evolution]] (brain sets the mode)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (heartbeat vs active mode)
+- RELATES TO: [[Autocomplete Web / Map Net]] (different intents per mode)

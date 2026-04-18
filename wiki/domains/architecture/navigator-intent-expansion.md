@@ -356,7 +356,8 @@ Plus role-specific pack skills:
 
 ## Relationships
 
-- PART_OF: E001 Phase 2 (Scaffold) + E014 (Autocomplete Web)
-- DEPENDS_ON: E007 (pack skills must be identified and mapped)
-- FEEDS_INTO: TOOLS.md redesign (Navigator must deliver what TOOLS.md drops)
-- VALIDATED_BY: Navigator output tests per role×stage
+- PART OF: [[Agent Directive Chain Evolution]] (Phase 2 Scaffold)
+- PART OF: [[Autocomplete Web / Map Net]]
+- BUILDS ON: [[Plugin/Skill/Command Ecosystem]] (pack skills must be identified and mapped)
+- FEEDS INTO: TOOLS.md redesign (Navigator must deliver what TOOLS.md drops)
+- RELATES TO: Navigator output tests per role×stage

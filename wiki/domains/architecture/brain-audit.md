@@ -139,8 +139,8 @@ The orchestrator needs new steps that CALL these modules. The architecture suppo
 
 ## Relationships
 
-- PART_OF: E003 (Brain Evolution)
-- FEEDS_INTO: E001 (brain writes context that agents read)
-- FEEDS_INTO: E012 (autonomous mode depends on intelligent brain)
-- RELATES_TO: E002 (brain coordinates chain execution)
-- RELATES_TO: E008 (lifecycle timing depends on brain tuning)
+- PART OF: [[Brain Evolution]]
+- FEEDS INTO: [[Agent Directive Chain Evolution]] (brain writes context that agents read)
+- FEEDS INTO: [[Full Autonomous Mode]] (autonomous mode depends on intelligent brain)
+- RELATES TO: [[Chain/Bus Architecture]] (brain coordinates chain execution)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (lifecycle timing depends on brain tuning)

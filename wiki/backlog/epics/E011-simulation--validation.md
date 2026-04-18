@@ -87,5 +87,7 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E001-E003 (directive chain, buses, brain must work to simulate)
-- RELATES_TO: E012 (Autonomous — simulation validates autonomous operation)
+- BUILDS ON: [[Agent Directive Chain Evolution]]
+- BUILDS ON: [[Chain/Bus Architecture]]
+- BUILDS ON: [[Brain Evolution]]
+- RELATES TO: [[Full Autonomous Mode]] (simulation validates autonomous operation)

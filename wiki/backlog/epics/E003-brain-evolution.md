@@ -111,11 +111,11 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E001 (Agent Directive Chain — brain injects context)
-- DEPENDS_ON: E002 (Chain/Bus Architecture — brain coordinates chains)
-- ENABLES: E008 (Agent Lifecycle Fine-Tuning — brain controls timing)
-- ENABLES: E012 (Full Autonomous Mode — brain drives autonomous operation)
-- RELATES_TO: E006 (Budget & Tempo — brain respects budget modes)
+- BUILDS ON: [[Agent Directive Chain Evolution]] (brain injects context)
+- BUILDS ON: [[Chain/Bus Architecture]] (brain coordinates chains)
+- ENABLES: [[Agent Lifecycle Fine-Tuning]] (brain controls timing)
+- ENABLES: [[Full Autonomous Mode]] (brain drives autonomous operation)
+- RELATES TO: [[Budget & Tempo Modes]] (brain respects budget modes)
 - RELATES TO: [[Brain (Orchestrator) Audit — E003 Phase 0]]
 - RELATES TO: [[Context Strategy Design — E003]]
 - RELATES TO: [[Deterministic Bypass Design — E003]]

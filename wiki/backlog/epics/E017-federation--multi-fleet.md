@@ -85,6 +85,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E001 (Directive Chain — identity files carry fleet prefix)
-- RELATES_TO: E013 (IaC — federation config must persist)
-- RELATES_TO: E009 (Signatures — signatures carry fleet identity)
+- BUILDS ON: [[Agent Directive Chain Evolution]] (identity files carry fleet prefix)
+- RELATES TO: [[IaC & Persistence]] (federation config must persist)
+- RELATES TO: [[Signatures & Transparency]] (signatures carry fleet identity)

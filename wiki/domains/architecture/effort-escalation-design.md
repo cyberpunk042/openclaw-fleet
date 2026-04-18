@@ -143,8 +143,8 @@ Orchestrator Step 5 (dispatch):
 
 ## Relationships
 
-- PART_OF: E003 (Brain Evolution — intelligence in model selection)
-- RELATES_TO: E006 (Budget Modes — budget mode drives the escalation matrix)
-- RELATES_TO: E005 (Multi-Model — source selection for Codex, MiMo, free models)
-- RELATES_TO: E008 (Lifecycle — budget mode affects heartbeat intervals)
-- RELATES_TO: E009 (Signatures — model + effort + source in labor stamps)
+- PART OF: [[Brain Evolution]] (intelligence in model selection)
+- RELATES TO: [[Budget & Tempo Modes]] (budget mode drives the escalation matrix)
+- RELATES TO: [[Multi-Model Strategy]] (source selection for Codex, MiMo, free models)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (budget mode affects heartbeat intervals)
+- RELATES TO: [[Signatures & Transparency]] (model + effort + source in labor stamps)

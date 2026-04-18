@@ -91,7 +91,7 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E002 (Chain/Bus — chains produce the events signatures attach to)
-- RELATES_TO: E005 (Multi-Model — model provenance feeds into signatures)
-- RELATES_TO: E003 (Brain — brain decides model/effort → captured in signature)
-- RELATES_TO: E012 (Autonomous — autonomous operation needs transparent provenance)
+- BUILDS ON: [[Chain/Bus Architecture]] (chains produce the events signatures attach to)
+- RELATES TO: [[Multi-Model Strategy]] (model provenance feeds into signatures)
+- RELATES TO: [[Brain Evolution]] (brain decides model/effort → captured in signature)
+- RELATES TO: [[Full Autonomous Mode]] (autonomous operation needs transparent provenance)

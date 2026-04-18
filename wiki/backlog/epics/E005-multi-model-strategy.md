@@ -112,7 +112,7 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E006 (Budget & Tempo — cheaper models reduce cost)
-- RELATES_TO: E009 (Signatures — model provenance in stamps)
-- RELATES_TO: E003 (Brain Evolution — brain decides routing)
-- ENABLES: E004 (RAG/Knowledge — LocalAI provides embeddings)
+- RELATES TO: [[Budget & Tempo Modes]] (cheaper models reduce cost)
+- RELATES TO: [[Signatures & Transparency]] (model provenance in stamps)
+- RELATES TO: [[Brain Evolution]] (brain decides routing)
+- ENABLES: [[RAG/Knowledge System (LightRAG)]] (LocalAI provides embeddings)

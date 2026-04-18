@@ -109,7 +109,7 @@ When an agent receives a status question (@mention "what's your status?"):
 
 ## Relationships
 
-- PART_OF: E003 (Brain Evolution — intelligence)
-- RELATES_TO: E008 (Lifecycle — fewer Claude calls = lower cost)
-- RELATES_TO: E006 (Budget — deterministic bypass is the ultimate economy)
-- RELATES_TO: E012 (Autonomous — brain handles routine, agents handle complex)
+- PART OF: [[Brain Evolution]] (intelligence)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (fewer Claude calls = lower cost)
+- RELATES TO: [[Budget & Tempo Modes]] (deterministic bypass is the ultimate economy)
+- RELATES TO: [[Full Autonomous Mode]] (brain handles routine, agents handle complex)

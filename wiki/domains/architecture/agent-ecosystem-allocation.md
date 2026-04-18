@@ -321,7 +321,7 @@ TOOLS.md stays focused: tools + chains + boundaries. Does NOT list all skills. S
 
 ## Relationships
 
-- FEEDS_INTO: E001 (TOOLS.md redesign trusts Navigator to recommend pack skills)
-- PART_OF: E007 (Plugin/Skill/Command Ecosystem)
-- RELATES_TO: E014 (Autocomplete Web — Navigator delivers skill recommendations)
-- RELATES_TO: E003 (Brain — brain's context refresh drives Navigator)
+- FEEDS INTO: [[Agent Directive Chain Evolution]] (TOOLS.md redesign trusts Navigator to recommend pack skills)
+- PART OF: [[Plugin/Skill/Command Ecosystem]]
+- RELATES TO: [[Autocomplete Web / Map Net]] (Navigator delivers skill recommendations)
+- RELATES TO: [[Brain Evolution]] (brain's context refresh drives Navigator)

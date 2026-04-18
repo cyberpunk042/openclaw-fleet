@@ -142,6 +142,6 @@ This appears in the agent's pre-embedded context every 30s. The agent doesn't ne
 
 ## Relationships
 
-- PART_OF: E003 (Brain Evolution)
-- RELATES_TO: E008 (Lifecycle — compaction timing)
-- RELATES_TO: E001 (Context Awareness section in CLAUDE.md and task-context.md)
+- PART OF: [[Brain Evolution]]
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (compaction timing)
+- RELATES TO: [[Agent Directive Chain Evolution]] (Context Awareness section in CLAUDE.md and task-context.md)

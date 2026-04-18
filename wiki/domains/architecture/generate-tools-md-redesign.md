@@ -295,7 +295,7 @@ Based on tool counts from tool-roles.yaml + cross-role tools:
 
 ## Relationships
 
-- PART_OF: E001 Phase 2 (Scaffold — rewrite the script)
-- DEPENDS_ON: tool-roles.yaml being complete (verified: it is)
-- FEEDS_INTO: TOOLS.md per agent (the output)
-- VALIDATED_BY: fleet/tests/integration/test_end_to_end_pipeline.py (update tests)
+- PART OF: [[Agent Directive Chain Evolution]] (Phase 2 Scaffold — rewrite the script)
+- CONSTRAINED BY: tool-roles.yaml being complete (verified: it is)
+- FEEDS INTO: TOOLS.md per agent (the output)
+- RELATES TO: fleet/tests/integration/test_end_to_end_pipeline.py (update tests)

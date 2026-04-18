@@ -129,7 +129,7 @@ fleet_task_complete:
 
 ## Relationships
 
-- PART_OF: E002 (Chain/Bus Architecture)
-- FEEDS_INTO: E001 (TOOLS.md chain docs come from this audit)
-- RELATES_TO: E003 (Brain coordinates chain execution)
-- RELATES_TO: E012 (Autonomous — chains must work reliably for 24h operation)
+- PART OF: [[Chain/Bus Architecture]]
+- FEEDS INTO: [[Agent Directive Chain Evolution]] (TOOLS.md chain docs come from this audit)
+- RELATES TO: [[Brain Evolution]] (brain coordinates chain execution)
+- RELATES TO: [[Full Autonomous Mode]] (chains must work reliably for 24h operation)

@@ -170,8 +170,8 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- ENABLES: E001 (Agent Directive Chain — agents need their tools available to reference)
-- RELATES_TO: E014 (Autocomplete Web — Navigator recommends skills per stage)
-- RELATES_TO: E005 (Multi-Model — Codex plugin is part of this ecosystem)
-- RELATES_TO: E003 (Brain — brain reads skill-stage-mapping for pre-embed)
-- DEPENDS_ON: Gateway running (plugin install, marketplace sync)
+- ENABLES: [[Agent Directive Chain Evolution]] (agents need their tools available to reference)
+- RELATES TO: [[Autocomplete Web / Map Net]] (Navigator recommends skills per stage)
+- RELATES TO: [[Multi-Model Strategy]] (Codex plugin is part of this ecosystem)
+- RELATES TO: [[Brain Evolution]] (brain reads skill-stage-mapping for pre-embed)
+- CONSTRAINED BY: Gateway running (plugin install, marketplace sync)

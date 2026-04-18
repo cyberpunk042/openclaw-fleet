@@ -89,6 +89,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E001 (Directive Chain — agents need to understand readiness vs progress)
-- RELATES_TO: E003 (Brain — brain uses readiness for dispatch, progress for evaluation)
-- RELATES_TO: E012 (Autonomous — autonomous mode depends on clear state semantics)
+- RELATES TO: [[Agent Directive Chain Evolution]] (agents need to understand readiness vs progress)
+- RELATES TO: [[Brain Evolution]] (brain uses readiness for dispatch, progress for evaluation)
+- RELATES TO: [[Full Autonomous Mode]] (autonomous mode depends on clear state semantics)

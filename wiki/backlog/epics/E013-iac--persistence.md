@@ -97,6 +97,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E004 (RAG/Knowledge — LightRAG persistence is here)
-- RELATES_TO: E007 (Ecosystem — plugin/skill installation must be repeatable)
-- ENABLES: E012 (Autonomous — autonomous fleet can't lose data on restart)
+- RELATES TO: [[RAG/Knowledge System (LightRAG)]] (LightRAG persistence is here)
+- RELATES TO: [[Plugin/Skill/Command Ecosystem]] (plugin/skill installation must be repeatable)
+- ENABLES: [[Full Autonomous Mode]] (autonomous fleet can't lose data on restart)

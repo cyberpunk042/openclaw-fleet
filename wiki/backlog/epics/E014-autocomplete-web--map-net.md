@@ -128,12 +128,12 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E004 (RAG/Knowledge — LightRAG provides graph backend)
-- DEPENDS_ON: E007 (Ecosystem — pack skills feed into intents)
-- ENABLES: E001 (Directive Chain — TOOLS.md redesign trusts Navigator delivery)
-- ENABLES: E003 (Brain — brain's context refresh drives Navigator)
-- ENABLES: E012 (Autonomous — agents need focused, adaptive context for autonomous work)
-- RELATES_TO: E013 (IaC — knowledge map and LightRAG must persist)
+- BUILDS ON: [[RAG/Knowledge System (LightRAG)]] (LightRAG provides graph backend)
+- BUILDS ON: [[Plugin/Skill/Command Ecosystem]] (pack skills feed into intents)
+- ENABLES: [[Agent Directive Chain Evolution]] (TOOLS.md redesign trusts Navigator delivery)
+- ENABLES: [[Brain Evolution]] (brain's context refresh drives Navigator)
+- ENABLES: [[Full Autonomous Mode]] (agents need focused, adaptive context for autonomous work)
+- RELATES TO: [[IaC & Persistence]] (knowledge map and LightRAG must persist)
 - RELATES TO: [[Navigator Intent-Map Gap Analysis]]
 - RELATES TO: [[Navigator Intent-Map Expansion — 19 Missing Intents + Pack Skills]]
 - RELATES TO: [[Context Injection Decision Tree]]

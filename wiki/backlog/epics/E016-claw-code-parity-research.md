@@ -86,6 +86,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E005 (Multi-Model — LocalAI is one of the models)
-- RELATES_TO: E004 (RAG — LocalAI provides embeddings for LightRAG)
-- RELATES_TO: E006 (Budget — LocalAI enables economic budget mode)
+- RELATES TO: [[Multi-Model Strategy]] (LocalAI is one of the models)
+- RELATES TO: [[RAG/Knowledge System (LightRAG)]] (LocalAI provides embeddings for LightRAG)
+- RELATES TO: [[Budget & Tempo Modes]] (LocalAI enables economic budget mode)

@@ -87,6 +87,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E001 (Directive Chain — pattern awareness in agent files)
-- RELATES_TO: E003 (Brain — brain can use pattern to prioritize work)
-- RELATES_TO: E010 (Config — phases and patterns are complementary concepts)
+- RELATES TO: [[Agent Directive Chain Evolution]] (pattern awareness in agent files)
+- RELATES TO: [[Brain Evolution]] (brain can use pattern to prioritize work)
+- RELATES TO: [[Config Evolution]] (phases and patterns are complementary concepts)

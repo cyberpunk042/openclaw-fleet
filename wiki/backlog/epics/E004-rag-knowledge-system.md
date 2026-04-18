@@ -115,7 +115,7 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- ENABLES: E014 (Autocomplete Web — LightRAG feeds the map net)
-- RELATES_TO: E013 (IaC & Persistence — KB must survive purges)
-- RELATES_TO: E005 (Multi-Model Strategy — LocalAI provides embeddings)
-- RELATES_TO: E007 (Plugin Ecosystem — LightRAG MCP server)
+- ENABLES: [[Autocomplete Web / Map Net]] (LightRAG feeds the map net)
+- RELATES TO: [[IaC & Persistence]] (KB must survive purges)
+- RELATES TO: [[Multi-Model Strategy]] (LocalAI provides embeddings)
+- RELATES TO: [[Plugin/Skill/Command Ecosystem]] (LightRAG MCP server)

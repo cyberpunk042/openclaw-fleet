@@ -99,7 +99,7 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E003 (Brain Evolution — brain controls lifecycle)
-- RELATES_TO: E006 (Budget & Tempo — budget mode drives timing)
-- RELATES_TO: E001 (Directive Chain — agents need awareness of context limits)
-- RELATES_TO: E012 (Full Autonomous — timing must work for 24h operation)
+- BUILDS ON: [[Brain Evolution]] (brain controls lifecycle)
+- RELATES TO: [[Budget & Tempo Modes]] (budget mode drives timing)
+- RELATES TO: [[Agent Directive Chain Evolution]] (agents need awareness of context limits)
+- RELATES TO: [[Full Autonomous Mode]] (timing must work for 24h operation)

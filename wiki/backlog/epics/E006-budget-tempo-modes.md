@@ -92,6 +92,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- RELATES_TO: E005 (Multi-Model — economic mode uses free models)
-- RELATES_TO: E003 (Brain — brain reads budget mode for dispatch decisions)
-- RELATES_TO: E008 (Agent Lifecycle — budget mode affects heartbeat timing)
+- RELATES TO: [[Multi-Model Strategy]] (economic mode uses free models)
+- RELATES TO: [[Brain Evolution]] (brain reads budget mode for dispatch decisions)
+- RELATES TO: [[Agent Lifecycle Fine-Tuning]] (budget mode affects heartbeat timing)

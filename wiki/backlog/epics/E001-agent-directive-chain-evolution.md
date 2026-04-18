@@ -152,10 +152,10 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- ENABLES: E002 (Chain/Bus Architecture — agents need to know the chains)
-- ENABLES: E012 (Full Autonomous Mode — agents need complete directives)
-- RELATES_TO: E003 (Brain Evolution — brain decides what to inject)
-- RELATES_TO: E014 (Autocomplete Web — the map feeds into directive content)
-- DEPENDS_ON: E007 (Plugin/Skill Ecosystem — agents need to know their tools)
+- ENABLES: [[Chain/Bus Architecture]] (agents need to know the chains)
+- ENABLES: [[Full Autonomous Mode]] (agents need complete directives)
+- RELATES TO: [[Brain Evolution]] (brain decides what to inject)
+- RELATES TO: [[Autocomplete Web / Map Net]] (the map feeds into directive content)
+- BUILDS ON: [[Plugin/Skill/Command Ecosystem]] (agents need to know their tools)
 - RELATES TO: [[Agent Ecosystem Allocation — Skills, Plugins, Packs Per Role]]
 - RELATES TO: [[TOOLS.md Redesign — Focused Desk, Detail On-Demand]]

@@ -256,7 +256,7 @@ This work belongs to E001 Phase 2 (Scaffold) and E014 (Autocomplete Web). The in
 
 ## Relationships
 
-- FEEDS_INTO: E001 (TOOLS.md redesign depends on Navigator coverage)
-- PART_OF: E014 (Autocomplete Web — intent-map IS the web's routing table)
-- RELATES_TO: E007 (Ecosystem — pack skills feed into intents)
-- RELATES_TO: E003 (Brain Evolution — orchestrator drives Navigator refresh)
+- FEEDS INTO: [[Agent Directive Chain Evolution]] (TOOLS.md redesign depends on Navigator coverage)
+- PART OF: [[Autocomplete Web / Map Net]] (intent-map IS the web's routing table)
+- RELATES TO: [[Plugin/Skill/Command Ecosystem]] (pack skills feed into intents)
+- RELATES TO: [[Brain Evolution]] (orchestrator drives Navigator refresh)

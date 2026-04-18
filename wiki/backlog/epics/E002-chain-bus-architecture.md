@@ -95,8 +95,8 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 
 ## Relationships
 
-- DEPENDS_ON: E001 (Agent Directive Chain — agents need to know the chains)
-- ENABLES: E003 (Brain Evolution — brain coordinates chain execution)
-- ENABLES: E009 (Signatures — chains produce the provenance data)
-- RELATES_TO: E012 (Full Autonomous Mode — autonomous agents rely on automatic propagation)
+- BUILDS ON: [[Agent Directive Chain Evolution]] (agents need to know the chains)
+- ENABLES: [[Brain Evolution]] (brain coordinates chain execution)
+- ENABLES: [[Signatures & Transparency]] (chains produce the provenance data)
+- RELATES TO: [[Full Autonomous Mode]] (autonomous agents rely on automatic propagation)
 - RELATES TO: [[Chain/Bus Architecture Audit — E002 Phase 0]]
