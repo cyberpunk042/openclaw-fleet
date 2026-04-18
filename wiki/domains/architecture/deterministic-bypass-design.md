@@ -113,3 +113,6 @@ When an agent receives a status question (@mention "what's your status?"):
 - RELATES TO: [[Agent Lifecycle Fine-Tuning]] (fewer Claude calls = lower cost)
 - RELATES TO: [[Budget & Tempo Modes]] (deterministic bypass is the ultimate economy)
 - RELATES TO: [[Full Autonomous Mode]] (brain handles routine, agents handle complex)
+- RELATES TO: [[Effort Escalation Design — E003]]
+- RELATES TO: [[Context Strategy Design — E003]]
+- RELATES TO: [[Multi-Model Strategy]]

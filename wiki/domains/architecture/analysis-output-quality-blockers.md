@@ -227,7 +227,10 @@ Current output: 88 lines. With all issues fixed: ~190-230 lines.
 
 ## Relationships
 
-- FEEDS INTO: investigation stage (solution design)
-- RELATES TO: [Context Injection Decision Tree](context-injection-tree.md)
-- RELATES TO: [Critical Review Findings](critical-review-findings.md)
-- RELATES TO: [Directive: Plan Types](../../log/2026-04-11-directive-plan-types.md)
+- FEEDS INTO: [[Investigation: Solutions for Context Output Quality]]
+- FEEDS INTO: [[Plan: TK-01 Golden Path — 200+ Lines of High-Value Output]]
+- RELATES TO: [[Context Injection Decision Tree]]
+- RELATES TO: [[Critical Review Findings — Context Injection Scenarios]]
+- RELATES TO: [[Directive: Plan Types — Design Plan vs Operations Plan]]
+- RELATES TO: [[Tier Rendering Design Rationale]]
+- RELATES TO: [[Methodology Models Rationale]]

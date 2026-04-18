@@ -145,3 +145,7 @@ This appears in the agent's pre-embedded context every 30s. The agent doesn't ne
 - PART OF: [[Brain Evolution]]
 - RELATES TO: [[Agent Lifecycle Fine-Tuning]] (compaction timing)
 - RELATES TO: [[Agent Directive Chain Evolution]] (Context Awareness section in CLAUDE.md and task-context.md)
+- RELATES TO: [[Tier Rendering Design Rationale]] (tier depth + context strategy both modulate what agents see)
+- RELATES TO: [[Deterministic Bypass Design — E003]]
+- RELATES TO: [[Effort Escalation Design — E003]]
+- FEEDS INTO: [[Context Injection Decision Tree]]

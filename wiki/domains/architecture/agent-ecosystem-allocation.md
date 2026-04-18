@@ -325,3 +325,6 @@ TOOLS.md stays focused: tools + chains + boundaries. Does NOT list all skills. S
 - PART OF: [[Plugin/Skill/Command Ecosystem]]
 - RELATES TO: [[Autocomplete Web / Map Net]] (Navigator delivers skill recommendations)
 - RELATES TO: [[Brain Evolution]] (brain's context refresh drives Navigator)
+- RELATES TO: [[TOOLS.md Redesign — Focused Desk, Detail On-Demand]]
+- RELATES TO: [[Navigator Intent-Map Gap Analysis]]
+- RELATES TO: [[Navigator Intent-Map Expansion — 19 Missing Intents + Pack Skills]]

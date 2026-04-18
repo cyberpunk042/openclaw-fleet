@@ -131,5 +131,8 @@ fleet_task_complete:
 
 - PART OF: [[Chain/Bus Architecture]]
 - FEEDS INTO: [[Agent Directive Chain Evolution]] (TOOLS.md chain docs come from this audit)
+- FEEDS INTO: [[Signatures & Transparency]] (chains produce the provenance events)
 - RELATES TO: [[Brain Evolution]] (brain coordinates chain execution)
 - RELATES TO: [[Full Autonomous Mode]] (chains must work reliably for 24h operation)
+- RELATES TO: [[Operational Modes — Heartbeat vs Task, Injection Levels]] (modes determine which chains fire)
+- RELATES TO: [[Gateway File Injection — Research Findings]]

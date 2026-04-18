@@ -100,3 +100,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[RAG/Knowledge System (LightRAG)]] (LightRAG persistence is here)
 - RELATES TO: [[Plugin/Skill/Command Ecosystem]] (plugin/skill installation must be repeatable)
 - ENABLES: [[Full Autonomous Mode]] (autonomous fleet can't lose data on restart)
+- ENABLES: [[Federation & Multi-Fleet]] (federation config must persist)
+- RELATES TO: [[Signatures & Transparency]] (provenance must survive purge)
+- RELATES TO: [[Config Evolution]] (config is a persistence concern)

@@ -63,5 +63,9 @@ Catalog of ~25 issues found during the 2026-04-09 line-by-line review of 11 cont
 
 - RELATES TO: [[Validation Issues Catalog — Every Problem Found]]
 - RELATES TO: [[15 Anti-Patterns from TierRenderer Session]]
+- RELATES TO: [[Context Injection Decision Tree]]
+- RELATES TO: [[Methodology Models Rationale]]
 - FEEDS INTO: [[OpenFleet — Identity Profile]]
 - FEEDS INTO: [[Session: Context Injection System Evolution]]
+- FEEDS INTO: [[Analysis: Context Injection Pipeline Blockers]]
+- FEEDS INTO: [[Operational Depth Gaps — What Structural Compliance Doesn't Measure]]

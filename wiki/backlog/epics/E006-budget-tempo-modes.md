@@ -95,3 +95,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[Multi-Model Strategy]] (economic mode uses free models)
 - RELATES TO: [[Brain Evolution]] (brain reads budget mode for dispatch decisions)
 - RELATES TO: [[Agent Lifecycle Fine-Tuning]] (budget mode affects heartbeat timing)
+- RELATES TO: [[Effort Escalation Design — E003]] (budget mode drives the escalation matrix)
+- RELATES TO: [[Deterministic Bypass Design — E003]] (bypass is the ultimate economy in any mode)
+- RELATES TO: [[Claw Code Parity Research]] (LocalAI enables economic mode)

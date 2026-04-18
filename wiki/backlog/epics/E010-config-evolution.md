@@ -92,3 +92,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[Agent Directive Chain Evolution]] (agents need to understand readiness vs progress)
 - RELATES TO: [[Brain Evolution]] (brain uses readiness for dispatch, progress for evaluation)
 - RELATES TO: [[Full Autonomous Mode]] (autonomous mode depends on clear state semantics)
+- RELATES TO: [[Chain/Bus Architecture]] (config changes propagate via chains)
+- RELATES TO: [[Simulation & Validation]] (config changes need simulation validation)
+- RELATES TO: [[Scaffold→Foundation→Infra→Features Pattern]] (phases are config dimension)
