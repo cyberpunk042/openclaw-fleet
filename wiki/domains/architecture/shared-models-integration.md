@@ -143,7 +143,7 @@ OpenFleet independently built many of the same patterns. The shared models give 
 | implement | work | Producing the deliverable |
 | test | — (tests within work stage) | Verifying correctness |
 
-OpenFleet has 5 stages. OpenArms has 5 stages. But they split differently. OpenFleet's conversation + analysis covers OpenArms' document. OpenFleet's investigation + reasoning covers OpenArms' design. OpenFleet lacks an explicit scaffold stage. OpenFleet's work stage combines implement + test.
+OpenFleet has **6 stages** (adds `review` as explicit stage beyond the 5 OpenArms has). OpenArms has 5 stages. They split differently. OpenFleet's conversation + analysis covers OpenArms' document. OpenFleet's investigation + reasoning covers OpenArms' design. OpenFleet lacks an explicit scaffold stage. OpenFleet's work stage combines implement + test. OpenFleet's `review` is separate (fleet-ops role has a distinct review lifecycle with `fleet_approve` completion tool, not `fleet_task_complete`). Brain's own identity profile of us (`wiki/ecosystem/project_profiles/openfleet/identity-profile.md`, row "Stage count") confirms: 5 (standard) → 6 (OpenFleet override — adds review).
 
 This is not wrong — it's a domain adaptation. Fleet agents work differently from solo agents. But the shared vocabulary should be acknowledged so cross-project communication is clear.
 

@@ -129,6 +129,18 @@ The trigger: any time the agent is about to commit a factual claim about state o
 >
 > **Structural fix:** Lesson self-check item 1 now reads "What factual anchor am I asserting about state outside this conversation turn?" — "state outside this conversation turn" was always meant to include project state (filesystem, other repos, brain content) and NOT just "state in external systems I'm about to contribute to." The evidence item above tightens the interpretation.
 
+> [!bug]- Filed a correction with bash-mangled content: verification at CLAIM-DELIVERY layer, not just CLAIM-CONTENT layer (2026-04-18)
+>
+> **What happened:** Invoked `gateway contribute` via bash with backticks in the `--content` argument. Bash interpreted the backticks as command substitution, silently emptied the substituted segments, and the contribution landed in brain's log with 4 path references as empty strings. Assumed the contribution was correct because the gateway's JSON response showed successful creation.
+>
+> **Root cause:** Verified the contribute command RAN successfully (exit 0, JSON confirming file creation), did NOT verify the landed content matched what I intended. The `verify-before-contributing` discipline was applied to FACTUAL-CLAIM integrity (are the claims true?) but not to CLAIM-DELIVERY integrity (did the content I wrote arrive intact?).
+>
+> **Correction:** Deleted the mangled file from brain's log; re-filed using `--content "$(cat /tmp/file.md)"` pattern which bypasses backtick interpretation. Verified the re-filed content contains all path references via grep.
+>
+> **Fix for future invocations:** Never use backticks in bash `--content` arguments. Use file-based content (`--content "$(cat FILE)"`) or single-quoted heredocs. Always `grep` the landed file for key references BEFORE considering a contribution filed. Verification protocol: (1) check command exit, (2) check JSON success response, (3) check landed file contents against expected references, (4) if any differ, amend or re-file immediately.
+>
+> **Why the lesson extends:** Prior evidence items were all FACTUAL CLAIMS about state (files/paths/fields that did or didn't exist). This one is a MECHANICAL DELIVERY failure — the claim itself was correct, but the transport channel (bash interpolation) corrupted it. The discipline covers both: verify the claim AND verify the delivery. A correct claim delivered with holes is as misleading as an incorrect claim delivered cleanly.
+
 > [!success] Amendment filed within the same session, before the first contribution cleared review (2026-04-16)
 >
 > **What changed:** Submitted a second `gateway contribute --type correction` that:
