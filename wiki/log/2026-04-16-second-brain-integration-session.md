@@ -80,7 +80,7 @@ The PO approves major changes. Unilateral decisions on project standards are exp
 | `wiki/{sources,comparisons,spine,ecosystem}/` | missing | created |
 | `tools/lint.py` | missing | forwarder to brain's lint (targets our wiki + our schema, PYTHONPATH wired) |
 | `tools/evolve.py` | missing | forwarder to brain's evolve |
-| `wiki/ecosystem/openfleet/identity-profile.md` | missing | authored (0 errors 0 warnings) |
+| [[OpenFleet — Identity Profile]] (`wiki/ecosystem/openfleet/identity-profile.md`) | missing | authored (0 errors 0 warnings) |
 | `wiki/log/2026-04-16-second-brain-integration-session.md` | missing | this note |
 | `wiki/config/README.md` | missing | seeded config origin + adaptation status + divergence table |
 
@@ -110,6 +110,8 @@ Two `gateway contribute --type correction` landings in brain's `log/` folder (pe
 3. **Reversion-as-giving-up after correction** — When called out on minimizing, I reverted without asking. The operator identified this as "giving up" — unilateral decision in the opposite direction is still unilateral. The fix: ASK the PO on major standards decisions, propose-approve-execute.
 
 4. **Scope/authority drift — forgetting PO role** — I've been treating myself as able to make standards decisions. I am not the PO. Per our CLAUDE.md's "PO approves major changes" rule, these decisions require PO approval.
+
+Distilled lesson from this session: [[Verify Before Contributing to External Knowledge Systems]] — the verification-before-claim discipline that came out of these self-failures.
 
 ## Remaining Operational Debt (not minimized)
 

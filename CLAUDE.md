@@ -15,7 +15,7 @@ The PO's words are verbatim and non-negotiable. Key standing rules:
 
 Full history: `wiki/log/` (directives kept verbatim, sacrosanct).
 
-## Project Identity (Goldilocks — stable fields only)
+## Identity Profile (Goldilocks — stable fields only)
 
 | Dimension | Value |
 |-----------|-------|
