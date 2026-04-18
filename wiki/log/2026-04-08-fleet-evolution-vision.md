@@ -317,3 +317,14 @@ From the operator's directives, these epics are identified:
 | E015 | Scaffold→Foundation→Infra→Features | P2 | Repeated pattern at every level |
 | E016 | Claw Code Parity Research | P2 | AICP features from ultraworkers/claw-code-parity |
 | E017 | Federation & Multi-Fleet | P2 | Fleet numbers, same Plane, agent identity per fleet |
+
+## Relationships
+
+- FEEDS INTO: [[Agent Directive Chain Evolution]]
+- FEEDS INTO: [[Chain/Bus Architecture]]
+- FEEDS INTO: [[Brain Evolution]]
+- FEEDS INTO: [[Plugin/Skill/Command Ecosystem]]
+- FEEDS INTO: [[Full Autonomous Mode]]
+- FEEDS INTO: [[Federation & Multi-Fleet]]
+- RELATES TO: [[Path-to-Live Reconciliation — Where We Are]]
+- RELATES TO: [[Integration Chain Mapping — OpenFleet Position 2026-04-18]]

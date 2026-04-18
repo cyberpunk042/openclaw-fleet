@@ -60,3 +60,13 @@ Back on track after a derailed start. The rendering pipeline is significantly ev
 
 ## Bugs Fixed
 BUG-01 through BUG-03 + marker leak + premature contributions + raw lists + injection:none + fleet_read_context contradictions + protocol trimming bypass.
+
+## Relationships
+
+- FEEDS INTO: [[Context Injection Decision Tree]]
+- FEEDS INTO: [[Methodology Models Rationale]]
+- FEEDS INTO: [[Tier Rendering Design Rationale]]
+- FEEDS INTO: [[Shared Models Integration — LLM Wiki + Methodology in OpenFleet]]
+- RELATES TO: [[Directive: Session Quotes (2026-04-09/10)]]
+- RELATES TO: [[Directive: Integrate Shared Models (LLM Wiki + Methodology)]]
+- RELATES TO: [[15 Anti-Patterns from TierRenderer Session]]

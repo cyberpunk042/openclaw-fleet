@@ -36,3 +36,11 @@ Collection of key PO quotes from the 2026-04-09/10 sessions, preserved verbatim 
 > "this reshape the claude and possibly other things and in redefine some things about the agents such as how they work with physical artifacts or documents and how they respect the repository structure and the difference between the various type of doc.. being docs vs wiki vs code-docs"
 
 > "We ourself need to start working properly like and start adapting the evolutive models and make this fit properly into what we are doing because we are spot on at the core of it when you think about it."
+
+## Relationships
+
+- FEEDS INTO: [[Directive: Integrate Shared Models (LLM Wiki + Methodology)]]
+- FEEDS INTO: [[Shared Models Integration — LLM Wiki + Methodology in OpenFleet]]
+- FEEDS INTO: [[Directive: Five Documentation Layers]]
+- FEEDS INTO: [[Directive: Multi-Level Tasks + Tools_Blocked Rethink]]
+- RELATES TO: [[Session: Context Injection System Evolution]]

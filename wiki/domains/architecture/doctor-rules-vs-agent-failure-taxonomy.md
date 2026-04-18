@@ -109,6 +109,26 @@ Not covered: contribution-gate violations (agent advances without consuming requ
 
 Our doctor.py is Line 2. Line 1 (prevention) lives in `fleet/mcp/tools.py` (tool blocking per stage). Line 3 (correction) lives in the orchestrator's intervention logic (`decide_response`, `build_intervention` in doctor.py lines 436-475). The pattern is present but not complete — the gaps above are opportunities for each line.
 
+### Alternative Lens — Our Rules vs Brain's 5 Named Diseases
+
+Brain's `three-lines-of-defense` pattern names 5 diseases as Line-2 detection targets (complementary lens to the 8-class taxonomy above — diseases are detection categories, classes are failure modes across all lines):
+
+| Brain Disease | Our Rule | Match |
+|---------------|----------|-------|
+| **Deviation** (output doesn't match verbatim requirement) | `detect_compression` (partial) | ⚠️ partial — compression catches vision-shrinking, not general deviation from verbatim |
+| **Laziness** (partial criteria coverage) | `detect_laziness` | ✅ direct |
+| **Protocol violation** (wrong tool at wrong stage) | `detect_protocol_violation` | ✅ direct (though conceptually Line-1 per above) |
+| **Confident-but-wrong** (same mistake 3+ times) | `detect_correction_threshold` | ✅ direct |
+| **Scope creep** (features not in requirement) | `detect_scope_creep` | ✅ direct |
+
+**4 of 5 brain-named diseases covered directly**; Deviation is partial. Consider strengthening `detect_compression` or adding a `detect_deviation` rule that compares output against verbatim-requirement anchors.
+
+Brain also lists Line-2 "behavioral security scanning: credential exfiltration, DB destruction, security disabling, supply chain attacks." Ours has `signal_rejection` but no standalone security scanner rules — this is likely covered elsewhere in the fleet (devsecops agent skills + MCP tool policy), not doctor-level. Worth verifying the location.
+
+### Hidden-from-Agents Principle
+
+Brain pattern: "Immune system is HIDDEN from agents. Agents experience tool blocks, context changes, session restarts — but never see the detection logic. This prevents agents from gaming the enforcement." Our doctor emits events to the orchestrator, which surfaces consequences to agents via interventions (TEACH/COMPACT/PRUNE/ESCALATE) — agents see outcomes, not the detection that produced them. Alignment check: verify no agent-facing logs or context expose the detection rule names or thresholds.
+
 ## Open Questions
 
 > [!question] Should `detect_protocol_violation` move from Line 2 to Line 1?
