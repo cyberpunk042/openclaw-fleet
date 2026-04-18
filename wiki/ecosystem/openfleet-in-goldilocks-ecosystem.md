@@ -105,7 +105,7 @@ The brain's description of OpenFleet in goldilocks-flow.md was ground-truthed 20
 | Claim | Verdict | Verified at |
 |-------|---------|-------------|
 | `doctor.py (24 rules)` | ✅ exists | `fleet/core/doctor.py` (679L, 18 top-level fns; "24 rules" not directly countable by naming pattern) |
-| `1033-line MCP validator` | ❌ incorrect | No file matches that description. `fleet/mcp/tools.py` is 3,915L — much larger. No separate validator file. |
+| `1033-line MCP validator` | ❌ cross-project conflation | No file matches that description in OpenFleet. `fleet/mcp/tools.py` is 3,915L — much larger. No separate validator file. Brain's own `model-ecosystem.md` (line 298) confirms the 1033-line validator is OpenArms's, not OpenFleet's. The description slipped cross-project in Walkthrough C's OpenFleet section. |
 | `kb_sync.py + LightRAG` | ✅ exists | `fleet/core/kb_sync.py` (851L); `scripts/setup-lightrag.sh`; `scripts/lightrag-index.sh` |
 | `Plane integration bidirectional` | ✅ exists (direction not verified) | `fleet/cli/plane.py` (402L) |
 | `per-agent AGENTS.md` | ⚠️ migration in progress | 10 live agents retain `AGENTS.md`; `_template/` migrated to `WORKSPACE.md` (2026-04-17) per Three-Layer Agent Context Architecture. Live agents pending. |
