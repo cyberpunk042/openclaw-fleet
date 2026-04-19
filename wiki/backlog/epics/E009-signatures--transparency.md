@@ -95,3 +95,5 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[Multi-Model Strategy]] (model provenance feeds into signatures)
 - RELATES TO: [[Brain Evolution]] (brain decides model/effort → captured in signature)
 - RELATES TO: [[Full Autonomous Mode]] (autonomous operation needs transparent provenance)
+- RELATES TO: [[Federation & Multi-Fleet]] (signatures carry fleet identity across federation)
+- RELATES TO: [[Effort Escalation Design — E003]] (effort level captured in labor stamp)

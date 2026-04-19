@@ -103,3 +103,5 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[Budget & Tempo Modes]] (budget mode drives timing)
 - RELATES TO: [[Agent Directive Chain Evolution]] (agents need awareness of context limits)
 - RELATES TO: [[Full Autonomous Mode]] (timing must work for 24h operation)
+- RELATES TO: [[Context Strategy Design — E003]] (compaction timing intersects with lifecycle)
+- RELATES TO: [[Effort Escalation Design — E003]] (effort affects call frequency, affects heartbeat)

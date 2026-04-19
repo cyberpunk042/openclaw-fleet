@@ -91,3 +91,5 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - BUILDS ON: [[Chain/Bus Architecture]]
 - BUILDS ON: [[Brain Evolution]]
 - RELATES TO: [[Full Autonomous Mode]] (simulation validates autonomous operation)
+- RELATES TO: [[Config Evolution]] (config changes need simulation validation)
+- FEEDS INTO: [[Signatures & Transparency]] (simulation produces the behavioral data that signatures capture)

@@ -116,6 +116,8 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 ## Relationships
 
 - ENABLES: [[Autocomplete Web / Map Net]] (LightRAG feeds the map net)
+- ENABLES: [[Brain Evolution]] (brain consumes LightRAG for knowledge-aware dispatch)
 - RELATES TO: [[IaC & Persistence]] (KB must survive purges)
 - RELATES TO: [[Multi-Model Strategy]] (LocalAI provides embeddings)
 - RELATES TO: [[Plugin/Skill/Command Ecosystem]] (LightRAG MCP server)
+- RELATES TO: [[Claw Code Parity Research]] (AICP hosts LocalAI for embeddings)

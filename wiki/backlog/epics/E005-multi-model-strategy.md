@@ -115,4 +115,6 @@ Derived from the Goals section above; each goal is a verifiable end-state. Epic 
 - RELATES TO: [[Budget & Tempo Modes]] (cheaper models reduce cost)
 - RELATES TO: [[Signatures & Transparency]] (model provenance in stamps)
 - RELATES TO: [[Brain Evolution]] (brain decides routing)
+- RELATES TO: [[Effort Escalation Design — E003]] (model+effort selection ladder)
+- RELATES TO: [[Claw Code Parity Research]] (AICP LocalAI is one of the models)
 - ENABLES: [[RAG/Knowledge System (LightRAG)]] (LocalAI provides embeddings)
