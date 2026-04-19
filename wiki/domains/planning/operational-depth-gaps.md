@@ -36,6 +36,28 @@ The brain's `gateway compliance` command reports Tier 4/4. That measurement is c
 
 This is not a criticism of the compliance checker. Per brain's own labeling, the command is `Super-Model Compliance`, not `Operational Depth Audit`. The label prevents consumers from misreading structural presence as operational rigor. This page makes operational depth explicit so it's not invisible.
 
+## Runtime vs Session Enforcement — Two Dimensions Brain Recognizes Differently
+
+Brain's absorbed 2026-04-19 reading reveals our operational level is NOT one number — it splits by execution context. **Brain repeatedly validates OpenFleet fleet-runtime at L2-3**; our generic "Tier 2+" underestimates the fleet surface and overestimates the session surface.
+
+| Execution Context | Enforcement Level | Brain Evidence | Implementation |
+|-------------------|-------------------|----------------|----------------|
+| **Fleet runtime** (30s orchestrator cycle) | **L2-3 ✓ brain-validated** | [model-claude-code](../../../../devops-solutions-research-wiki/wiki/spine/models/agent-config/model-claude-code.md) line 274: *"OpenFleet implements level 2-3 via MCP tool blocking + 30-second doctor cycle immune system"*. [three-lines-of-defense](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/enforcement/three-lines-of-defense-immune-system-for-agent-quality.md) names our 746-line implementation as full 3-line reference. [plan-execute-review](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/architecture/plan-execute-review-cycle.md): *"most mechanically pure implementation in the ecosystem"*. [deterministic-shell-llm-core](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/architecture/deterministic-shell-llm-core.md): OpenFleet as canonical instance. [model-ecosystem](../../../../devops-solutions-research-wiki/wiki/spine/models/ecosystem/model-ecosystem.md) PM-Level table: OpenFleet at **L2→L3, harness v2+**. | 1033-line MCP validator (L2 tool-call blocking) + 24-rule doctor cycle every 30s (L3 deterministic orchestration) + TEACH/COMPACT/PRUNE/ESCALATE correction ladder |
+| **Claude-Code session** (solo-agent on main, like this session) | **L0-1 ⚠️ operational gap** | No `.claude/hooks/*` present. Enforcement is instruction-based via CLAUDE.md + `.claude/rules/*` rule files | Relies on agent compliance with instructions; measured ~25-60% per [infrastructure-enforcement-proves-instructions-fail](../../../../devops-solutions-research-wiki/wiki/lessons/03_validated/enforcement-compliance/infrastructure-enforcement-proves-instructions-fail.md) |
+
+### Why this distinction matters
+
+- Saying "OpenFleet operates at L2+" without qualifier is **honest for fleet runtime** and **wishful for Claude-Code sessions**. Consumers downstream draw wrong inferences either way.
+- Fleet-runtime enforcement is where brain validates us as exemplary; it is NOT where the remaining gaps live.
+- Claude-Code session enforcement is where `.claude/hooks/*` would close the gap (OpenArms v10 pattern: 215-line hook set → 0% stage violations). This is a **P2 structural gap** distinct from the P1 backlog-schema gaps below.
+- The Structural-vs-Operational lesson (OpenArms contribution 2026-04-16) applies recursively: "Tier 4 structural" itself is a context-agnostic label that masks context-specific enforcement depth.
+
+### Implications for this page's priorities
+
+- **P1 items** (readiness/progress, impediment-type, stage-vocabulary) are **schema/vocabulary gaps**, not enforcement-level gaps. They apply equally to both contexts.
+- **Add to P2**: Claude-Code session hooks (`.claude/hooks/pre-bash.sh`, `pre-write.sh`, post-write.sh, post-compact.sh) modeled on OpenArms v10's 215-line template. Scope: safety guardrails (block sudo, .env writes, force-push) + optional stage-gate enforcement for when solo-agent work runs long-session.
+- Fleet-runtime enforcement is NOT a P-item — brain already recognizes it as exemplary. Leave it as-is.
+
 ## Gap Categories
 
 ### Frontmatter-level gaps

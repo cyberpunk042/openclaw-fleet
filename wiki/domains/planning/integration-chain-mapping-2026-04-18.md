@@ -4,7 +4,7 @@ type: reference
 domain: planning
 status: active
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-19
 tags: [integration, second-brain, chain, planning, adherence, progress, openfleet]
 confidence: high
 sources:
@@ -74,7 +74,7 @@ OpenFleet's position on the brain's 17-step second-brain integration chain (7 ph
 
 | Step | Title | State | Evidence |
 |------|-------|-------|----------|
-| 15 | Contribute Learnings | 🟡 active | 5 contributions pending-review in brain: 3 from 2026-04-16 session (correction + amendment on AGENTS.md filename matcher; lesson on verify-before-contributing) + 2 from 2026-04-17 (Walkthrough C ground-truth correction; identity-parser + forwarder-contribute-target remark). Brain's commit `154bc58` fixed the forwarder-contribute-target issue upstream. |
+| 15 | Contribute Learnings | 🟡 active | 7 contributions pending-review in brain (updated 2026-04-18 handoff): 6 in brain's `wiki/log/` + 1 lesson in brain's `wiki/lessons/00_inbox/`. Includes compliance-checker correction + amendment, Walkthrough C ground-truth, identity-parser + forwarder-contribute-target remark, 5-candidate behavioral-failure detection rules (OpenFleet doctor.py), AGENTS.md Layer-1 completion correction, and verify-before-contributing lesson (5 evidence items — above ≥3 threshold). Brain's commit `154bc58` fixed the forwarder-contribute-target issue upstream. |
 | 16 | Scan Project for Brain | ⚠️ stale | `pipeline scan /home/jfortin/openfleet/` was last run at some point (session doc mentions README/CLAUDE/AGENTS/docs/architecture copied into brain's `raw/articles/`). Not re-run since infrastructure changes in 2026-04-17 (new root AGENTS.md 222L, CLAUDE.md restructure to 118L, new `.claude/rules/` directory). |
 
 ### Phase 7 — Mode (Step 17)
@@ -107,6 +107,26 @@ Compare to brain-reported OpenArms first-consumer walkthrough (2026-04-16): 10/1
 | Advisory unstyled concept pages | 3 | 0 — callouts per concept-page-standard |
 | Cross-domain relationships from planning | 0 | 2 (lint-counted; more outbound links added but counter undercounts em-dash titles) |
 | Contributions misfiled in our own log | 2 | 0 — removed; re-filed directly against brain |
+
+## What Closed in the 2026-04-19 Session
+
+45 brain documents absorbed in a /loop SWALLOW session (11 foundational models + 16 per-type standards + 7 model-standards + 7 lessons + 4 patterns). No scorecard cells FLIPPED from partial→full, but several cells gained explicit brain-validation evidence that refines our self-assessment:
+
+| Item | Before | After |
+|------|--------|-------|
+| Step 9 (Review Quality Standards) evidence | "Per-type standards read for concept/lesson" | **All 23 per-type + model-standards absorbed** (concept, pattern, lesson, domain-overview, decision, source-synthesis, session-handoff, note, epic, reference, task, comparison, deep-dive, evolution, learning-path, operations-plan + 7 model-standards + root llm-wiki-standards) |
+| Step 6 (Understand Models) evidence | "Our 7 models vs brain's 9" | Confirmed by reading all 11 brain foundational/ecosystem/depth/quality/agent-config models directly. Our 4:1:1 plan:execute:review split is brain-recognizable adaptation (plan-heavy research-oriented). |
+| Step 15 contribution count | "5 contributions pending-review" | Updated to 7 per handoff (edit above) |
+| Fleet-runtime enforcement claim | "Operationally Tier 2+" (undifferentiated) | **Split refined in [[operational-depth-gaps]]**: fleet-runtime L2-3 brain-validated; Claude-Code-session L0-1 remaining gap |
+| Brain recognition of OpenFleet architecture | Implicit | Explicit: [model-claude-code](../../../../devops-solutions-research-wiki/wiki/spine/models/agent-config/model-claude-code.md) line 274, [three-lines-of-defense](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/enforcement/three-lines-of-defense-immune-system-for-agent-quality.md), [plan-execute-review](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/architecture/plan-execute-review-cycle.md) *"most mechanically pure implementation"*, [deterministic-shell-llm-core](../../../../devops-solutions-research-wiki/wiki/patterns/03_validated/architecture/deterministic-shell-llm-core.md) canonical instance, [model-ecosystem](../../../../devops-solutions-research-wiki/wiki/spine/models/ecosystem/model-ecosystem.md) PM-Level table at L2→L3 |
+| Session-resilient knowledge capture | Session findings ephemeral | Memory file [project_brain_validates_openfleet_architecture.md](../../../../../.claude/projects/-home-jfortin-openfleet/memory/project_brain_validates_openfleet_architecture.md) created — survives context compaction per brain's [context-compaction-is-a-reset-event](../../../../devops-solutions-research-wiki/wiki/lessons/03_validated/context-engineering/context-compaction-is-a-reset-event.md) lesson |
+
+**Newly identified P2/P3 candidates** (editorial, not schema-gated):
+- Validation-matrix generalization: brain observed our 29 handcrafted files could compose from ~5 structural templates + condition parameters
+- `.claude/hooks/*` for Claude-Code session enforcement (OpenArms v10 pattern: 215-line hook set → 0% stage violations in that context)
+- CLAUDE.md 358L migration to `.claude/rules/*` toward brain's <200L invariant
+- Evolution cadence operational workflow (`pipeline chain review` after sessions)
+- Epic Done When: migrate from "common verification gates" boilerplate to epic-specific verifiable outputs
 
 ## Next Actions
 
