@@ -125,6 +125,30 @@ Brain's `three-lines-of-defense` pattern names 5 diseases as Line-2 detection ta
 
 Brain also lists Line-2 "behavioral security scanning: credential exfiltration, DB destruction, security disabling, supply chain attacks." Ours has `signal_rejection` but no standalone security scanner rules — this is likely covered elsewhere in the fleet (devsecops agent skills + MCP tool policy), not doctor-level. Worth verifying the location.
 
+### Third Lens — Our Rules vs Brain's 5 Doctor Categories
+
+Brain's `model-quality-failure-prevention` groups immune-system detection into 5 categories (complementary to the 8-class taxonomy and the 5-named-diseases — categories are *what class of signal does the detector respond to*):
+
+| Brain Category | Signal | Our Rule(s) |
+|---|---|---|
+| **Liveness** | Agents alive in state but dead in practice (heartbeat timeout, stuck execution) | `detect_stuck` |
+| **Loop detection** | Runaway cycles, retry storms, dispatch-without-completion | `detect_cascading_fix`, `detect_correction_threshold` |
+| **State integrity** | Impossible state combinations (parent complete but children pending) | Not covered at doctor level — orchestrator state machine handles this |
+| **Behavioral security** | Permission and scope violations, out-of-scope writes | `detect_protocol_violation` (tool-call-level), `detect_scope_creep` (file-level) |
+| **Resource exhaustion** | Degraded conditions (circuit breaker open, memory pressure, cost spikes) | Not covered at doctor level — budget monitor + storm graduation handle this |
+
+Coverage: 3 of 5 brain categories represented in doctor.py. State integrity and resource exhaustion live outside doctor (orchestrator state machine, budget monitor). Our detectors for semantic-quality signals (laziness, compression, code-without-reading, abstraction, not-listening) don't fit neatly into any of the 5 categories — they're a **6th category candidate**: *semantic quality* — not about liveness/loops/state/security/resources, but about the QUALITY of the agent's output.
+
+### 3-Strike Pattern
+
+Brain's three-lines-of-defense pattern notes a 3-strike tolerance: "One violation doesn't trigger action. Three violations within a window trigger quarantine. This tolerates transient anomalies while catching persistent failures." Our `detect_correction_threshold` rule codifies this at the correction-count layer (3+ corrections on same task → intervention). Worth auditing whether our other detectors use the same 3-strike pattern or fire on single violations — inconsistent tolerance thresholds create uneven enforcement.
+
+### Orchestrator Position
+
+Brain documents OpenFleet's doctor as running at **step 6 of a 12-step orchestrator cycle** — after security scan, before dispatch, described as preemptive-immune-response position (detection BEFORE dispatch, so flagged tasks accumulate strikes before being assigned).
+
+Verified 2026-04-18 against `fleet/cli/orchestrator.py`: `_run_doctor` is called from `run_orchestrator_cycle` (line ~395), and line 407's comment confirms "respects doctor report — skips agents flagged by immune system." The doctor → dispatch ordering matches brain's description. The code does NOT explicitly number steps 1-12; brain's "step 6 of 12" is a description of the cycle flow, not an in-code label. Directionally accurate.
+
 ### Hidden-from-Agents Principle
 
 Brain pattern: "Immune system is HIDDEN from agents. Agents experience tool blocks, context changes, session restarts — but never see the detection logic. This prevents agents from gaming the enforcement." Our doctor emits events to the orchestrator, which surfaces consequences to agents via interventions (TEACH/COMPACT/PRUNE/ESCALATE) — agents see outcomes, not the detection that produced them. Alignment check: verify no agent-facing logs or context expose the detection rule names or thresholds.
