@@ -97,7 +97,7 @@ Apply when ALL of:
 - The two cadences (runtime dispatch, wiki authoring) are measurably different
 - Single-config would force branching logic to keep them separated
 
-## When Not To Apply
+## When Not To
 
 Do NOT apply when:
 - The project is a pure wiki (only `wiki/config/methodology.yaml`; no runtime methodology beyond wiki-content work)

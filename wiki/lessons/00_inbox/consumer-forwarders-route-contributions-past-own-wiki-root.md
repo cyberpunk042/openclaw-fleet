@@ -6,6 +6,7 @@ layer: 4
 status: synthesized
 confidence: high
 maturity: seed
+tags: [lesson, forwarder, gateway, contribution, cross-wiki, consumer-integration, openfleet, aspirational-declaration]
 derived_from:
   - "Infrastructure Over Instructions for Process Enforcement"
   - "Declarations Are Aspirational Until Infrastructure Verifies Them"

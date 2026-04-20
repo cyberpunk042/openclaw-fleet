@@ -105,7 +105,7 @@ Final directive — cadence adjusted to 3-minute cron with explicit INTEGRATE (n
 - SDLC profile selection (brain's simplified/default/full OR document why our 5-tier quality vocabulary replaces this)
 
 ### Safe unilateral (candidate next-cron actions)
-- Update [doctor-rules-vs-agent-failure-taxonomy](../domains/architecture/doctor-rules-vs-agent-failure-taxonomy.md) with 2026-04-19 finding: 1 of our 5 contributed rules overlaps with brain's existing `detect_correction_threshold()`
+- ✅ DONE (action #7): Updated [[Doctor Rules vs Agent Failure Taxonomy]] with 2026-04-19 finding — "5 novel rules" → "4 novel + 1 overlap" (correction_threshold matches brain's existing `detect_correction_threshold()`)
 - Author `.claude/hooks/` stubs per OpenArms v10 215-line pattern (safety guardrails first: block sudo, .env writes, force-push)
 - Validation-matrix generalization exploration: extract ~5 structural templates from 29 handcrafted files
 - Handoff write for 2026-04-19 (brain-standard SESSION-2026-04-19.md format in `docs/` with disclaimer + Mistakes section if applicable)
@@ -114,7 +114,10 @@ Final directive — cadence adjusted to 3-minute cron with explicit INTEGRATE (n
 
 - BUILDS ON: [[Integration Chain Mapping — OpenFleet Position 2026-04-18]]
 - BUILDS ON: [[Operational Depth Gaps — What Structural Compliance Doesn't Measure]]
+- BUILDS ON: [[Doctor Rules vs Agent Failure Taxonomy]]
 - RELATES TO: [[PO 17-Epic Vision — Fleet Evolution]]
 - RELATES TO: [[Second Brain Integration — First Live Session]]
-- FEEDS INTO: future CONTRIBUTE phase (5 novel detection rules pending ≥3 evidence)
+- RELATES TO: [[OpenFleet — Identity Profile]]
+- RELATES TO: [[Verify Before Contributing to External Knowledge Systems]]
+- FEEDS INTO: future CONTRIBUTE phase (4 novel detection rules pending ≥3 evidence)
 - CONSTRAINED BY: PO approval for P1 schema/vocabulary changes
