@@ -4,7 +4,7 @@ type: index
 domain: architecture
 status: active
 created: 2026-04-09
-updated: 2026-04-17
+updated: 2026-04-20
 tags: [architecture, context-injection, tier-rendering, methodology, orchestration, fleet]
 confidence: high
 sources: []
@@ -46,6 +46,7 @@ OpenFleet's architecture pages — context injection pipeline, tier rendering, m
 - [[Validation Issues Catalog — Every Problem Found]] — cumulative catalog
 - [[15 Anti-Patterns from TierRenderer Session]] — operational anti-patterns
 - [[OpenFleet doctor.py Rules Mapped to Agent Failure Taxonomy]] — coverage map of our 10 doctor rules vs brain's 8 taxonomy classes; 5 novel rules flagged as candidate contributions
+- [[Validation Matrix Generalization — 5 Templates Replace 29 Handcrafted Scenarios]] — brain-flagged improvement vector: 29 handcrafted context files compose from ~5 templates + condition params; duplication inventory and template schema
 
 ## Orchestrator & E003 Design
 
