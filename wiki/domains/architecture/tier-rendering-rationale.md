@@ -5,9 +5,19 @@ domain: architecture
 status: processing
 confidence: medium
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-20
 tags: [tiers, rendering, capability, expert, capable, lightweight, context-injection, trainee]
-sources: []
+sources:
+  - id: brain-2026-hardware-stack
+    type: documentation
+    project: devops-solutions-research-wiki
+    path: wiki/spine/references/2026-consumer-hardware-ai-stack.md
+    title: "The 2026 Consumer-Hardware AI Stack"
+  - id: brain-open-model-eval-framework
+    type: documentation
+    project: devops-solutions-research-wiki
+    path: wiki/spine/references/open-model-evaluation-framework.md
+    title: "Open-Model Evaluation Framework"
 ---
 
 # Tier Rendering Design Rationale
@@ -78,6 +88,20 @@ The depth rules are DATA, not code. config/tier-profiles.yaml defines each tier'
 | Flagship-Local | dual-gpu | gemma4-26b | 256K |
 | Lightweight | fleet-light, fast | gemma4-e2b, qwen3-4b | 8-16K |
 | Direct | N/A | none | 0 |
+
+### New-Candidate Evidence (brain 2026-04-17/18, SWALLOWED 2026-04-20)
+
+Brain's [[2026-consumer-hardware-ai-stack|2026 Consumer-Hardware AI Stack synthesis]] and [[open-model-evaluation-framework|Open-Model Evaluation Framework]] flag new open-weight models that physically fit our tiers on the existing 19 GB VRAM dual-GPU setup. This is **candidate evidence** — not a tier remapping. Formal changes to tier-profiles.yaml remain PO-gated.
+
+| Our Tier | Current model | Brain-flagged candidate (Apache 2.0) | Fit evidence |
+|----------|---------------|--------------------------------------|--------------|
+| Capable | qwen3-8b thinking | **gpt-oss-20b** | 16 GB Q4 fits; tool calling + structured outputs native; OpenFleet named beneficiary in brain synthesis |
+| Flagship-Local | gemma4-26b | **Qwopus 27B (Qwopus3.5-27B Q4_K_M)** | 19 GB Q4 fits; reasoning-distilled from Opus traces; 95.73% HumanEval claimed (needs independent verification per Principle 4) |
+| Flagship-Local (batch tier) | — | **gpt-oss-120b via llama.cpp `-ngl` offload** | 19 GB VRAM + NVMe offload at 2-3 tok/s; substantive-reasoning-tier candidate |
+
+**Strategic implication brain identifies**: Apache 2.0 gpt-oss models can ship *bundled* with OpenFleet deployments → no per-invocation API dependency, no rate-limit exposure. Relevant for E005 (multi-model strategy) and E006 (budget/tempo modes) but requires PO decision on whether to re-spec capable/flagship tiers.
+
+**Evaluation methodology** for new models targeting our tiers: use brain's [[open-model-evaluation-framework|5-stage flow]] (Identify → Size & Fit → Capability → Deployment → Slot).
 
 ## Relationships
 
